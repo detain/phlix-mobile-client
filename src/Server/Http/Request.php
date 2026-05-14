@@ -15,6 +15,7 @@ class Request
     public int $remotePort;
     public string $protocol;
     public ?string $bearerToken = null;
+    public array $pathParams = [];
 
     public static function fromGlobals(): self
     {
