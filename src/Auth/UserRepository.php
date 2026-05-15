@@ -1,24 +1,78 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\Auth;
 
 use Workerman\MySQL\Connection;
 
+/**
+ * User repository for user data access and management.
+ *
+ * This class provides comprehensive data access operations for user
+ * management including user creation, retrieval, updates, password
+ * verification, and user settings management.
+ *
+ * @author Phlex Team
+ * @version 1.0.0
+ * @description Provides data access layer for user entities with support
+ *              for authentication, profile management, and settings storage.
+ * @see AuthManager For authentication orchestration
+ * @see UserProfileManager For profile-specific operations
+ *
+ * @property Connection $db Database connection instance
+ */
 class UserRepository
 {
+    /** @var Connection Database connection for MySQL queries */
     private Connection $db;
 
+    /**
+     * Create a new UserRepository instance.
+     *
+     * @param Connection $db Workerman MySQL connection instance
+     *
+     * @example
+     * ```php
+     * $repo = new UserRepository($dbConnection);
+     * ```
+     */
     public function __construct(Connection $db)
     {
         $this->db = $db;
     }
 
+    /**
+     * Find a user by their unique identifier.
+     *
+     * @param string $id User UUID to look up
+     *
+     * @return array<string, mixed>|null User record with all fields including
+     *         password_hash, or null if user not found
+     *
+     * @example
+     * ```php
+     * $user = $repo->findById('550e8400-e29b-41d4-a716-446655440000');
+     * ```
+     */
     public function findById(string $id): ?array
     {
         $result = $this->db->query("SELECT * FROM users WHERE id = ?", [$id]);
         return $result[0] ?? null;
     }
 
+    /**
+     * Find a user by their username.
+     *
+     * @param string $username Username to look up (case-sensitive)
+     *
+     * @return array<string, mixed>|null User record or null if not found
+     *
+     * @example
+     * ```php
+     * $user = $repo->findByUsername('john_doe');
+     * ```
+     */
     public function findByUsername(string $username): ?array
     {
         $result = $this->db->query(
@@ -28,6 +82,18 @@ class UserRepository
         return $result[0] ?? null;
     }
 
+    /**
+     * Find a user by their email address.
+     *
+     * @param string $email Email address to look up (case-sensitive)
+     *
+     * @return array<string, mixed>|null User record or null if not found
+     *
+     * @example
+     * ```php
+     * $user = $repo->findByEmail('john@example.com');
+     * ```
+     */
     public function findByEmail(string $email): ?array
     {
         $result = $this->db->query(
@@ -37,6 +103,32 @@ class UserRepository
         return $result[0] ?? null;
     }
 
+    /**
+     * Create a new user account.
+     *
+     * Creates a new user with hashed password using Argon2ID and initializes
+     * default user settings. Returns the new user's UUID.
+     *
+     * @param array<string, mixed> $data User data including:
+     *        - username: Unique username (required)
+     *        - email: Valid email address (required)
+     *        - password: Plain text password (required, will be hashed)
+     *        - display_name: Display name (optional, defaults to username)
+     *
+     * @return string Generated UUID for the new user
+     *
+     * @throws \Exception If database insert fails
+     *
+     * @example
+     * ```php
+     * $userId = $repo->create([
+     *     'username' => 'john_doe',
+     *     'email' => 'john@example.com',
+     *     'password' => 'secure_password',
+     *     'display_name' => 'John Doe'
+     * ]);
+     * ```
+     */
     public function create(array $data): string
     {
         $id = $this->generateUuid();
@@ -62,6 +154,28 @@ class UserRepository
         return $id;
     }
 
+    /**
+     * Update user profile data.
+     *
+     * Supports updating display_name, email, and password. Only provided
+     * fields are updated; others remain unchanged.
+     *
+     * @param string $id User UUID to update
+     * @param array<string, mixed> $data Fields to update:
+     *        - display_name: New display name
+     *        - email: New email address
+     *        - password: New plain text password (will be hashed)
+     *
+     * @return void
+     *
+     * @example
+     * ```php
+     * $repo->update('user-uuid-123', [
+     *     'display_name' => 'John Smith',
+     *     'email' => 'newemail@example.com'
+     * ]);
+     * ```
+     */
     public function update(string $id, array $data): void
     {
         $sets = [];
@@ -93,13 +207,40 @@ class UserRepository
         );
     }
 
+    /**
+     * Update the user's last login timestamp.
+     *
+     * @param string $id User UUID to update
+     *
+     * @return void
+     *
+     * @example
+     * ```php
+     * $repo->updateLastLogin('user-uuid-123');
+     * ```
+     */
     public function updateLastLogin(string $id): void
     {
         $this->db->query("UPDATE users SET last_login = NOW() WHERE id = ?", [$id]);
     }
 
     /**
-     * Get user settings including profile-related settings
+     * Get user settings including profile-related preferences.
+     *
+     * Retrieves user settings such as streaming preferences, content
+     * ratings, and subtitle settings. Parses JSON-encoded fields.
+     *
+     * @param string $userId User UUID to get settings for
+     *
+     * @return array<string, mixed>|null User settings record or null if not found
+     *
+     * @example
+     * ```php
+     * $settings = $repo->getSettings('user-uuid-123');
+     * if ($settings) {
+     *     echo "Max streams: " . $settings['max_streams'];
+     * }
+     * ```
      */
     public function getSettings(string $userId): ?array
     {
@@ -126,7 +267,30 @@ class UserRepository
     }
 
     /**
-     * Update user settings
+     * Update user settings.
+     *
+     * Supports updating streaming preferences, content ratings, and subtitle
+     * settings. Creates settings record if it doesn't exist.
+     *
+     * @param string $userId User UUID to update settings for
+     * @param array<string, mixed> $settings Settings to update:
+     *        - max_streams: Maximum concurrent streams
+     *        - max_bitrate: Maximum streaming bitrate
+     *        - preferred_audio_language: Preferred audio language code
+     *        - preferred_subtitle_language: Preferred subtitle language code
+     *        - subtitle_mode: Subtitle display mode
+     *        - default_content_rating: Default content rating filter
+     *        - transcoding_preferences: Array of transcoding options
+     *
+     * @return void
+     *
+     * @example
+     * ```php
+     * $repo->updateSettings('user-uuid-123', [
+     *     'max_streams' => 3,
+     *     'preferred_audio_language' => 'eng'
+     * ]);
+     * ```
      */
     public function updateSettings(string $userId, array $settings): void
     {
@@ -181,7 +345,17 @@ class UserRepository
     }
 
     /**
-     * Update user avatar
+     * Update user avatar URL.
+     *
+     * @param string $userId User UUID to update
+     * @param string $avatarUrl URL to the avatar image
+     *
+     * @return void
+     *
+     * @example
+     * ```php
+     * $repo->updateAvatar('user-uuid-123', 'https://example.com/avatars/john.jpg');
+     * ```
      */
     public function updateAvatar(string $userId, string $avatarUrl): void
     {
@@ -192,7 +366,16 @@ class UserRepository
     }
 
     /**
-     * Get user avatar URL
+     * Get user avatar URL.
+     *
+     * @param string $userId User UUID to get avatar for
+     *
+     * @return string|null Avatar URL or null if not set
+     *
+     * @example
+     * ```php
+     * $avatarUrl = $repo->getAvatar('user-uuid-123');
+     * ```
      */
     public function getAvatar(string $userId): ?string
     {
@@ -204,6 +387,24 @@ class UserRepository
         return $result[0]['avatar_url'] ?? null;
     }
 
+    /**
+     * Verify a user's password.
+     *
+     * Uses bcrypt/Argon2 to securely compare the provided password
+     * against the stored hash. Returns false if user doesn't exist.
+     *
+     * @param string $id User UUID to verify
+     * @param string $password Plain text password to verify
+     *
+     * @return bool True if password matches, false otherwise
+     *
+     * @example
+     * ```php
+     * if ($repo->verifyPassword('user-uuid-123', 'provided_password')) {
+     *     // Password is correct
+     * }
+     * ```
+     */
     public function verifyPassword(string $id, string $password): bool
     {
         $user = $this->findById($id);
@@ -214,6 +415,20 @@ class UserRepository
         return password_verify($password, $user['password_hash']);
     }
 
+    /**
+     * Check if an email is already registered.
+     *
+     * @param string $email Email address to check
+     *
+     * @return bool True if email exists, false otherwise
+     *
+     * @example
+     * ```php
+     * if ($repo->emailExists('test@example.com')) {
+     *     // Email already taken
+     * }
+     * ```
+     */
     public function emailExists(string $email): bool
     {
         $result = $this->db->query(
@@ -223,6 +438,20 @@ class UserRepository
         return !empty($result);
     }
 
+    /**
+     * Check if a username is already taken.
+     *
+     * @param string $username Username to check
+     *
+     * @return bool True if username exists, false otherwise
+     *
+     * @example
+     * ```php
+     * if ($repo->usernameExists('john_doe')) {
+     *     // Username already taken
+     * }
+     * ```
+     */
     public function usernameExists(string $username): bool
     {
         $result = $this->db->query(
@@ -232,6 +461,17 @@ class UserRepository
         return !empty($result);
     }
 
+    /**
+     * Generate a UUID v4 string.
+     *
+     * @return string UUID in standard format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+     *
+     * @example
+     * ```php
+     * $uuid = $this->generateUuid();
+     * // Returns: '550e8400-e29b-41d4-a716-446655440000'
+     * ```
+     */
     private function generateUuid(): string
     {
         return sprintf(

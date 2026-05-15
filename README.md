@@ -51,6 +51,29 @@ src/
 - **Workerman**: 5.0+ (bundled via Composer)
 - **FFmpeg**: For transcoding (optional)
 
+## Features
+
+### Authentication & Security
+- **JWT-based Authentication**: Stateless auth with access tokens (1 hour TTL) and refresh tokens (7 days TTL)
+- **Secure Password Hashing**: Argon2ID for password storage
+- **Multi-Device Sessions**: Track and manage sessions across devices
+- **User Profiles**: Multiple profiles per account with parental controls
+- **Content Rating Filters**: Age-based access restrictions
+- **Audit Logging**: Complete security event logging
+
+### SyncPlay - Group Watching
+- **Synchronized Playback**: Watch content together with friends across devices
+- **Host-Controlled Playback**: Host controls play/pause/seek for all members
+- **Time Synchronization**: NTP-style time sync with drift correction
+- **Chat & Notifications**: In-group messaging
+- **Playback Queue**: Host-managed media queue
+
+### Session Management
+- **Device Sessions**: Track authenticated devices with activity timestamps
+- **Playback Progress**: Resume where you left off across sessions
+- **Continue Watching**: Track items in progress
+- **Watch History**: Complete viewing history per profile
+
 ## Installation
 
 ```bash

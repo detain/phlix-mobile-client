@@ -709,6 +709,393 @@ Metadata is stored as JSON in the `metadata_json` column:
 
 ---
 
+## Authentication Architecture
+
+The Phlex Media Server uses JWT-based authentication with refresh tokens for secure stateless authentication across multiple devices.
+
+### Component Overview
+
+| Component | Responsibility |
+|-----------|---------------|
+| `AuthManager` | Orchestrates authentication workflows (register, login, token refresh) |
+| `JwtHandler` | Creates and validates JWT access and refresh tokens |
+| `UserRepository` | User data access with password hashing and verification |
+| `UserProfileManager` | Multi-profile support per account with parental controls |
+| `WatchHistory` | Per-profile watch history and progress tracking |
+
+### Authentication Flow
+
+```
+User Registration:
+    Client → POST /api/v1/auth/register
+        → AuthManager::register()
+            → UserRepository::create() [Argon2ID password hashing]
+            → JwtHandler::createAccessToken()
+            → JwtHandler::createRefreshToken()
+        ← { access_token, refresh_token, user }
+
+User Login:
+    Client → POST /api/v1/auth/login
+        → AuthManager::login()
+            → UserRepository::verifyPassword()
+            → AuditLogger::logLogin()
+            → JwtHandler::createAccessToken()
+            → JwtHandler::createRefreshToken()
+        ← { access_token, refresh_token, user }
+
+Token Refresh:
+    Client → POST /api/v1/auth/refresh
+        → AuthManager::refreshToken()
+            → JwtHandler::isRefreshToken()
+            → JwtHandler::validateToken()
+            → JwtHandler::createAccessToken()
+            → JwtHandler::createRefreshToken()
+        ← { access_token, refresh_token, user }
+
+API Request (with access token):
+    Client → GET /api/v1/resource [Authorization: Bearer <token>]
+        → JwtHandler::validateToken()
+        → Extract user_id from payload
+        → Return protected resource
+```
+
+### JWT Token Structure
+
+**Access Token Claims:**
+```json
+{
+    "iss": "phlex",
+    "sub": "user-uuid-123",
+    "iat": 1700000000,
+    "exp": 1700003600,
+    "type": "access"
+}
+```
+
+**Refresh Token Claims:**
+```json
+{
+    "iss": "phlex",
+    "sub": "user-uuid-123",
+    "iat": 1700000000,
+    "exp": 1700600000,
+    "type": "refresh",
+    "jti": "unique-token-id-for-revocation"
+}
+```
+
+### AuthManager (`AuthManager`)
+
+Main entry point for authentication operations:
+
+```php
+// Register new user
+$result = $authManager->register('username', 'email@example.com', 'password123');
+
+// Login
+$result = $authManager->login('username', 'password123', 'device-uuid');
+
+// Refresh tokens
+$result = $authManager->refreshToken($refreshToken);
+
+// Validate access token
+$info = $authManager->validateAccessToken($accessToken);
+// Returns: ['user_id' => '...', 'expires_at' => ...]
+```
+
+### JwtHandler (`JwtHandler`)
+
+Handles JWT token creation and validation:
+
+```php
+$handler = new JwtHandler(
+    'your-256-bit-secret',
+    'HS256',
+    3600,      // Access token TTL: 1 hour
+    604800     // Refresh token TTL: 7 days
+);
+
+// Create tokens
+$accessToken = $handler->createAccessToken('user-123');
+$refreshToken = $handler->createRefreshToken('user-123');
+
+// Validate token
+$payload = $handler->validateToken($token);
+if ($payload) {
+    $userId = $payload['sub'];
+}
+
+// Check token type
+$handler->isAccessToken($token);   // true for access tokens
+$handler->isRefreshToken($token);  // true for refresh tokens
+```
+
+### UserProfileManager (`UserProfileManager`)
+
+Supports multiple profiles per account with parental controls:
+
+```php
+// Create a profile
+$profileId = $profileManager->create('user-123', [
+    'name' => 'Kids Profile',
+    'content_rating' => 'G',
+    'pin' => '1234',
+    'allowed_genres' => ['Animation', 'Family'],
+]);
+
+// Check content rating access
+$allowed = $profileManager->isContentRatingAllowed($profileId, 'PG-13');
+
+// Verify profile PIN
+if ($profileManager->verifyPin($profileId, '1234')) {
+    // PIN verified
+}
+```
+
+### WatchHistory (`WatchHistory`)
+
+Tracks watch history per profile:
+
+```php
+// Update progress
+$history = $watchHistory->updateProgress(
+    'profile-123',
+    'media-item-456',
+    12000000000,  // position in ticks
+    36000000000,  // duration in ticks
+    WatchHistory::STATUS_PLAYING
+);
+
+// Get continue watching
+$continueWatching = $watchHistory->getContinueWatching('profile-123', 10);
+
+// Get recently completed
+$completed = $watchHistory->getRecentlyCompleted('profile-123', 20);
+
+// Check if watched
+if ($watchHistory->hasWatched('profile-123', 'media-item-456')) {
+    // Already watched
+}
+
+// Get resume position
+$resumePosition = $watchHistory->getResumePosition('profile-123', 'media-item-456');
+```
+
+---
+
+## Session Management Architecture
+
+The Session system tracks device sessions and playback state across the application.
+
+### Component Overview
+
+| Component | Responsibility |
+|-----------|----------------|
+| `SessionManager` | Device session lifecycle (create, track, cleanup) |
+| `PlaybackController` | Playback state persistence and progress tracking |
+| `SyncPlayManager` | Group watching coordination and state sync |
+| `GroupState` | Individual SyncPlay group state management |
+| `TimeSync` | NTP-style time synchronization for playback sync |
+| `Messages` | WebSocket message type definitions for SyncPlay |
+
+### Session Flow
+
+```
+Device Login:
+    → SessionManager::createSession(userId, deviceId, deviceName, deviceType)
+    ← Returns sessionId
+
+Progress Reporting:
+    → PlaybackController::reportProgress(sessionId, mediaItemId, position, duration, isPaused)
+    → Also updates session activity via SessionManager::updateActivity()
+
+Get Continue Watching:
+    → PlaybackController::getContinueWatching(userId, limit)
+    ← Returns items in progress (playing/paused, <95% complete)
+```
+
+### SessionManager (`SessionManager`)
+
+Manages device sessions and user authentication sessions:
+
+```php
+// Create a session
+$sessionId = $sessionManager->createSession(
+    'user-123',
+    'device-uuid',
+    'iPhone 15 Pro',
+    'mobile'
+);
+
+// Get all user sessions
+$sessions = $sessionManager->getUserSessions('user-123');
+
+// Update activity
+$sessionManager->updateActivity($sessionId);
+
+// End a session
+$sessionManager->endSession($sessionId);
+
+// End all sessions except current
+$sessionManager->endAllUserSessions('user-123', $currentSessionId);
+
+// Cleanup stale sessions (default 24 hours)
+$cleaned = $sessionManager->cleanupStaleSessions(86400);
+
+// Get online users (active within 5 minutes)
+$onlineUsers = $sessionManager->getOnlineUsers();
+```
+
+### PlaybackController (`PlaybackController`)
+
+Manages playback state and progress tracking:
+
+```php
+// Report playback progress
+$controller->reportProgress(
+    'session-123',
+    'media-456',
+    12000000000,  // position in ticks
+    36000000000,  // duration in ticks
+    false         // not paused
+);
+
+// Get playback state
+$state = $controller->getPlaybackState('session-123');
+
+// Get user's progress on a specific item
+$progress = $controller->getUserProgress('user-123', 'media-456');
+
+// Get continue watching list
+$continueWatching = $controller->getContinueWatching('user-123', 10);
+
+// Get recently watched
+$recentlyWatched = $controller->getRecentlyWatched('user-123', 20);
+
+// Mark as watched
+$controller->markAsWatched('session-123', 'media-456');
+
+// Clear progress
+$controller->clearProgress('session-123', 'media-456');
+```
+
+### SyncPlay Architecture
+
+SyncPlay enables synchronized group watching with host-controlled playback.
+
+```
+Group Creation:
+    → SyncPlayManager::createGroup(name, password, memberId, memberName)
+    ← Returns group state
+
+Join Group:
+    → SyncPlayManager::joinGroup(groupId, memberId, memberName, password)
+    ← Returns updated group state
+
+Playback Control (host only):
+    → handlePlaybackPlay()
+    → handlePlaybackPause()
+    → handlePlaybackSeek()
+    → Broadcast to all members
+
+Time Synchronization:
+    → TimeSync::processPing()
+    → Calculate offset and latency
+    → Apply drift correction
+```
+
+### SyncPlayManager (`SyncPlayManager`)
+
+Coordinates group watching sessions:
+
+```php
+// Create a group
+$result = $syncPlayManager->createGroup('Movie Night', 'password123', 'member-1', 'Host');
+
+// Join a group
+$result = $syncPlayManager->joinGroup('sp_abc123', 'member-2', 'Guest', 'password123');
+
+// Leave a group
+$result = $syncPlayManager->leaveGroup('member-2');
+
+// Get group state
+$state = $syncPlayManager->getGroupState('sp_abc123');
+
+// List all groups
+$groups = $syncPlayManager->listGroups();
+
+// Cleanup stale groups
+$removed = $syncPlayManager->cleanupStaleGroups(3600);
+
+// Get statistics
+$stats = $syncPlayManager->getStats();
+// ['total_groups' => 5, 'total_members' => 12, 'time_sync_status' => [...]]
+```
+
+### GroupState (`GroupState`)
+
+Manages individual group state:
+
+```php
+// Playback states
+GroupState::STATE_PLAYING;   // 'playing'
+GroupState::STATE_PAUSED;    // 'paused'
+GroupState::STATE_BUFFERING;  // 'buffering'
+GroupState::STATE_STOPPED;    // 'stopped'
+
+// Member management
+$group->addMember('member-id', ['name' => 'John']);
+$group->removeMember('member-id');
+$group->isHost('member-id');     // Check if host
+$group->electNewHost();           // Auto-elect new host
+
+// Playback queue
+$group->addToQueue('media-id', ['name' => 'Movie']);
+$group->removeFromQueue('media-id');
+$queue = $group->getPlaybackQueue();
+
+// Chat
+$group->addChatMessage('member-id', 'Hello everyone!');
+$messages = $group->getChatMessages(50);
+
+// State serialization
+$state = $group->getState();
+$data = $group->serialize();  // For persistence
+$group = GroupState::deserialize($data);  // Restore
+```
+
+### TimeSync (`TimeSync`)
+
+NTP-style time synchronization for playback sync:
+
+```php
+// Process ping from client
+$pong = $timeSync->processPing(['client_time' => $clientTime]);
+// Returns: ['client_time' => ..., 'server_time' => ..., 'protocol_version' => 1]
+
+// Process pong and calculate offset
+$result = $timeSync->processPong($payload);
+// Returns: ['offset' => 15, 'latency' => 50, 'rtt' => 100, 'is_stable' => true]
+
+// Get synchronized time
+$synchronizedTime = $timeSync->getSynchronizedTime();
+
+// Convert between local and synchronized time
+$localTime = $timeSync->synchronizedToLocal($syncedTime);
+$syncedTime = $timeSync->localToSynchronized($localTime);
+
+// Check sync stability
+if ($timeSync->isSyncStable()) {
+    // Time is synchronized
+}
+
+// Get status info
+$status = $timeSync->getStatus();
+// ['offset' => 15, 'latency' => 50, 'drift_rate' => 1.002, 'is_stable' => true, ...]
+```
+
+---
+
 ## Coding Standards
 
 ### PSR-12 Compliance
