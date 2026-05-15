@@ -1,4 +1,27 @@
 ' source/lib/ApiClient.brs
+' @fileoverview ApiClient - Main HTTP client for Phlex Media Server API communication
+' @author Phlex Team
+' @version 1.0.0
+' @requires Storage module for persistent storage
+'
+' @description
+' This module provides the ApiClient factory function which creates an object
+' for communicating with the Phlex Media Server REST API. It handles:
+' - Authentication with device registration
+' - Session management
+' - Library browsing and item retrieval
+' - Video playback control
+' - Progress synchronization
+'
+' @example
+' ```brightscript
+' api = ApiClient("http://192.168.1.100:8096")
+' user = api.login("username", "password")
+' libraries = api.getLibraries()
+' ```
+'
+' @module ApiClient
+' @requires Storage
 
 ' ===========================================
 ' Phlex API Client for Roku

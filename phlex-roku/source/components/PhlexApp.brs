@@ -1,4 +1,35 @@
 ' source/components/PhlexApp.brs
+' @fileoverview PhlexApp - Main application controller for SceneGraph
+' @author Phlex Team
+' @version 1.0.0
+' @requires ApiClient, Storage, AuthManager, SessionManager, LibraryManager, TaskManager
+'
+' @description
+' PhlexApp is the root component of the Phlex Roku application. It serves as the
+' main application controller and is responsible for:
+' - Initializing the API client and managers
+' - Checking for existing authentication sessions
+' - Navigating between scenes (Login, Home, Library, etc.)
+' - Handling global key events
+' - Managing application state
+'
+' @example
+' ```brightscript
+' ' PhlexApp is automatically created by SceneGraph
+' ' Handle login success transition
+' m.top.OnLoginSuccess()
+'
+' ' Handle logout
+' m.top.OnLogout()
+' ```
+'
+' @component
+' @extends Scene
+' @interface
+'   @field {String} data - Observable data for the app
+' @events
+'   @event OnLoginSuccess - Fired when user successfully logs in
+'   @event OnLogout - Fired when user logs out
 
 ' ===========================================
 ' Phlex Main App Component
