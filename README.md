@@ -28,12 +28,15 @@ src/
 │   │   ├── Request.php  # HTTP request representation
 │   │   ├── Response.php # HTTP response builder
 │   │   └── Router.php  # Route dispatching
-│   └── WebSocket/       # Real-time communication
-│       ├── Connection.php      # Client connection wrapper
-│       ├── ConnectionPool.php  # Connection management
-│       ├── MessageHandler.php  # Event routing
-│       ├── WebSocketServer.php # Server implementation
-│       └── Events.php          # Event type constants
+│   ├── WebSocket/       # Real-time communication
+│   │   ├── Connection.php      # Client connection wrapper
+│   │   ├── ConnectionPool.php  # Connection management
+│   │   ├── MessageHandler.php  # Event routing
+│   │   ├── WebSocketServer.php # Server implementation
+│   │   └── Events.php          # Event type constants
+│   └── WebPortal/       # Web portal (HTML UI)
+│       ├── WebPortalRouter.php # REST API for portal
+│       └── PageRenderer.php    # Smarty template rendering
 ├── Session/            # Playback session management
 ├── Media/              # Media library and metadata
 │   ├── Library/        # Library management (LibraryManager, ItemRepository, MediaScanner)
@@ -42,6 +45,11 @@ src/
 │   └── Streaming/      # HLS streaming with adaptive bitrate
 ├── Auth/               # Authentication services
 └── Common/             # Shared utilities
+
+public/
+├── index.php           # Web portal entry point
+├── templates/          # Smarty templates
+└── assets/             # Static assets (css, js)
 ```
 
 ## Requirements
@@ -52,6 +60,15 @@ src/
 - **FFmpeg**: For transcoding (optional)
 
 ## Features
+
+### Web Portal
+- **Smarty-based Templates**: Server-side rendered HTML pages using Smarty
+- **REST API Endpoints**: Complete API for library browsing, media info, and user data
+- **JWT Authentication**: Integrated token-based auth with refresh support
+- **Responsive Design**: CSS-first approach with utility classes
+- **JavaScript Client**: ApiClient helper with auth, library, and player helpers
+- **Continue Watching**: Track and display in-progress media
+- **Library Browser**: Browse media by library with item counts
 
 ### Authentication & Security
 - **JWT-based Authentication**: Stateless auth with access tokens (1 hour TTL) and refresh tokens (7 days TTL)

@@ -71,7 +71,7 @@ class ChannelManager
             ]
         );
 
-        $this->logger->info('Channel created', ['channel_id' => $channelId, 'name' => $data['name']]);
+        $this->logger->info('Channel created', ['channel_id' => $channelId, 'name' => $data['name'] ?? 'Unknown Channel']);
 
         return $this->getChannel($channelId);
     }

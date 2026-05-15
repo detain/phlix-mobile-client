@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\Server\WebPortal;
 
 use Phlex\Server\Http\Request;
@@ -11,15 +13,65 @@ use Phlex\Session\SessionManager;
 use Phlex\Session\PlaybackController;
 use Phlex\Auth\AuthManager;
 
+/**
+ * WebPortalRouter handles API routing for the web portal.
+ *
+ * This router provides endpoints for media library browsing,
+ * playback information retrieval, and user session management.
+ * All endpoints return JSON responses suitable for consumption
+ * by the web portal's JavaScript client.
+ *
+ * @author Phlex Team
+ * @version 1.0.0
+ * @description Handles REST API routing for the web portal interface
+ *
+ * @see PageRenderer For HTML page rendering
+ * @see Request For request object structure
+ * @see Response For response object structure
+ */
 class WebPortalRouter
 {
+    /** @var Router The underlying router instance for dispatching requests */
     private Router $router;
+
+    /** @var LibraryManager Manages media libraries */
     private LibraryManager $libraryManager;
+
+    /** @var ItemRepository Provides access to media items */
     private ItemRepository $itemRepository;
+
+    /** @var SessionManager Manages user sessions */
     private SessionManager $sessionManager;
+
+    /** @var PlaybackController Handles playback state and progress */
     private PlaybackController $playbackController;
+
+    /** @var AuthManager Handles authentication operations */
     private AuthManager $authManager;
 
+    /**
+     * Constructs a new WebPortalRouter instance.
+     *
+     * Initializes the router with required service dependencies and registers
+     * all API route handlers for the web portal.
+     *
+     * @param LibraryManager $libraryManager Manages media library operations
+     * @param ItemRepository $itemRepository Provides access to media items
+     * @param SessionManager $sessionManager Manages user/device sessions
+     * @param PlaybackController $playbackController Handles playback state tracking
+     * @param AuthManager $authManager Handles authentication operations
+     *
+     * @example
+     * ```php
+     * $router = new WebPortalRouter(
+     *     $libraryManager,
+     *     $itemRepository,
+     *     $sessionManager,
+     *     $playbackController,
+     *     $authManager
+     * );
+     * ```
+     */
     public function __construct(
         LibraryManager $libraryManager,
         ItemRepository $itemRepository,
@@ -36,27 +88,83 @@ class WebPortalRouter
         $this->registerRoutes();
     }
 
+    /**
+     * Registers all API routes for the web portal.
+     *
+     * Route structure:
+     * - GET /api/v1/libraries - List all libraries with item counts
+     * - GET /api/v1/libraries/{id} - Get single library details
+     * - GET /api/v1/libraries/{id}/items - Get items in a library
+     * - GET /api/v1/media/{id} - Get media item details with streams
+     * - GET /api/v1/media/{id}/playback - Get playback information
+     * - GET /api/v1/users/me/continue-watching - Get user's continue watching list
+     * - GET /api/v1/users/me/recently-watched - Get user's recently watched items
+     * - GET /api/v1/users/me/settings - Get user settings
+     * - PUT /api/v1/users/me/settings - Update user settings
+     *
+     * @return void
+     */
     private function registerRoutes(): void
     {
-        // Auth routes
+        // Library routes
         $this->router->get('/api/v1/libraries', [$this, 'getLibraries']);
         $this->router->get('/api/v1/libraries/{id}', [$this, 'getLibrary']);
         $this->router->get('/api/v1/libraries/{id}/items', [$this, 'getLibraryItems']);
+
+        // Media routes
         $this->router->get('/api/v1/media/{id}', [$this, 'getMediaItem']);
         $this->router->get('/api/v1/media/{id}/playback', [$this, 'getPlaybackInfo']);
+
+        // User activity routes
         $this->router->get('/api/v1/users/me/continue-watching', [$this, 'getContinueWatching']);
         $this->router->get('/api/v1/users/me/recently-watched', [$this, 'getRecentlyWatched']);
-        
+
         // Settings routes
         $this->router->get('/api/v1/users/me/settings', [$this, 'getUserSettings']);
         $this->router->put('/api/v1/users/me/settings', [$this, 'updateUserSettings']);
     }
 
+    /**
+     * Dispatches the request to the appropriate handler.
+     *
+     * @param Request $request The HTTP request to dispatch
+     *
+     * @return Response The response from the matched route handler
+     *
+     * @see Router::dispatch() For dispatching details
+     */
     public function dispatch(Request $request): Response
     {
         return $this->router->dispatch($request);
     }
 
+    /**
+     * Retrieves all libraries with item counts.
+     *
+     * Returns a list of all media libraries, each enriched with
+     * an item_count property indicating the number of items in that library.
+     *
+     * @param Request $request The HTTP request (unused)
+     * @param array<string, string> $params Route parameters (unused)
+     *
+     * @return Response JSON response with libraries array
+     *
+     * @api_endpoint GET /api/v1/libraries
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "libraries": [
+     *     {
+     *       "id": "lib_abc123",
+     *       "name": "Movies",
+     *       "type": "video",
+     *       "item_count": 42
+     *     }
+     *   ]
+     * }
+     * ```
+     */
     public function getLibraries(Request $request, array $params): Response
     {
         $libraries = $this->libraryManager->getAllLibraries();
@@ -69,10 +177,32 @@ class WebPortalRouter
         return (new Response())->json(['libraries' => $libraries]);
     }
 
+    /**
+     * Retrieves a single library by ID.
+     *
+     * @param Request $request The HTTP request (unused)
+     * @param array<string, string> $params Route parameters including 'id'
+     *
+     * @return Response JSON response with library object or 404 error
+     *
+     * @api_endpoint GET /api/v1/libraries/{id}
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "library": {
+     *     "id": "lib_abc123",
+     *     "name": "Movies",
+     *     "type": "video",
+     *     "paths": ["/mnt/media/movies"]
+     *   }
+     * }
+     * ```
+     */
     public function getLibrary(Request $request, array $params): Response
     {
         $library = $this->libraryManager->getLibrary($params['id']);
-        
+
         if (!$library) {
             return (new Response())->status(404)->json(['error' => 'Library not found']);
         }
@@ -80,6 +210,35 @@ class WebPortalRouter
         return (new Response())->json(['library' => $library]);
     }
 
+    /**
+     * Retrieves items from a specific library with optional filtering.
+     *
+     * @param Request $request The HTTP request with query parameters:
+     *   - type: Filter by media type (video, audio, image)
+     *   - limit: Maximum items to return (default: 50)
+     *   - offset: Pagination offset (default: 0)
+     * @param array<string, string> $params Route parameters including 'id' (library ID)
+     *
+     * @return Response JSON response with items array and pagination info
+     *
+     * @api_endpoint GET /api/v1/libraries/{id}/items
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "items": [
+     *     {
+     *       "id": "item_xyz789",
+     *       "name": "Movie Title",
+     *       "type": "movie",
+     *       "path": "/mnt/media/movies/movie.mkv"
+     *     }
+     *   ],
+     *   "limit": 50,
+     *   "offset": 0
+     * }
+     * ```
+     */
     public function getLibraryItems(Request $request, array $params): Response
     {
         $libraryId = $params['id'];
@@ -100,10 +259,39 @@ class WebPortalRouter
         ]);
     }
 
+    /**
+     * Retrieves a single media item with its stream information.
+     *
+     * @param Request $request The HTTP request (unused)
+     * @param array<string, string> $params Route parameters including 'id'
+     *
+     * @return Response JSON response with item object and streams, or 404 error
+     *
+     * @api_endpoint GET /api/v1/media/{id}
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "item": {
+     *     "id": "item_xyz789",
+     *     "name": "Movie Title",
+     *     "type": "movie",
+     *     "path": "/mnt/media/movies/movie.mkv",
+     *     "streams": [
+     *       {
+     *         "stream_index": 0,
+     *         "stream_type": "video",
+     *         "codec": "h264"
+     *       }
+     *     ]
+     *   }
+     * }
+     * ```
+     */
     public function getMediaItem(Request $request, array $params): Response
     {
         $item = $this->itemRepository->findById($params['id']);
-        
+
         if (!$item) {
             return (new Response())->status(404)->json(['error' => 'Item not found']);
         }
@@ -114,10 +302,43 @@ class WebPortalRouter
         return (new Response())->json(['item' => $item]);
     }
 
+    /**
+     * Retrieves playback information for a media item.
+     *
+     * Returns playback information including available media sources
+     * and direct play capabilities. This is used by the player
+     * to initialize playback.
+     *
+     * @param Request $request The HTTP request (unused)
+     * @param array<string, string> $params Route parameters including 'id'
+     *
+     * @return Response JSON response with playback_info object or 404 error
+     *
+     * @api_endpoint GET /api/v1/media/{id}/playback
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "playback_info": {
+     *     "id": "item_xyz789",
+     *     "name": "Movie Title",
+     *     "type": "movie",
+     *     "media_sources": [
+     *       {
+     *         "id": "default",
+     *         "container": "mkv",
+     *         "path": "/mnt/media/movies/movie.mkv",
+     *         "direct_play": true
+     *       }
+     *     ]
+     *   }
+     * }
+     * ```
+     */
     public function getPlaybackInfo(Request $request, array $params): Response
     {
         $item = $this->itemRepository->findById($params['id']);
-        
+
         if (!$item) {
             return (new Response())->status(404)->json(['error' => 'Item not found']);
         }
@@ -140,6 +361,35 @@ class WebPortalRouter
         return (new Response())->json(['playback_info' => $playbackInfo]);
     }
 
+    /**
+     * Retrieves the user's continue watching list.
+     *
+     * Returns media items that the user has partially watched and
+     * may want to resume. Requires authentication.
+     *
+     * @param Request $request The HTTP request (userId set from auth)
+     * @param array<string, string> $params Route parameters (unused)
+     *
+     * @return Response JSON response with items array or 401 error
+     *
+     * @api_endpoint GET /api/v1/users/me/continue-watching
+     *
+     * @requires Authentication
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "items": [
+     *     {
+     *       "id": "item_xyz789",
+     *       "name": "Movie Title",
+     *       "progress_percent": 45.5,
+     *       "position_ticks": 36000000000
+     *     }
+     *   ]
+     * }
+     * ```
+     */
     public function getContinueWatching(Request $request, array $params): Response
     {
         $userId = $request->userId ?? '';
@@ -151,6 +401,34 @@ class WebPortalRouter
         return (new Response())->json(['items' => $items]);
     }
 
+    /**
+     * Retrieves the user's recently watched items.
+     *
+     * Returns a list of media items the user has watched,
+     * ordered by most recent first. Requires authentication.
+     *
+     * @param Request $request The HTTP request (userId set from auth)
+     * @param array<string, string> $params Route parameters (unused)
+     *
+     * @return Response JSON response with items array or 401 error
+     *
+     * @api_endpoint GET /api/v1/users/me/recently-watched
+     *
+     * @requires Authentication
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "items": [
+     *     {
+     *       "id": "item_xyz789",
+     *       "name": "Movie Title",
+     *       "watched_at": "2024-01-15T10:30:00+00:00"
+     *     }
+     *   ]
+     * }
+     * ```
+     */
     public function getRecentlyWatched(Request $request, array $params): Response
     {
         $userId = $request->userId ?? '';
@@ -162,6 +440,34 @@ class WebPortalRouter
         return (new Response())->json(['items' => $items]);
     }
 
+    /**
+     * Retrieves the current user's settings.
+     *
+     * Returns user preferences including streaming limits,
+     * audio/subtitle language preferences. Requires authentication.
+     *
+     * @param Request $request The HTTP request (userId set from auth)
+     * @param array<string, string> $params Route parameters (unused)
+     *
+     * @return Response JSON response with settings object or 401 error
+     *
+     * @api_endpoint GET /api/v1/users/me/settings
+     *
+     * @requires Authentication
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "settings": {
+     *     "max_streams": 3,
+     *     "max_bitrate": 100000000,
+     *     "preferred_audio_language": "en",
+     *     "preferred_subtitle_language": "en",
+     *     "subtitle_mode": "only_foreign"
+     *   }
+     * }
+     * ```
+     */
     public function getUserSettings(Request $request, array $params): Response
     {
         $userId = $request->userId ?? '';
@@ -181,6 +487,28 @@ class WebPortalRouter
         return (new Response())->json(['settings' => $settings]);
     }
 
+    /**
+     * Updates the current user's settings.
+     *
+     * Saves user preferences including streaming limits,
+     * audio/subtitle language preferences. Requires authentication.
+     *
+     * @param Request $request The HTTP request (userId set from auth)
+     * @param array<string, string> $params Route parameters (unused)
+     *
+     * @return Response JSON response with success message or 401 error
+     *
+     * @api_endpoint PUT /api/v1/users/me/settings
+     *
+     * @requires Authentication
+     *
+     * @example Response structure:
+     * ```json
+     * {
+     *   "message": "Settings updated"
+     * }
+     * ```
+     */
     public function updateUserSettings(Request $request, array $params): Response
     {
         $userId = $request->userId ?? '';

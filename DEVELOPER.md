@@ -153,6 +153,136 @@ interface ConnectionInterface
 
 ---
 
+## Web Portal Architecture
+
+The Web Portal provides an HTML-based interface for media browsing and playback using Smarty templates.
+
+### Component Overview
+
+```
+public/
+├── index.php              # Entry point, request routing, auth
+├── templates/             # Smarty templates (future)
+└── assets/               # Static assets
+    ├── css/               # Stylesheets
+    └── js/                # JavaScript (api-client, player, app)
+
+src/Server/WebPortal/
+├── WebPortalRouter.php    # REST API endpoints for portal
+└── PageRenderer.php       # Smarty-based HTML page rendering
+```
+
+### Request Flow
+
+```
+Browser Request → public/index.php
+    ↓
+Check Authorization header for Bearer token
+    ↓
+[API routes /api/*] → WebPortalRouter → JSON response
+[Page routes /*]  → PageRenderer → Smarty → HTML response
+```
+
+### WebPortalRouter (`WebPortalRouter`)
+
+REST API endpoints for the web portal:
+
+| Endpoint | Method | Description | Auth |
+|----------|--------|-------------|------|
+| `/api/v1/libraries` | GET | List all libraries with item counts | No |
+| `/api/v1/libraries/{id}` | GET | Get library details | No |
+| `/api/v1/libraries/{id}/items` | GET | Get items in library | No |
+| `/api/v1/media/{id}` | GET | Get media item with streams | No |
+| `/api/v1/media/{id}/playback` | GET | Get playback info | No |
+| `/api/v1/users/me/continue-watching` | GET | User's continue watching list | Yes |
+| `/api/v1/users/me/recently-watched` | GET | User's recently watched items | Yes |
+| `/api/v1/users/me/settings` | GET/PUT | User settings | Yes |
+
+```php
+$router = new WebPortalRouter(
+    $libraryManager,
+    $itemRepository,
+    $sessionManager,
+    $playbackController,
+    $authManager
+);
+
+// Dispatch request to appropriate handler
+$response = $router->dispatch($request);
+```
+
+### PageRenderer (`PageRenderer`)
+
+Renders Smarty templates to HTML:
+
+```php
+$renderer = new PageRenderer(
+    '/path/to/templates',
+    $libraryManager,
+    $itemRepository,
+    $playbackController
+);
+
+// Render pages
+$response = $renderer->renderHome($request);
+$response = $renderer->renderLibrary($request, ['id' => 'lib_123']);
+$response = $renderer->renderLogin($request);
+```
+
+### Template Variables
+
+**Home Page (`home/index.tpl`)**:
+- `current_page`: string ('home')
+- `user`: array (display_name, etc.)
+- `libraries`: array (library data with items sub-array, max 3)
+- `recently_added`: array (recently added media items)
+- `continue_watching`: array (items in progress, if authenticated)
+
+**Library Page (`library/index.tpl`)**:
+- `current_page`: string ('library')
+- `library`: array (library data)
+- `items`: array (media items, max 100)
+
+**Login Page (`auth/login.tpl`)**:
+- Standard Smarty variables for auth form
+
+### JavaScript Client
+
+The web portal uses `api-client.js` for client-side API communication:
+
+```javascript
+// Initialize the API client
+const api = new ApiClient();
+
+// Authentication helpers
+Auth.isLoggedIn();           // Check if logged in
+Auth.getUser();              // Get stored user data
+Auth.setUser(user);          // Store user data
+Auth.logout();              // Clear auth and redirect
+
+// Library browsing
+Library.getItems();          // Get library items
+Library.getItem(id);         // Get single item
+Library.getContinueWatching(); // Get continue watching list
+
+// Playback
+Player.getPlaybackInfo(id);   // Get playback info
+Player.reportProgress(...);  // Report playback progress
+```
+
+### Static Assets
+
+| Path | Description |
+|------|-------------|
+| `public/assets/css/main.css` | Main stylesheet |
+| `public/assets/css/components.css` | Component styles |
+| `public/assets/css/player.css` | Player-specific styles |
+| `public/assets/js/api-client.js` | API client with auth helpers |
+| `public/assets/js/app.js` | Application logic |
+| `public/assets/js/player.js` | Media player logic |
+
+---
+
 ## Media Library Architecture
 
 The Media Library system manages media files, metadata fetching, and streaming.

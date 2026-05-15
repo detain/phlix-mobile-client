@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\Server\WebPortal;
 
 use Phlex\Server\Http\Request;
@@ -8,13 +10,53 @@ use Phlex\Media\Library\LibraryManager;
 use Phlex\Media\Library\ItemRepository;
 use Phlex\Session\PlaybackController;
 
+/**
+ * PageRenderer handles HTML page generation for the web portal.
+ *
+ * This class uses Smarty templates to render portal pages including
+ * the home page, library browser, and authentication pages.
+ * It coordinates with library and playback services to fetch
+ * the data needed for template rendering.
+ *
+ * @author Phlex Team
+ * @version 1.0.0
+ * @description Renders HTML pages using Smarty templates
+ *
+ * @see WebPortalRouter For API routing
+ * @see Smarty For template engine
+ */
 class PageRenderer
 {
+    /** @var string Directory containing Smarty templates */
     private string $templateDir;
+
+    /** @var LibraryManager Manages media libraries */
     private LibraryManager $libraryManager;
+
+    /** @var ItemRepository Provides access to media items */
     private ItemRepository $itemRepository;
+
+    /** @var PlaybackController Handles playback state and progress */
     private PlaybackController $playbackController;
 
+    /**
+     * Constructs a new PageRenderer instance.
+     *
+     * @param string $templateDir Absolute path to the Smarty template directory
+     * @param LibraryManager $libraryManager Manages media library operations
+     * @param ItemRepository $itemRepository Provides access to media items
+     * @param PlaybackController $playbackController Handles playback state tracking
+     *
+     * @example
+     * ```php
+     * $renderer = new PageRenderer(
+     *     '/var/www/templates',
+     *     $libraryManager,
+     *     $itemRepository,
+     *     $playbackController
+     * );
+     * ```
+     */
     public function __construct(
         string $templateDir,
         LibraryManager $libraryManager,
@@ -27,6 +69,27 @@ class PageRenderer
         $this->playbackController = $playbackController;
     }
 
+    /**
+     * Renders the home page with library overview and user content.
+     *
+     * The home page displays:
+     * - First 3 libraries with up to 10 items each
+     * - Recently added items from the first library
+     * - User's continue watching list (if authenticated)
+     *
+     * @param Request $request The HTTP request (userId used for personalization)
+     *
+     * @return Response HTML response with the rendered home page
+     *
+     * @template_variables
+     * - current_page: string ('home')
+     * - user: array (display_name)
+     * - libraries: array (library data with items sub-array)
+     * - recently_added: array (recently added media items)
+     * - continue_watching: array (items in progress)
+     *
+     * @example Template: home/index.tpl
+     */
     public function renderHome(Request $request): Response
     {
         $userId = $request->userId ?? null;
@@ -63,6 +126,25 @@ class PageRenderer
         return (new Response())->html($html);
     }
 
+    /**
+     * Renders the library browser page.
+     *
+     * Displays all items within a specific library with pagination.
+     * Returns 404 HTML if the library doesn't exist.
+     *
+     * @param Request $request The HTTP request (unused)
+     * @param array<string, string> $params Route parameters:
+     *   - id: Library ID to display
+     *
+     * @return Response HTML response with the rendered library page or 404
+     *
+     * @template_variables
+     * - current_page: string ('library')
+     * - library: array (library data)
+     * - items: array (media items in library)
+     *
+     * @example Template: library/index.tpl
+     */
     public function renderLibrary(Request $request, array $params): Response
     {
         $libraryId = $params['id'] ?? '';
@@ -85,6 +167,20 @@ class PageRenderer
         return (new Response())->html($html);
     }
 
+    /**
+     * Renders the login page.
+     *
+     * Displays the authentication form for users to sign in.
+     *
+     * @param Request $request The HTTP request (unused)
+     *
+     * @return Response HTML response with the rendered login page
+     *
+     * @template_variables
+     * - (Smarty default variables)
+     *
+     * @example Template: auth/login.tpl
+     */
     public function renderLogin(Request $request): Response
     {
         $template = new \Smarty();
