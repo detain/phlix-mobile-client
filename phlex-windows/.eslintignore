@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-electron
+release
+coverage
+*.config.js
+*.config.cjs
+vitest.config.ts
