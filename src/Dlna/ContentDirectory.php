@@ -6,39 +6,61 @@ use Phlex\Common\Logger\LogChannels;
 use Phlex\Common\Logger\StructuredLogger;
 
 /**
- * Content Directory Service for DLNA/UPnP.
- * Handles Browse and Search operations for media content.
- * 
- * Implements UPnP ContentDirectory:1 service specification.
+ * Content Directory Service for DLNA/UPnP Media Servers.
+ *
+ * Implements the UPnP ContentDirectory:1 service specification for browsing
+ * and searching media content. Handles Browse and Search actions, generates
+ * DIDL-Lite XML responses, and manages object hierarchy (containers and items).
+ *
+ * The Content Directory service exposes media items organized in a tree structure
+ * rooted at object ID "0". Items can be containers (albums, folders) or individual
+ * media items (songs, videos, images). All content is returned in DIDL-Lite format.
+ *
+ * @see UPnP ContentDirectory:1 Service Specification
+ * @see DIDL-Lite Format For metadata XML structure
  */
 class ContentDirectory
 {
+    /** Root object ID for the content directory hierarchy */
     public const OBJECT_ID_ROOT = '0';
-    
+
+    /** Result format constant for XML output */
     public const RESULT_FORMAT_XML = 'xml';
+
+    /** Result format constant for object/array output */
     public const RESULT_FORMAT_OBJECT = 'object';
-    
+
+    /** Sort criteria for alphabetical sorting */
     public const SORT_CRITIERIA_ALPHABETICAL = '*';
+
+    /** Sort criteria for date-based sorting */
     public const SORT_CRITIERIA_DATE = 'dc:date';
+
+    /** Sort criteria for title sorting */
     public const SORT_CRITIERIA_TITLE = 'dc:title';
-    
-    /** @var object Item repository (any object with findById, findByParent, etc. methods) */
+
+    /**
+     * @var object Item repository for media item data access.
+     *             Must implement: findById, findByParent, getByType, etc.
+     */
     private object $itemRepository;
+
+    /** @var StructuredLogger Logger instance for debugging and diagnostics */
     private StructuredLogger $logger;
-    
-    /** @var array<string, array> Object ID cache */
+
+    /** @var array<string, array> Cache of resolved object IDs to items */
     private array $objectCache = [];
-    
-    /** @var int Default browse flag (BrowseMetadata=0, BrowseDirectChildren=1) */
+
+    /** @var int Current browse flag (0=BrowseMetadata, 1=BrowseDirectChildren) */
     private int $browseFlag = 1;
-    
-    /** @var string|null Current object ID being browsed */
+
+    /** @var string|null The current object ID being browsed */
     private ?string $currentObjectId = null;
-    
-    /** @var int Total matches for current browse */
+
+    /** @var int Total number of matching items for current browse/search */
     private int $totalMatches = 0;
-    
-    /** @var int Update ID for changes */
+
+    /** @var int System update ID - increments when content changes */
     private int $systemUpdateId = 1;
 
     public function __construct(object $itemRepository, ?StructuredLogger $logger = null)

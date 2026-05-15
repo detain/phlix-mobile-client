@@ -6,39 +6,50 @@ use Phlex\Common\Logger\LogChannels;
 use Phlex\Common\Logger\StructuredLogger;
 
 /**
- * Device Registry for DLNA/UPnP device discovery and management.
- * Handles network device discovery via SSDP and maintains a cache of devices.
+ * Device Registry for DLNA/UPnP Device Discovery and Management.
+ *
+ * Handles network device discovery via SSDP (Simple Service Discovery Protocol)
+ * multicast and maintains a cache of discovered devices. Supports both
+ * MediaServer and MediaRenderer device types.
+ *
+ * SSDP Discovery:
+ * - Sends M-SEARCH multicast to discover devices on the local network
+ * - Parses device descriptions from HTTP/XML responses
+ * - Maintains device cache with TTL-based expiration
+ *
+ * @see SSDP Protocol For discovery mechanism details
+ * @see DlnaDevice For device representation
  */
 class DeviceRegistry
 {
-    /** SSDP multicast address for device discovery */
+    /** SSDP multicast address for device discovery (UPnP standard) */
     public const SSDP_MULTICAST_ADDRESS = '239.255.255.250';
-    
-    /** SSDP port for device discovery */
+
+    /** SSDP port for device discovery (UPnP standard) */
     public const SSDP_PORT = 1900;
-    
+
     /** Default discovery timeout in seconds */
     public const DEFAULT_TIMEOUT = 5;
-    
-    /** Default cache expiration in seconds */
+
+    /** Default cache expiration in seconds (5 minutes) */
     public const DEFAULT_CACHE_TTL = 300;
-    
+
     /** @var array<string, DlnaDevice> Device cache keyed by UDN */
     private array $devices = [];
-    
-    /** @var array<string, float> Last discovery timestamps */
+
+    /** @var array<string, float> Unix timestamps for device cache expiration */
     private array $discoveryTimestamps = [];
-    
-    /** @var StructuredLogger Logger instance */
+
+    /** @var StructuredLogger Logger instance for debugging and diagnostics */
     private StructuredLogger $logger;
-    
-    /** @var int Cache TTL in seconds */
+
+    /** @var int Cache TTL in seconds before devices are considered stale */
     private int $cacheTtl;
-    
-    /** @var bool Whether discovery is in progress */
+
+    /** @var bool Flag indicating if discovery is currently in progress */
     private bool $isDiscovering = false;
-    
-    /** @var array<string> Local IP addresses to bind to */
+
+    /** @var array<int, string> Local IP addresses available on this host */
     private array $localAddresses = [];
 
     public function __construct(int $cacheTtl = self::DEFAULT_CACHE_TTL, ?StructuredLogger $logger = null)

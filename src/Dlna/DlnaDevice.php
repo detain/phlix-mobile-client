@@ -4,33 +4,80 @@ namespace Phlex\Dlna;
 
 /**
  * Represents a DLNA/UPnP device on the network.
- * Devices can be either servers (content providers) or renderers (playback devices).
+ *
+ * This class models both MediaServer (content providers) and MediaRenderer
+ * (playback devices) devices. Each device has a unique UDN (Unique Device Name),
+ * supports various UPnP services, and can be discovered via SSDP multicast.
+ *
+ * @see DeviceRegistry For device discovery and management
+ * @see UPnP Device Architecture Specification For device description format
  */
 class DlnaDevice
 {
+    /** Device type constant for MediaServer devices */
     public const TYPE_SERVER = 'MediaServer';
+
+    /** Device type constant for MediaRenderer devices */
     public const TYPE_RENDERER = 'MediaRenderer';
-    
+
+    /** Service name for ContentDirectory service */
     public const SERVICE_CONTENT_DIRECTORY = 'ContentDirectory';
+
+    /** Service name for ConnectionManager service */
     public const SERVICE_CONNECTION_MANAGER = 'ConnectionManager';
+
+    /** Service name for AVTransport service */
     public const SERVICE_AV_TRANSPORT = 'AVTransport';
-    
+
+    /** @var string Unique Device Name (UDN) - the device's unique identifier */
     private string $udn;
+
+    /** @var string Device type (TYPE_SERVER or TYPE_RENDERER) */
     private string $deviceType;
+
+    /** @var string Human-readable device name */
     private string $friendlyName;
+
+    /** @var string Device manufacturer name */
     private string $manufacturer;
+
+    /** @var string Device model description */
     private string $modelDescription;
+
+    /** @var string Device model name */
     private string $modelName;
+
+    /** @var string Device model number */
     private string $modelNumber;
+
+    /** @var string Device serial number */
     private string $serialNumber;
+
+    /** @var string URL for device's web interface */
     private string $presentationUrl;
+
+    /** @var string Device base URL (IP or hostname) */
     private string $baseUrl;
+
+    /** @var int Device port number */
     private int $port;
+
+    /** @var array<int, array{mimetype: string, width: int, height: int, depth: int, url: string}> Device icons */
     private array $icons = [];
+
+    /** @var array<string, array<string, string>> Available services keyed by service name */
     private array $services = [];
+
+    /** @var array<string, bool> Device capabilities */
     private array $capabilities = [];
+
+    /** @var float|null Unix timestamp when device was first discovered */
     private ?float $discoveredAt = null;
+
+    /** @var float|null Unix timestamp when device was last seen */
     private ?float $lastSeenAt = null;
+
+    /** @var bool Whether the device is currently active/online */
     private bool $isActive = true;
 
     public function __construct(
@@ -487,7 +534,12 @@ class DlnaDevice
     }
 
     /**
-     * Generate a unique serial number.
+     * Generate a unique device serial number.
+     *
+     * Creates a pseudo-random hex string in the format XXXX-XXXX-XXXX
+     * for use as a device serial number when the actual serial is unknown.
+     *
+     * @return string A pseudo-random serial number
      */
     private function generateSerial(): string
     {

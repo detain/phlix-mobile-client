@@ -1226,6 +1226,262 @@ $status = $timeSync->getStatus();
 
 ---
 
+## DLNA/UPnP Architecture
+
+The DLNA (Digital Living Network Alliance) system provides standard protocol support for media streaming to compatible devices (Roku, Samsung Tizen, Windows Media Player, etc.). Built on UPnP (Universal Plug and Play) standards.
+
+### Component Overview
+
+```
+src/Dlna/
+├── DlnaServer.php        # Main server, SOAP handling, SSDP/description
+├── DlnaDevice.php        # Device representation (server/renderer)
+├── ContentDirectory.php  # Browse/Search operations, DIDL-Lite generation
+├── AvTransport.php      # Playback control (Play/Pause/Stop/Seek)
+├── DeviceRegistry.php    # SSDP device discovery and caching
+└── TransportState.php    # Per-instance playback state (nested in AvTransport)
+```
+
+### DLNA Protocol Stack
+
+| Layer | Protocol | Purpose |
+|-------|----------|---------|
+| Discovery | SSDP (Simple Service Discovery Protocol) | Multicast M-SEARCH for device discovery |
+| Description | HTTP + XML | Device description via URL from LOCATION header |
+| Control | SOAP (Simple Object Access Protocol) | Action/response via HTTP POST |
+| Event | GENA (Generic Event Notification Architecture) | State variable subscriptions |
+| Transport | HTTP | Media streaming via GET requests |
+
+### SSDP Discovery Flow
+
+```
+DeviceRegistry::discover()
+    ↓
+Send M-SEARCH multicast to 239.255.255.250:1900
+    ↓
+Parse HTTP/200 responses from devices
+    ↓
+For each device:
+    → Fetch device description XML from LOCATION URL
+    → Parse device type, services, icons
+    → Create DlnaDevice and cache it
+```
+
+### UPnP Device Types
+
+| Type | URN | Description |
+|------|-----|-------------|
+| MediaServer | `urn:schemas-upnp-org:device:MediaServer:1` | Content provider (Phlex server) |
+| MediaRenderer | `urn:schemas-upnp-org:device:MediaRenderer:1` | Playback device (TV, receiver) |
+
+### UPnP Services
+
+| Service | Type | Actions |
+|--------|------|---------|
+| ContentDirectory | Server | Browse, Search, GetSearchCapabilities, GetSortCapabilities |
+| AVTransport | Both | Play, Pause, Stop, Seek, GetTransportInfo, GetPositionInfo |
+| ConnectionManager | Both | GetProtocolInfo, GetCurrentConnectionInfo |
+
+### DIDL-Lite Format
+
+DIDL-Lite (Digital Item Declaration Language Lite) is the XML format for representing media items:
+
+```xml
+<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"
+           xmlns:dc="http://purl.org/dc/elements/1.1/"
+           xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
+    <item id="obj-001" parentID="0" restricted="true">
+        <dc:title>Movie Title</dc:title>
+        <upnp:class>object.item.videoItem.movie</upnp:class>
+        <upnp:artist>Director Name</upnp:artist>
+        <upnp:genre>Action</upnp:genre>
+        <upnp:duration>01:45:00</upnp:duration>
+        <upnp:res protocolInfo="http-get:*:video/mp4:DLNA.ORG_PN=AVC_MP4_MP_HD">
+            http://server:8200/media/123.mp4
+        </upnp:res>
+    </item>
+</DIDL-Lite>
+```
+
+### DlnaServer (`DlnaServer`)
+
+The main DLNA server class implementing UPnP MediaServer:
+
+```php
+// Create DLNA server
+$server = new DlnaServer(
+    'server-001',
+    'Phlex Media Server',
+    '192.168.1.100',
+    8200,
+    $itemRepository,
+    $logger
+);
+
+// Start server (registers with device registry)
+$server->start();
+
+// Get device description XML (for /device.xml endpoint)
+$xml = $server->getDeviceDescriptionXml();
+
+// Get SCPD XML for service (for /scpd/ContentDirectory.xml)
+$scpd = $server->getScpdXml('ContentDirectory');
+
+// Process SOAP requests from control points
+$result = $server->processSoapRequest('ContentDirectory', 'Browse', $soapBody);
+
+// Build SOAP response XML
+$response = $server->buildSoapResponse('Browse', $result);
+```
+
+### DlnaDevice (`DlnaDevice`)
+
+Represents a DLNA/UPnP device (server or renderer):
+
+```php
+// Create a MediaServer device
+$device = new DlnaDevice(
+    'uuid:phlex-server-001',
+    DlnaDevice::TYPE_SERVER,
+    'Phlex Media Server',
+    '192.168.1.100',
+    8200
+);
+
+// Add device icons
+$device->addIcon([
+    'mimetype' => 'image/png',
+    'width' => 48,
+    'height' => 48,
+    'depth' => 32,
+    'url' => '/icons/small.png',
+]);
+
+// Generate device description XML
+$xml = $device->toDeviceDescriptionXml();
+
+// Check capabilities
+if ($device->hasCapability('Browse')) {
+    // Device supports browsing
+}
+```
+
+### ContentDirectory (`ContentDirectory`)
+
+Handles content browsing and searching:
+
+```php
+// Browse root container
+$result = $contentDir->browse('0', 'BrowseDirectChildren', '*', 0, 100, '');
+
+// Browse specific object metadata
+$result = $contentDir->browse('library-video', 'BrowseMetadata', '*', 0, 0, '');
+
+// Search for content
+$result = $contentDir->search(
+    '0',
+    'dc:title contains "Movie"',
+    '*',
+    0,
+    50,
+    ''
+);
+
+// Generate DIDL-Lite XML for items
+$didl = $contentDir->generateDidl($items);
+
+// Get search capabilities
+// Returns: dc:title,dc:creator,upnp:artist,upnp:album
+```
+
+### AvTransport (`AvTransport`)
+
+Handles playback control for renderers:
+
+```php
+$avTransport = new AvTransport($logger);
+
+// Set the media URI to play
+$avTransport->setAvTransportUri(0, 'http://server/media.mp4', $didlMetaData);
+
+// Start playback
+$result = $avTransport->play(0, '1');
+
+// Pause playback
+$result = $avTransport->pause(0);
+
+// Stop playback
+$result = $avTransport->stop(0);
+
+// Seek to position (HH:MM:SS format)
+$result = $avTransport->seek(0, 'REL_TIME', '00:05:30');
+
+// Get current transport state
+$info = $avTransport->getTransportInfo(0);
+// ['CurrentTransportState' => 'PLAYING', 'CurrentTransportStatus' => 'OK', 'CurrentSpeed' => '1']
+
+// Get position info
+$pos = $avTransport->getPositionInfo(0);
+// ['Track' => 1, 'TrackDuration' => '01:45:00', 'RelTime' => '00:05:30', ...]
+```
+
+### DeviceRegistry (`DeviceRegistry`)
+
+Manages device discovery and caching via SSDP:
+
+```php
+$registry = new DeviceRegistry();
+
+// Discover devices on network (with 5 second timeout)
+$devices = $registry->discover(5);
+
+// Get all discovered devices
+$all = $registry->getDevices();
+
+// Get only MediaServers
+$servers = $registry->getServers();
+
+// Get only MediaRenderers
+$renderers = $registry->getRenderers();
+
+// Find specific device by UDN
+$device = $registry->getDevice('uuid:some-device-123');
+
+// Register a device manually
+$registry->registerDevice($newDevice);
+
+// Unregister a device
+$registry->unregisterDevice('uuid:device-to-remove');
+```
+
+### TransportState (`TransportState`)
+
+Maintains playback state for a single AVTransport instance:
+
+```php
+// Get instance state
+$state = $avTransport->getInstance(0);
+
+// Check current state
+$state->isPlaying();  // true if playing
+$state->isPaused();   // true if paused
+$state->isStopped(); // true if stopped
+
+// Get/Set position (in ticks = 100-nanosecond units)
+$position = $state->getPosition();
+$state->setPosition(3000000000); // 30 seconds
+
+// Get media info
+$uri = $state->getMediaUri();
+$duration = $state->getMediaDuration();
+$metadata = $state->getMediaMetadata();
+
+// Get/Set play mode
+$mode = $state->getPlayMode(); // 'NORMAL', 'REPEAT_ONE', etc.
+```
+
+---
+
 ## Coding Standards
 
 ### PSR-12 Compliance

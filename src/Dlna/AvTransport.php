@@ -6,38 +6,72 @@ use Phlex\Common\Logger\LogChannels;
 use Phlex\Common\Logger\StructuredLogger;
 
 /**
- * AV Transport Service for DLNA/UPnP.
- * Handles media playback control including Play, Pause, Stop, Seek.
- * 
- * Implements UPnP AVTransport:1 service specification.
+ * AV Transport Service for DLNA/UPnP Media Renderers.
+ *
+ * Implements the UPnP AVTransport:1 service specification for controlling
+ * media playback on renderers (such as TVs, speakers, or DLNA-compatible devices).
+ * Handles Play, Pause, Stop, Seek operations and maintains TransportState instances.
+ *
+ * The service supports multiple transport instances (0-15), each maintaining
+ * independent playback state for different media sessions.
+ *
+ * @see TransportState For individual instance state management
+ * @see UPnP AVTransport:1 Service Specification
  */
 class AvTransport
 {
+    /** Transport state: Playback is stopped */
     public const TRANSPORT_STATE_STOPPED = 'STOPPED';
+
+    /** Transport state: Media is playing */
     public const TRANSPORT_STATE_PLAYING = 'PLAYING';
+
+    /** Transport state: Playback is paused */
     public const TRANSPORT_STATE_PAUSED = 'PAUSED_PLAYING';
+
+    /** Transport state: Transitioning between media items */
     public const TRANSPORT_STATE_TRANSITIONING = 'TRANSITIONING';
+
+    /** Transport state: No media present in renderer */
     public const TRANSPORT_STATE_NO_MEDIA = 'NO_MEDIA_PRESENT';
-    
+
+    /** Transport status: All is well */
     public const TRANSPORT_STATUS_OK = 'OK';
+
+    /** Transport status: An error occurred */
     public const TRANSPORT_STATUS_ERROR = 'ERROR';
-    
+
+    /** Normal playback speed (1x) */
     public const PLAY_SPEED_1 = '1';
-    
+
+    /** Seek mode: Absolute time position (HH:MM:SS) */
     public const SEEK_MODE_ABS_TIME = 'ABS_TIME';
+
+    /** Seek mode: Relative time position (HH:MM:SS) */
     public const SEEK_MODE_REL_TIME = 'REL_TIME';
+
+    /** Seek mode: Absolute track count */
     public const SEEK_MODE_ABS_COUNT = 'ABS_COUNT';
+
+    /** Seek mode: Relative track count */
     public const SEEK_MODE_REL_COUNT = 'REL_COUNT';
+
+    /** Seek mode: Total length of media */
     public const SEEK_MODE_TOTAL_LENGTH = 'TOTAL_LENGTH';
+
+    /** Seek mode: Absolute time seek time */
     public const SEEK_MODE_ABS_TIME_SEEK_TIME = 'ABS_TIME_SEEK_TIME';
+
+    /** Seek mode: Relative time seek time */
     public const SEEK_MODE_REL_TIME_SEEK_TIME = 'REL_TIME_SEEK_TIME';
-    
-    /** @var array<string, TransportState> Instance ID to TransportState mapping */
+
+    /** @var array<int, TransportState> Map of instance ID to TransportState */
     private array $instances = [];
-    
+
+    /** @var StructuredLogger Logger instance for debugging and diagnostics */
     private StructuredLogger $logger;
-    
-    /** @var int Next available instance ID */
+
+    /** @var int Counter for next available instance ID */
     private int $nextInstanceId = 0;
 
     public function __construct(?StructuredLogger $logger = null)
@@ -966,138 +1000,295 @@ class AvTransport
 }
 
 /**
- * Represents the state of a transport instance.
+ * Represents the state of a DLNA/UPnP AV Transport instance.
+ *
+ * Each instance maintains playback state for a single media session,
+ * including transport state (playing/paused/stopped), position tracking,
+ * and media metadata. Instances are keyed by InstanceID in the AVTransport service.
+ *
+ * @see AvTransport For the service that manages these instances
+ * @see UPnP AVTransport:1 Specification For protocol details
  */
 class TransportState
 {
+    /** @var int The transport instance identifier (usually 0) */
     private int $instanceId;
+
+    /** @var string Current transport state (STOPPED, PLAYING, PAUSED_PLAYING, etc.) */
     private string $transportState = AvTransport::TRANSPORT_STATE_STOPPED;
+
+    /** @var string Playback speed (e.g., "1" for normal, "2" for double speed) */
     private string $playbackSpeed = '1';
+
+    /** @var string The current media URI being played */
     private string $mediaUri = '';
+
+    /** @var array<string, mixed> Parsed DIDL-Lite metadata for current media */
     private array $mediaMetadata = [];
+
+    /** @var int Media duration in ticks (100-nanosecond units) */
     private int $mediaDuration = 0;
+
+    /** @var int Current playback position in ticks */
     private int $position = 0;
+
+    /** @var int Current track number (for playlists) */
     private int $currentTrack = 1;
+
+    /** @var int Total number of tracks in playlist */
     private int $nrTracks = 0;
+
+    /** @var string Current play mode (NORMAL, REPEAT_ONE, REPEAT_ALL, SHUFFLE, RANDOM) */
     private string $playMode = 'NORMAL';
+
+    /** @var float|null Timestamp of last state change */
     private ?float $lastChange = null;
 
+    /**
+     * Create a new transport state instance.
+     *
+     * @param int $instanceId The transport instance ID (0-15 typically)
+     */
     public function __construct(int $instanceId)
     {
         $this->instanceId = $instanceId;
     }
 
+    /**
+     * Get the instance ID.
+     *
+     * @return int The transport instance identifier
+     */
     public function getInstanceId(): int
     {
         return $this->instanceId;
     }
 
+    /**
+     * Get the current transport state.
+     *
+     * @return string Transport state (STOPPED, PLAYING, PAUSED_PLAYING, TRANSITIONING, NO_MEDIA_PRESENT)
+     */
     public function getTransportState(): string
     {
         return $this->transportState;
     }
 
+    /**
+     * Set the transport state.
+     *
+     * @param string $state The new transport state
+     * @return void
+     */
     public function setTransportState(string $state): void
     {
         $this->transportState = $state;
     }
 
+    /**
+     * Get the playback speed.
+     *
+     * @return string Playback speed factor (e.g., "1", "2", "0.5")
+     */
     public function getPlaybackSpeed(): string
     {
         return $this->playbackSpeed;
     }
 
+    /**
+     * Set the playback speed.
+     *
+     * @param string $speed The playback speed factor
+     * @return void
+     */
     public function setPlaybackSpeed(string $speed): void
     {
         $this->playbackSpeed = $speed;
     }
 
+    /**
+     * Get the current media URI.
+     *
+     * @return string The URI of the media being played
+     */
     public function getMediaUri(): string
     {
         return $this->mediaUri;
     }
 
+    /**
+     * Set the media URI.
+     *
+     * @param string $uri The media URI to set
+     * @return void
+     */
     public function setMediaUri(string $uri): void
     {
         $this->mediaUri = $uri;
     }
 
+    /**
+     * Get the media metadata (DIDL-Lite parsed).
+     *
+     * @return array<string, mixed> The parsed metadata including title, artist, album, duration
+     */
     public function getMediaMetadata(): array
     {
         return $this->mediaMetadata;
     }
 
+    /**
+     * Set the media metadata and extract duration.
+     *
+     * @param array<string, mixed> $metadata The parsed DIDL-Lite metadata
+     * @return void
+     */
     public function setMediaMetadata(array $metadata): void
     {
         $this->mediaMetadata = $metadata;
         $this->mediaDuration = $metadata['duration'] ?? 0;
     }
 
+    /**
+     * Get the media duration in ticks.
+     *
+     * @return int Duration in 100-nanosecond units
+     */
     public function getMediaDuration(): int
     {
         return $this->mediaDuration;
     }
 
+    /**
+     * Get the current playback position in ticks.
+     *
+     * @return int Position in 100-nanosecond units
+     */
     public function getPosition(): int
     {
         return $this->position;
     }
 
+    /**
+     * Set the playback position.
+     *
+     * @param int $position Position in 100-nanosecond units
+     * @return void
+     */
     public function setPosition(int $position): void
     {
         $this->position = $position;
     }
 
+    /**
+     * Get the current track number.
+     *
+     * @return int Current track (1-based index)
+     */
     public function getCurrentTrack(): int
     {
         return $this->currentTrack;
     }
 
+    /**
+     * Set the current track number.
+     *
+     * @param int $track Track number (1-based)
+     * @return void
+     */
     public function setCurrentTrack(int $track): void
     {
         $this->currentTrack = $track;
     }
 
+    /**
+     * Get the total number of tracks.
+     *
+     * @return int Number of tracks in the playlist
+     */
     public function getNrTracks(): int
     {
         return $this->nrTracks;
     }
 
+    /**
+     * Set the number of tracks.
+     *
+     * @param int $count Total number of tracks
+     * @return void
+     */
     public function setNrTracks(int $count): void
     {
         $this->nrTracks = $count;
     }
 
+    /**
+     * Get the current play mode.
+     *
+     * @return string Play mode (NORMAL, REPEAT_ONE, REPEAT_ALL, SHUFFLE, RANDOM)
+     */
     public function getPlayMode(): string
     {
         return $this->playMode;
     }
 
+    /**
+     * Set the play mode.
+     *
+     * @param string $mode The play mode to set
+     * @return void
+     */
     public function setPlayMode(string $mode): void
     {
         $this->playMode = $mode;
     }
 
+    /**
+     * Get the last change timestamp.
+     *
+     * @return float|null Unix timestamp of last state change
+     */
     public function getLastChange(): ?float
     {
         return $this->lastChange;
     }
 
+    /**
+     * Set the last change timestamp.
+     *
+     * @param float $timestamp Unix timestamp
+     * @return void
+     */
     public function setLastChange(float $timestamp): void
     {
         $this->lastChange = $timestamp;
     }
 
+    /**
+     * Check if transport is currently playing.
+     *
+     * @return bool True if transport state is PLAYING
+     */
     public function isPlaying(): bool
     {
         return $this->transportState === AvTransport::TRANSPORT_STATE_PLAYING;
     }
 
+    /**
+     * Check if transport is currently paused.
+     *
+     * @return bool True if transport state is PAUSED_PLAYING
+     */
     public function isPaused(): bool
     {
         return $this->transportState === AvTransport::TRANSPORT_STATE_PAUSED;
     }
 
+    /**
+     * Check if transport is currently stopped.
+     *
+     * @return bool True if transport state is STOPPED
+     */
     public function isStopped(): bool
     {
         return $this->transportState === AvTransport::TRANSPORT_STATE_STOPPED;
