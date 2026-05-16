@@ -23,7 +23,6 @@ ios/*.xcworkspace
 
 # Metro
 .metro-health-check*
-metro.config.js
 
 # Debug
 npm-debug.log*
