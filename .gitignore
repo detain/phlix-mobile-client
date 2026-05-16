@@ -15,8 +15,6 @@ dist/
 android/app/build/
 android/.gradle/
 android/build/
-android/gradlew
-android/gradlew.bat
 
 # iOS
 ios/build/
