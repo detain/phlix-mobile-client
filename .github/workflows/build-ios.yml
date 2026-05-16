@@ -9,7 +9,7 @@ on:
 jobs:
   build-ios-debug:
     name: Build iOS (Debug)
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout repository
@@ -50,7 +50,7 @@ jobs:
 
   build-ios-release:
     name: Build iOS (Release)
-    runs-on: macos-14
+    runs-on: macos-15
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
