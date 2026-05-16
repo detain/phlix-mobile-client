@@ -15,7 +15,7 @@ RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock)
 RCT_EXTERN_METHOD(play)
 RCT_EXTERN_METHOD(pause)
 RCT_EXTERN_METHOD(seekTo:(double)position)
-RCT_EXTERN_METHOD(setVolume:(float)volume)
-RCT_EXTERN_METHOD(setMuted:(BOOL)muted)
+RCT_EXTERN_METHOD(updateVolume:(float)volume)
+RCT_EXTERN_METHOD(updateMuted:(BOOL)muted)
 
 @end

@@ -32,12 +32,10 @@ class PhlexPlayerViewWrapper: UIView {
 
     @objc var autoPlay: Bool = true
     @objc var startPosition: Double = 0
-    @objc var volume: Float = 1.0 {
-        didSet { player?.volume = volume }
-    }
-    @objc var muted: Bool = false {
-        didSet { player?.isMuted = muted }
-    }
+
+    // Volume and muted are handled via methods to avoid Objective-C selector conflicts
+    private var _volume: Float = 1.0
+    private var _muted: Bool = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -80,6 +78,10 @@ class PhlexPlayerViewWrapper: UIView {
         player = AVPlayer(playerItem: playerItem)
 
         playerLayer?.player = player
+
+        // Apply current volume/muted state
+        player?.volume = _volume
+        player?.isMuted = _muted
 
         // Observe player status
         playerItem?.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
@@ -142,11 +144,13 @@ class PhlexPlayerViewWrapper: UIView {
         player?.seek(to: time)
     }
 
-    @objc func setVolume(_ volume: Float) {
+    @objc func updateVolume(_ volume: Float) {
+        _volume = volume
         player?.volume = volume
     }
 
-    @objc func setMuted(_ muted: Bool) {
+    @objc func updateMuted(_ muted: Bool) {
+        _muted = muted
         player?.isMuted = muted
     }
 
