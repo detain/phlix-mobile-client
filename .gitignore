@@ -60,3 +60,6 @@ coverage/
 
 # Misc
 *.log
+
+# Caliber local state
+.caliber/
