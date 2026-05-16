@@ -1,33 +1,14 @@
 name: Build iOS
 
-# iOS builds require macOS and are typically manual due to resource constraints
-# Uncomment the trigger below to run on every push to main branch
-# on:
-#   push:
-#     branches: [main, master]
-#   pull_request:
-#     branches: [main, master]
-
 on:
-  workflow_dispatch:
-    inputs:
-      configuration:
-        description: 'Build configuration (Debug/Release)'
-        required: true
-        default: 'Debug'
-        type: choice
-        options:
-          - Debug
-          - Release
-      simulator:
-        description: 'iOS Simulator name'
-        required: true
-        default: 'iPhone 15'
-        type: string
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
 
 jobs:
-  build-ios:
-    name: Build iOS (${{ inputs.configuration }})
+  build-ios-debug:
+    name: Build iOS (Debug)
     runs-on: macos-14
 
     steps:
@@ -46,20 +27,65 @@ jobs:
       - name: Install iOS dependencies
         run: cd ios && pod install && cd ..
 
-      - name: Build iOS
+      - name: Build iOS (Debug)
         run: |
           xcodebuild -workspace ios/PhlexMobile.xcworkspace \
             -scheme PhlexMobile \
-            -configuration ${{ inputs.configuration }} \
-            -destination 'platform=iOS Simulator,name=${{ inputs.simulator }}' \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -derivedDataPath ios/build \
             build CODE_SIGNING_ALLOWED=NO
+
+      - name: Create JS bundle
+        run: npx react-native bundle --platform ios --dev false --entry-file index.js --bundle-output ios/main.jsbundle --assets-dest ios
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
-        if: inputs.configuration == 'Debug'
         with:
           name: ios-build-debug
           path: |
             ios/main.jsbundle
-            ios/build/Build/Products/${{ inputs.configuration }}-*/PhlexMobile.app.dSYM.zip
+            ios/build/Build/Products/Debug-iphonesimulator/PhlexMobile.app.dSYM.zip
           retention-days: 7
+
+  build-ios-release:
+    name: Build iOS (Release)
+    runs-on: macos-14
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install iOS dependencies
+        run: cd ios && pod install && cd ..
+
+      - name: Create JS bundle
+        run: npx react-native bundle --platform ios --dev false --entry-file index.js --bundle-output ios/main.jsbundle --assets-dest ios
+
+      - name: Build iOS (Release)
+        run: |
+          xcodebuild -workspace ios/PhlexMobile.xcworkspace \
+            -scheme PhlexMobile \
+            -configuration Release \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -derivedDataPath ios/build \
+            build CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Release build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-release
+          path: |
+            ios/main.jsbundle
+            ios/build/Build/Products/Release-iphonesimulator/PhlexMobile.app.dSYM.zip
+          retention-days: 14
