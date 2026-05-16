@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.homepage     = "https://github.com/phlex-media/phlex-mobile"
   s.license      = "MIT"
   s.author       = { "Phlex" => "contact@phlex.media" }
-  s.platform     = :ios, "15.0"
+  s.platform     = :ios, "15.1"
   s.source       = { :path => "." }
   s.source_files = "*.{h,m,swift}"
   s.swift_version = "5.0"
