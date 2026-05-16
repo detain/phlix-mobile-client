@@ -1,5 +1,5 @@
 // src/native/types.ts
-import { NativeModule } from 'react-native';
+import { NativeModule, NativeSyntheticEvent } from 'react-native';
 
 export interface PlaybackEvent {
   event: 'ready' | 'play' | 'pause' | 'ended' | 'buffering';
@@ -14,6 +14,18 @@ export interface DownloadEvent {
   downloadedBytes?: number;
   totalBytes?: number;
   error?: string;
+}
+
+// Native player view props
+export interface PhlexPlayerViewProps {
+  src?: string;
+  autoPlay?: boolean;
+  startPosition?: number;
+  volume?: number;
+  muted?: boolean;
+  onPlaybackEvent?: (event: NativeSyntheticEvent<PlaybackEvent>) => void;
+  onProgress?: (event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => void;
+  onError?: (event: NativeSyntheticEvent<{ error: string }>) => void;
 }
 
 export interface PhlexPlayerInterface extends NativeModule {

@@ -1,5 +1,5 @@
 // src/screens/PlayerScreen.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,10 @@ import {
   Animated,
   Text,
   ActivityIndicator,
+  requireNativeComponent,
+  NativeSyntheticEvent,
+  Platform,
+  findNodeHandle,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +21,40 @@ import { StreamInfo, DeviceProfile } from '../types/playback';
 import { PlayerControls } from '../components/player/PlayerControls';
 import { SeekBar } from '../components/player/SeekBar';
 import { ErrorView } from '../components/ui/ErrorView';
-import { Platform } from 'react-native';
+import type { PlaybackEvent } from '../native/types';
+
+// Define the native player props interface
+interface NativePhlexPlayerProps {
+  src?: string;
+  autoPlay?: boolean;
+  startPosition?: number;
+  volume?: number;
+  muted?: boolean;
+  style?: any;
+  ref?: React.RefObject<any>;
+  onPlaybackEvent?: (event: any) => void;
+  onProgress?: (event: any) => void;
+  onError?: (event: any) => void;
+}
+
+// Native player component - only works when native module is properly linked
+let PhlexPlayerView: React.ComponentType<NativePhlexPlayerProps> | null = null;
+try {
+  PhlexPlayerView = requireNativeComponent('PhlexPlayerView');
+} catch (e) {
+  console.warn('PhlexPlayerView native module not available, using placeholder');
+}
+
+// Helper to dispatch commands to native player
+const dispatchPlayerCommand = (ref: React.RefObject<any>, command: string, args?: any[]) => {
+  if (ref.current) {
+    const nodeHandle = findNodeHandle(ref.current);
+    if (nodeHandle) {
+      const { UIManager } = require('react-native');
+      UIManager.dispatchViewManagerCommand(nodeHandle, command, args);
+    }
+  }
+};
 
 type PlayerRouteParams = {
   Player: {
@@ -42,6 +79,7 @@ const PlayerScreen: React.FC = () => {
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerRef = useRef<any>(null);
 
   // Store actions
   const setPlayerStreamInfo = usePlayerStore((state) => state.setStreamInfo);
@@ -133,20 +171,68 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
+  const handlePlaybackEvent = useCallback((event: NativeSyntheticEvent<PlaybackEvent>) => {
+    const { event: playbackEvent, currentTime: ct, duration: dur } = event.nativeEvent;
+    switch (playbackEvent) {
+      case 'ready':
+        if (dur && dur > 0) {
+          setDuration(dur);
+          playerSetDuration(dur);
+        }
+        break;
+      case 'play':
+        setIsPlaying(true);
+        playerSetIsPlaying(true);
+        break;
+      case 'pause':
+        setIsPlaying(false);
+        playerSetIsPlaying(false);
+        break;
+      case 'ended':
+        setIsPlaying(false);
+        playerSetIsPlaying(false);
+        break;
+      case 'buffering':
+        // Could show buffering indicator
+        break;
+    }
+    if (ct !== undefined) {
+      setCurrentTime(ct);
+      playerSetCurrentTime(ct);
+    }
+  }, [playerSetCurrentTime, playerSetDuration, playerSetIsPlaying]);
+
+  const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
+    const { currentTime: ct, duration: dur } = event.nativeEvent;
+    setCurrentTime(ct);
+    playerSetCurrentTime(ct);
+    if (dur > 0 && dur !== duration) {
+      setDuration(dur);
+      playerSetDuration(dur);
+    }
+  }, [duration, playerSetCurrentTime, playerSetDuration]);
+
+  const handlePlayerError = useCallback((event: NativeSyntheticEvent<{ error: string }>) => {
+    const { error: errorMessage } = event.nativeEvent;
+    setError(errorMessage || 'Playback error');
+  }, []);
+
   const handlePlay = () => {
+    dispatchPlayerCommand(playerRef, 'play');
     setIsPlaying(true);
     playerSetIsPlaying(true);
   };
 
   const handlePause = () => {
+    dispatchPlayerCommand(playerRef, 'pause');
     setIsPlaying(false);
     playerSetIsPlaying(false);
   };
 
   const handleSeek = (position: number) => {
+    dispatchPlayerCommand(playerRef, 'seekTo', [position]);
     setCurrentTime(position);
     playerSetCurrentTime(position);
-    // Would call native player seek here
   };
 
   const handleSeekBackward = () => {
@@ -185,14 +271,29 @@ const PlayerScreen: React.FC = () => {
         onPress={toggleControls}
         style={styles.playerWrapper}
       >
-        <View style={styles.playerPlaceholder}>
-          <Text style={styles.playerPlaceholderText}>
-            Video Player{'\n'}(Native module required)
-          </Text>
-          <Text style={styles.streamUrlText}>
-            {streamInfo?.url || 'No stream URL'}
-          </Text>
-        </View>
+        {PhlexPlayerView && streamInfo?.url ? (
+          <PhlexPlayerView
+            ref={playerRef}
+            style={styles.player}
+            src={streamInfo.url}
+            autoPlay={true}
+            startPosition={startPosition}
+            volume={1.0}
+            muted={false}
+            onPlaybackEvent={handlePlaybackEvent}
+            onProgress={handleProgress}
+            onError={handlePlayerError}
+          />
+        ) : (
+          <View style={styles.playerPlaceholder}>
+            <Text style={styles.playerPlaceholderText}>
+              Video Player{'\n'}(Native module required)
+            </Text>
+            <Text style={styles.streamUrlText}>
+              {streamInfo?.url || 'No stream URL'}
+            </Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* Overlay Controls */}
@@ -237,6 +338,10 @@ const styles = StyleSheet.create({
   },
   playerWrapper: {
     flex: 1,
+  },
+  player: {
+    flex: 1,
+    backgroundColor: '#000',
   },
   playerPlaceholder: {
     flex: 1,
