@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  preset: '@react-native/jest-preset',
+  preset: 'react-native',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   transformIgnorePatterns: [
     'node_modules/(?!(react-native|@react-native|@react-navigation|react-native-gesture-handler|react-native-safe-area-context|react-native-screens|zustand)/)',
