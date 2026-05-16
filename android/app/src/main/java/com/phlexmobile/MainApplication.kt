@@ -13,6 +13,8 @@ import com.facebook.react.shell.MainReactPackage
 
 class MainApplication : Application(), ReactApplication {
 
+  private val newArchEnabled = false  // Hardcoded for RN 0.85 compatibility
+
   override val reactNativeHost: ReactNativeHost =
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> {
@@ -35,8 +37,6 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     SoLoader.init(this, false)
-    if (isNewArchEnabled) {
-      load()
-    }
+    // New architecture is disabled, no need to load
   }
 }
