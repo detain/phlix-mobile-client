@@ -91,6 +91,16 @@ public/
 - **Continue Watching**: Track items in progress
 - **Watch History**: Complete viewing history per profile
 
+### Live TV & DVR
+- **Multi-Tuner Support**: DVB-T, DVB-S, DVB-C, and ATSC tuner types
+- **Channel Scanning**: Automatic discovery of broadcast services
+- **Electronic Program Guide**: Full EPG with program info, categories, and search
+- **DVR Scheduling**: Schedule recordings with priority management
+- **Time-Shifting**: Pause and rewind live TV with buffer
+- **Channel Lineups**: Custom channel lineups per user
+- **Favorites**: Personal favorite channels per user
+- **Storage Management**: Recording storage tracking and limits
+
 ## Installation
 
 ```bash

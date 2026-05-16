@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\LiveTv;
 
 use Phlex\Common\Logger\LogChannels;
@@ -11,40 +13,126 @@ use Workerman\MySQL\Connection;
  * Recorder - DVR scheduling and recording functionality.
  *
  * Provides functionality for:
- * - DVR scheduling and recording
+ * - DVR scheduling and recording management
  * - Recording storage management
- * - Time-shifting playback
+ * - Time-shifting playback (pause/rewind live TV)
+ *
+ * ## Recording Status Flow
+ *
+ * ```
+ * SCHEDULED → RECORDING → COMPLETED
+ *    ↓            ↓
+ * CANCELLED    FAILED
+ * ```
+ *
+ * ## Storage Management
+ *
+ * The recorder tracks storage usage and can enforce maximum
+ * storage limits. Recording quality affects file sizes:
+ * - Low: ~1MB/minute
+ * - Medium: ~2MB/minute
+ * - High: ~4MB/minute
+ *
+ * ## Time-Shifting
+ *
+ * Time-shifting allows pausing and rewinding live TV by
+ * maintaining a buffer of the last N seconds of broadcast.
+ *
+ * @author Phlex Development Team
+ * @version 1.0.0
+ * @see LiveTvManager For tuner integration
  */
 class Recorder
 {
+    /** @var Connection Database connection */
     private Connection $db;
+
+    /** @var StructuredLogger Structured logger instance */
     private StructuredLogger $logger;
+
+    /** @var string Base path for recording storage */
     private string $storagePath;
+
+    /** @var int Maximum storage in bytes (0 = unlimited) */
     private int $maxStorageBytes;
+
+    /** @var array<string, array{id:string, started_at:int, channel_id:string, stream_url:string}> Currently active recordings */
     private array $activeRecordings = [];
+
+    /** @var array<string, array{id:string, session_id:string, channel_id:string, started_at:int, buffer_start:int, buffer_end:int, current_position?:int}> Active time-shift sessions */
     private array $activeTimeShifts = [];
 
     /**
-     * Recording status constants.
+     * Recording is scheduled but not yet started.
+     *
+     * @var string
      */
     public const STATUS_SCHEDULED = 'scheduled';
+
+    /**
+     * Recording is in progress.
+     *
+     * @var string
+     */
     public const STATUS_RECORDING = 'recording';
+
+    /**
+     * Recording completed successfully.
+     *
+     * @var string
+     */
     public const STATUS_COMPLETED = 'completed';
+
+    /**
+     * Recording failed (e.g., insufficient storage).
+     *
+     * @var string
+     */
     public const STATUS_FAILED = 'failed';
+
+    /**
+     * Recording was cancelled by user.
+     *
+     * @var string
+     */
     public const STATUS_CANCELLED = 'cancelled';
 
     /**
-     * Recording priority constants.
+     * Low recording priority.
+     *
+     * @var int
      */
     public const PRIORITY_LOW = 1;
+
+    /**
+     * Normal recording priority.
+     *
+     * @var int
+     */
     public const PRIORITY_NORMAL = 5;
+
+    /**
+     * High recording priority.
+     *
+     * @var int
+     */
     public const PRIORITY_HIGH = 10;
 
     /**
-     * Time-shift buffer size in seconds.
+     * Time-shift buffer size in seconds (2 hours).
+     *
+     * @var int
      */
-    public const TIMESHIFT_BUFFER_SECONDS = 7200; // 2 hours
+    public const TIMESHIFT_BUFFER_SECONDS = 7200;
 
+    /**
+     * Creates a new Recorder instance.
+     *
+     * @param Connection $db Database connection
+     * @param string $storagePath Base path for recording files (default: /var/recordings)
+     * @param int $maxStorageBytes Maximum storage limit in bytes (0 = unlimited)
+     * @param StructuredLogger|null $logger Optional logger, defaults to Livetv channel
+     */
     public function __construct(Connection $db, string $storagePath = '/var/recordings', int $maxStorageBytes = 0, ?StructuredLogger $logger = null)
     {
         $this->db = $db;
@@ -54,7 +142,31 @@ class Recorder
     }
 
     /**
-     * Schedule a recording.
+     * Schedule a new recording.
+     *
+     * Creates a scheduled recording entry. The actual recording
+     * starts automatically at start_time via an external scheduler.
+     *
+     * @param array<string, mixed> $data Recording data including:
+     *   - channel_id: string Required - channel to record
+     *   - program_id: string|null Optional - associated program
+     *   - title: string Recording title (default: 'Untitled Recording')
+     *   - description: string|null Recording description
+     *   - start_time: int Required - start timestamp
+     *   - end_time: int Required - end timestamp
+     *   - priority: int Recording priority (default: PRIORITY_NORMAL)
+     *   - quality: string Recording quality (default: 'default')
+     * @return array<string, mixed>|null The scheduled recording or null on failure
+     *
+     * @example
+     * ```php
+     * $recording = $recorder->scheduleRecording([
+     *     'channel_id' => 'ch_1',
+     *     'title' => 'My Show',
+     *     'start_time' => strtotime('today 8pm'),
+     *     'end_time' => strtotime('today 9pm'),
+     * ]);
+     * ```
      */
     public function scheduleRecording(array $data): array
     {
@@ -91,6 +203,9 @@ class Recorder
 
     /**
      * Get a recording by ID.
+     *
+     * @param string $recordingId The recording identifier
+     * @return array<string, mixed>|null The recording or null if not found
      */
     public function getRecording(string $recordingId): ?array
     {
@@ -107,7 +222,10 @@ class Recorder
     }
 
     /**
-     * Get all recordings.
+     * Get all recordings, optionally filtered by status.
+     *
+     * @param string|null $status Optional status filter (one of STATUS_*)
+     * @return array<int, array<string, mixed>> List of recordings
      */
     public function getAllRecordings(string $status = null): array
     {
@@ -131,7 +249,10 @@ class Recorder
     }
 
     /**
-     * Get upcoming recordings.
+     * Get upcoming scheduled recordings.
+     *
+     * @param int $limit Maximum number of results (default: 10)
+     * @return array<int, array<string, mixed>> Upcoming scheduled recordings
      */
     public function getUpcomingRecordings(int $limit = 10): array
     {
@@ -154,7 +275,10 @@ class Recorder
     }
 
     /**
-     * Get recordings for a specific channel.
+     * Get all recordings for a specific channel.
+     *
+     * @param string $channelId The channel identifier
+     * @return array<int, array<string, mixed>> Recordings for the channel
      */
     public function getRecordingsForChannel(string $channelId): array
     {
@@ -172,7 +296,10 @@ class Recorder
     }
 
     /**
-     * Get user's recordings.
+     * Get all recordings for a user.
+     *
+     * @param string $userId The user identifier
+     * @return array<int, array<string, mixed>> User's recordings
      */
     public function getUserRecordings(string $userId): array
     {
@@ -190,7 +317,13 @@ class Recorder
     }
 
     /**
-     * Start a recording.
+     * Start a scheduled recording.
+     *
+     * Checks for available storage before starting.
+     * Updates status to RECORDING and creates stream URL.
+     *
+     * @param string $recordingId The recording to start
+     * @return bool True if started successfully, false otherwise
      */
     public function startRecording(string $recordingId): bool
     {
@@ -220,7 +353,13 @@ class Recorder
     }
 
     /**
-     * Stop a recording.
+     * Stop a recording in progress.
+     *
+     * Updates the recording status to COMPLETED and records
+     * the actual duration and file size.
+     *
+     * @param string $recordingId The recording to stop
+     * @return bool True if stopped successfully, false if not active
      */
     public function stopRecording(string $recordingId): bool
     {
@@ -237,7 +376,6 @@ class Recorder
 
         unset($this->activeRecordings[$recordingId]);
 
-        // Update recording with actual end time and size
         $filePath = $this->getRecordingPath($recordingId);
         $fileSize = file_exists($filePath) ? filesize($filePath) : 0;
 
@@ -258,7 +396,10 @@ class Recorder
     }
 
     /**
-     * Cancel a scheduled recording.
+     * Cancel a scheduled or in-progress recording.
+     *
+     * @param string $recordingId The recording to cancel
+     * @return bool True if cancelled, false if not found
      */
     public function cancelRecording(string $recordingId): bool
     {
@@ -279,7 +420,10 @@ class Recorder
     }
 
     /**
-     * Delete a recording.
+     * Delete a recording and its associated file.
+     *
+     * @param string $recordingId The recording to delete
+     * @return bool True if deleted, false if not found
      */
     public function deleteRecording(string $recordingId): bool
     {
@@ -288,18 +432,15 @@ class Recorder
             return false;
         }
 
-        // Stop if still recording
         if (isset($this->activeRecordings[$recordingId])) {
             $this->stopRecording($recordingId);
         }
 
-        // Delete the file
         $filePath = $this->getRecordingPath($recordingId);
         if (file_exists($filePath)) {
             unlink($filePath);
         }
 
-        // Delete from database
         $this->db->query("DELETE FROM livetv_recordings WHERE recording_id = ?", [$recordingId]);
 
         $this->logger->info('Recording deleted', ['recording_id' => $recordingId]);
@@ -308,9 +449,14 @@ class Recorder
     }
 
     /**
-     * Update recording status.
+     * Update recording status in database.
+     *
+     * @param string $recordingId The recording identifier
+     * @param string $status New status
+     * @param string|null $error Optional error message
+     * @return void
      */
-    private function updateRecordingStatus(string $recordingId, string $status, string $error = null): void
+    private function updateRecordingStatus(string $recordingId, string $status, ?string $error = null): void
     {
         $this->db->query(
             "UPDATE livetv_recordings SET status = ?, error_message = ?, updated_at = NOW()
@@ -320,7 +466,10 @@ class Recorder
     }
 
     /**
-     * Get recording file path.
+     * Get the storage file path for a recording.
+     *
+     * @param string $recordingId The recording identifier
+     * @return string Full file path
      */
     private function getRecordingPath(string $recordingId): string
     {
@@ -328,12 +477,16 @@ class Recorder
     }
 
     /**
-     * Check if there's available storage space.
+     * Check if there's available storage space for a recording.
+     *
+     * @param int $startTime Recording start time
+     * @param int $endTime Recording end time
+     * @return bool True if space is available
      */
     private function hasStorageSpace(int $startTime, int $endTime): bool
     {
         if ($this->maxStorageBytes <= 0) {
-            return true; // No limit set
+            return true;
         }
 
         $usedStorage = $this->getUsedStorageBytes();
@@ -343,7 +496,9 @@ class Recorder
     }
 
     /**
-     * Get total used storage in bytes.
+     * Get total used storage for completed recordings.
+     *
+     * @return int Used storage in bytes
      */
     public function getUsedStorageBytes(): int
     {
@@ -358,6 +513,8 @@ class Recorder
 
     /**
      * Get available storage in bytes.
+     *
+     * @return int Available storage (PHP_INT_MAX if unlimited)
      */
     public function getAvailableStorageBytes(): int
     {
@@ -369,22 +526,30 @@ class Recorder
     }
 
     /**
-     * Estimate recording size based on duration and quality.
+     * Estimate recording size based on duration.
+     *
+     * @param int $startTime Recording start
+     * @param int $endTime Recording end
+     * @return int Estimated size in bytes
      */
     private function estimateRecordingSize(int $startTime, int $endTime): int
     {
         $durationSeconds = $endTime - $startTime;
-        // Estimate ~2MB per minute for HD recording
         $bytesPerSecond = 2 * 1024 * 1024 / 60;
         return (int) ($durationSeconds * $bytesPerSecond);
     }
 
     /**
-     * Start time-shifting for a channel.
+     * Start time-shifting for a session.
+     *
+     * Creates a time-shift buffer allowing pause/rewind of live TV.
+     *
+     * @param string $sessionId The playback session ID
+     * @param string $channelId The channel to time-shift
+     * @return array{time_shift_id:string, stream_url:string, buffer_start:int, buffer_end:int} Time-shift info
      */
     public function startTimeShift(string $sessionId, string $channelId): array
     {
-        // Stop any existing time-shift for this session
         $this->stopTimeShift($sessionId);
 
         $timeShiftId = $this->generateUuid();
@@ -414,6 +579,9 @@ class Recorder
 
     /**
      * Stop time-shifting for a session.
+     *
+     * @param string $sessionId The session to stop
+     * @return bool True if stopped, false if not active
      */
     public function stopTimeShift(string $sessionId): bool
     {
@@ -430,6 +598,9 @@ class Recorder
 
     /**
      * Get time-shift info for a session.
+     *
+     * @param string $sessionId The session identifier
+     * @return array<string, mixed>|null Time-shift data or null
      */
     public function getTimeShift(string $sessionId): ?array
     {
@@ -437,7 +608,10 @@ class Recorder
     }
 
     /**
-     * Get playback position in a time-shift buffer.
+     * Get current playback position in time-shift buffer.
+     *
+     * @param string $sessionId The session identifier
+     * @return int|null Current position (Unix timestamp) or null
      */
     public function getTimeShiftPosition(string $sessionId): ?int
     {
@@ -449,7 +623,11 @@ class Recorder
     }
 
     /**
-     * Seek in time-shift buffer.
+     * Seek to a position in the time-shift buffer.
+     *
+     * @param string $sessionId The session identifier
+     * @param int $position Position to seek to (Unix timestamp)
+     * @return bool True if successful, false if session not found
      */
     public function seekTimeShift(string $sessionId, int $position): bool
     {
@@ -459,7 +637,6 @@ class Recorder
 
         $timeShift = $this->activeTimeShifts[$sessionId];
 
-        // Clamp position to buffer range
         $position = max($timeShift['buffer_start'], min($timeShift['buffer_end'], $position));
 
         $this->activeTimeShifts[$sessionId]['current_position'] = $position;
@@ -468,7 +645,9 @@ class Recorder
     }
 
     /**
-     * Get active recordings count.
+     * Get count of active recordings.
+     *
+     * @return int Number of active recordings
      */
     public function getActiveRecordingCount(): int
     {
@@ -476,7 +655,9 @@ class Recorder
     }
 
     /**
-     * Get active time-shifts count.
+     * Get count of active time-shifts.
+     *
+     * @return int Number of active time-shifts
      */
     public function getActiveTimeShiftCount(): int
     {
@@ -484,7 +665,9 @@ class Recorder
     }
 
     /**
-     * Get recording count by status.
+     * Get recording counts grouped by status.
+     *
+     * @return array<string, int> Counts by status
      */
     public function getRecordingCountByStatus(): array
     {
@@ -502,6 +685,10 @@ class Recorder
 
     /**
      * Update recording priority.
+     *
+     * @param string $recordingId The recording to update
+     * @param int $priority New priority (PRIORITY_LOW, NORMAL, HIGH)
+     * @return bool True on success
      */
     public function updatePriority(string $recordingId, int $priority): bool
     {
@@ -514,7 +701,9 @@ class Recorder
     }
 
     /**
-     * Get storage statistics.
+     * Get comprehensive storage statistics.
+     *
+     * @return array{used_bytes:int, available_bytes:int, max_bytes:int, active_recordings:int, active_timeshifts:int, recordings_by_status:array<string,int>} Storage stats
      */
     public function getStorageStats(): array
     {
@@ -530,6 +719,9 @@ class Recorder
 
     /**
      * Map a database row to a recording array.
+     *
+     * @param array<string, mixed> $row Raw database row
+     * @return array<string, mixed> Normalized recording data
      */
     private function mapRecording(array $row): array
     {
@@ -556,7 +748,9 @@ class Recorder
     }
 
     /**
-     * Generate a unique ID.
+     * Generate a unique UUID v4 string.
+     *
+     * @return string A UUID in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
      */
     private function generateUuid(): string
     {

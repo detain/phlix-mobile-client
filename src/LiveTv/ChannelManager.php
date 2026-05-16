@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\LiveTv;
 
 use Phlex\Common\Logger\LogChannels;
@@ -13,28 +15,81 @@ use Workerman\MySQL\Connection;
  * Provides functionality for:
  * - Channel creation, retrieval, update, and deletion
  * - Channel lineup management
- * - Favorite channels
+ * - Favorite channels per user
  * - Channel grouping and sorting
+ *
+ * ## Channel Types
+ *
+ * - TYPE_TV: Standard television broadcast
+ * - TYPE_RADIO: Audio-only broadcast
+ * - TYPE_DATA: Data service (MHP, MHEG, etc.)
+ *
+ * ## Visibility States
+ *
+ * - VISIBILITY_VISIBLE: Channel is shown in listings
+ * - VISIBILITY_HIDDEN: Channel is hidden but not deleted
+ * - VISIBILITY_DELETED: Soft-deleted channel (excluded from queries)
+ *
+ * @author Phlex Development Team
+ * @version 1.0.0
+ * @see LiveTvManager For tuner integration
  */
 class ChannelManager
 {
+    /** @var Connection Database connection */
     private Connection $db;
+
+    /** @var StructuredLogger Structured logger instance */
     private StructuredLogger $logger;
 
     /**
-     * Channel type constants.
+     * Television channel type.
+     *
+     * @var string
      */
     public const TYPE_TV = 'tv';
+
+    /**
+     * Radio channel type.
+     *
+     * @var string
+     */
     public const TYPE_RADIO = 'radio';
+
+    /**
+     * Data service channel type.
+     *
+     * @var string
+     */
     public const TYPE_DATA = 'data';
 
     /**
-     * Channel visibility constants.
+     * Channel is visible in listings.
+     *
+     * @var string
      */
     public const VISIBILITY_VISIBLE = 'visible';
+
+    /**
+     * Channel is hidden but retained.
+     *
+     * @var string
+     */
     public const VISIBILITY_HIDDEN = 'hidden';
+
+    /**
+     * Channel is soft-deleted.
+     *
+     * @var string
+     */
     public const VISIBILITY_DELETED = 'deleted';
 
+    /**
+     * Creates a new ChannelManager instance.
+     *
+     * @param Connection $db Database connection
+     * @param StructuredLogger|null $logger Optional logger, defaults to Livetv channel
+     */
     public function __construct(Connection $db, ?StructuredLogger $logger = null)
     {
         $this->db = $db;
@@ -44,8 +99,27 @@ class ChannelManager
     /**
      * Create a new channel.
      *
-     * @param array $data Channel data
-     * @return array|null Created channel or null if failed
+     * @param array<string, mixed> $data Channel data including:
+     *   - name: string Channel display name (default: 'Unknown Channel')
+     *   - number: int Channel number (default: 0)
+     *   - type: string Channel type (default: TYPE_TV)
+     *   - frequency: int Frequency in Hz
+     *   - tuner_id: string|null Associated tuner ID
+     *   - service_id: string|null DVB service ID
+     *   - visual_id: string|null CAS visual ID
+     *   - description: string|null Channel description
+     *   - icon_url: string|null Channel icon URL
+     * @return array<string, mixed>|null The created channel or null on failure
+     *
+     * @example
+     * ```php
+     * $channel = $manager->createChannel([
+     *     'name' => 'BBC One',
+     *     'number' => 1,
+     *     'type' => ChannelManager::TYPE_TV,
+     *     'frequency' => 474000000,
+     * ]);
+     * ```
      */
     public function createChannel(array $data): ?array
     {
@@ -77,7 +151,10 @@ class ChannelManager
     }
 
     /**
-     * Get a channel by ID.
+     * Get a channel by its ID.
+     *
+     * @param string $channelId The unique channel identifier
+     * @return array<string, mixed>|null The channel data or null if not found
      */
     public function getChannel(string $channelId): ?array
     {
@@ -94,7 +171,10 @@ class ChannelManager
     }
 
     /**
-     * Get a channel by number.
+     * Get a channel by its number.
+     *
+     * @param int $number The channel number
+     * @return array<string, mixed>|null The channel data or null if not found
      */
     public function getChannelByNumber(int $number): ?array
     {
@@ -113,9 +193,9 @@ class ChannelManager
     /**
      * Get all visible channels.
      *
-     * @param string $sortBy Sort field (number, name, created_at)
-     * @param string $sortOrder Sort order (ASC, DESC)
-     * @return array List of channels
+     * @param string $sortBy Sort field: 'number', 'name', or 'created_at' (default: 'number')
+     * @param string $sortOrder Sort order: 'ASC' or 'DESC' (default: 'ASC')
+     * @return array<int, array<string, mixed>> List of visible channels
      */
     public function getAllChannels(string $sortBy = 'number', string $sortOrder = 'ASC'): array
     {
@@ -137,7 +217,10 @@ class ChannelManager
     }
 
     /**
-     * Get channels by type.
+     * Get channels filtered by type.
+     *
+     * @param string $type One of TYPE_TV, TYPE_RADIO, or TYPE_DATA
+     * @return array<int, array<string, mixed>> List of channels of the specified type
      */
     public function getChannelsByType(string $type): array
     {
@@ -155,7 +238,18 @@ class ChannelManager
     }
 
     /**
-     * Update a channel.
+     * Update channel properties.
+     *
+     * Only updates fields that are present in the $data array.
+     *
+     * @param string $channelId The channel to update
+     * @param array<string, mixed> $data Update data with keys:
+     *   - name: string New channel name
+     *   - number: int New channel number
+     *   - description: string New description
+     *   - icon_url: string New icon URL
+     *   - visual_id: string New visual ID
+     * @return array<string, mixed>|null Updated channel or null if not found
      */
     public function updateChannel(string $channelId, array $data): ?array
     {
@@ -211,6 +305,11 @@ class ChannelManager
 
     /**
      * Delete a channel (soft delete).
+     *
+     * Sets visibility to VISIBILITY_DELETED rather than removing the record.
+     *
+     * @param string $channelId The channel to delete
+     * @return bool True if deleted, false if not found
      */
     public function deleteChannel(string $channelId): bool
     {
@@ -230,7 +329,12 @@ class ChannelManager
     }
 
     /**
-     * Hide a channel (soft hide).
+     * Hide a channel from listings.
+     *
+     * Sets visibility to VISIBILITY_HIDDEN. Channel can be restored.
+     *
+     * @param string $channelId The channel to hide
+     * @return bool True if hidden, false if not found
      */
     public function hideChannel(string $channelId): bool
     {
@@ -251,6 +355,9 @@ class ChannelManager
 
     /**
      * Restore a hidden or deleted channel.
+     *
+     * @param string $channelId The channel to restore
+     * @return bool True if restored, false if not found
      */
     public function restoreChannel(string $channelId): bool
     {
@@ -274,7 +381,11 @@ class ChannelManager
     }
 
     /**
-     * Add a channel to favorites.
+     * Add a channel to user's favorites.
+     *
+     * @param string $channelId The channel to favorite
+     * @param string $userId The user ID
+     * @return bool True if added, false if channel doesn't exist
      */
     public function addToFavorites(string $channelId, string $userId): bool
     {
@@ -296,7 +407,11 @@ class ChannelManager
     }
 
     /**
-     * Remove a channel from favorites.
+     * Remove a channel from user's favorites.
+     *
+     * @param string $channelId The channel to unfavorite
+     * @param string $userId The user ID
+     * @return bool Always returns true
      */
     public function removeFromFavorites(string $channelId, string $userId): bool
     {
@@ -312,6 +427,9 @@ class ChannelManager
 
     /**
      * Get user's favorite channels.
+     *
+     * @param string $userId The user ID
+     * @return array<int, array<string, mixed>> List of favorite channels sorted by number
      */
     public function getFavoriteChannels(string $userId): array
     {
@@ -333,6 +451,10 @@ class ChannelManager
 
     /**
      * Check if a channel is in user's favorites.
+     *
+     * @param string $channelId The channel ID
+     * @param string $userId The user ID
+     * @return bool True if favorited, false otherwise
      */
     public function isFavorite(string $channelId, string $userId): bool
     {
@@ -345,12 +467,19 @@ class ChannelManager
     }
 
     /**
-     * Create a channel lineup.
+     * Create a new channel lineup.
+     *
+     * A lineup is an ordered list of channels for a user.
      *
      * @param string $name Lineup name
      * @param string $userId Owner user ID
-     * @param array $channelIds Channel IDs to include
-     * @return array|null Created lineup
+     * @param array<string> $channelIds Channel IDs to include in order
+     * @return array<string, mixed>|null Created lineup with channels or null on failure
+     *
+     * @example
+     * ```php
+     * $lineup = $manager->createLineup('My TV', 'user_123', ['ch_1', 'ch_2', 'ch_3']);
+     * ```
      */
     public function createLineup(string $name, string $userId, array $channelIds = []): ?array
     {
@@ -374,7 +503,10 @@ class ChannelManager
     }
 
     /**
-     * Get a lineup by ID.
+     * Get a lineup by ID with its channels.
+     *
+     * @param string $lineupId The lineup identifier
+     * @return array<string, mixed>|null Lineup with channels or null if not found
      */
     public function getLineup(string $lineupId): ?array
     {
@@ -394,7 +526,10 @@ class ChannelManager
     }
 
     /**
-     * Get user's lineups.
+     * Get all lineups for a user.
+     *
+     * @param string $userId The user ID
+     * @return array<int, array<string, mixed>> User's lineups
      */
     public function getUserLineups(string $userId): array
     {
@@ -408,6 +543,11 @@ class ChannelManager
 
     /**
      * Add a channel to a lineup.
+     *
+     * @param string $lineupId The lineup ID
+     * @param string $channelId The channel ID to add
+     * @param int $position Position in the lineup (default: 0)
+     * @return bool True on success
      */
     public function addChannelToLineup(string $lineupId, string $channelId, int $position = 0): bool
     {
@@ -423,6 +563,10 @@ class ChannelManager
 
     /**
      * Remove a channel from a lineup.
+     *
+     * @param string $lineupId The lineup ID
+     * @param string $channelId The channel ID to remove
+     * @return bool True on success
      */
     public function removeChannelFromLineup(string $lineupId, string $channelId): bool
     {
@@ -435,7 +579,10 @@ class ChannelManager
     }
 
     /**
-     * Get channels in a lineup.
+     * Get channels in a lineup in order.
+     *
+     * @param string $lineupId The lineup ID
+     * @return array<int, array<string, mixed>> Ordered list of channels
      */
     public function getLineupChannels(string $lineupId): array
     {
@@ -456,7 +603,10 @@ class ChannelManager
     }
 
     /**
-     * Delete a lineup.
+     * Delete a lineup and its channel associations.
+     *
+     * @param string $lineupId The lineup to delete
+     * @return bool True on success
      */
     public function deleteLineup(string $lineupId): bool
     {
@@ -469,7 +619,9 @@ class ChannelManager
     }
 
     /**
-     * Get channel count.
+     * Get total count of visible channels.
+     *
+     * @return int Number of visible channels
      */
     public function getChannelCount(): int
     {
@@ -483,6 +635,9 @@ class ChannelManager
 
     /**
      * Map a database row to a channel array.
+     *
+     * @param array<string, mixed> $row Raw database row
+     * @return array<string, mixed> Normalized channel data
      */
     private function mapChannel(array $row): array
     {
@@ -505,7 +660,9 @@ class ChannelManager
     }
 
     /**
-     * Generate a unique ID.
+     * Generate a unique UUID v4 string.
+     *
+     * @return string A UUID in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
      */
     private function generateUuid(): string
     {

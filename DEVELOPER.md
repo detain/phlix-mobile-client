@@ -685,6 +685,238 @@ $watcher->unwatch($libraryId);
 
 ---
 
+## LiveTV Architecture
+
+The LiveTV system provides DVR (Digital Video Recorder) and live TV streaming capabilities with support for multiple tuner types, electronic program guides, and time-shifting.
+
+### Component Overview
+
+```
+src/LiveTv/
+├── LiveTvManager.php   # Main orchestrator for tuner discovery, scanning, tuning
+├── ChannelManager.php # Channel CRUD, lineups, favorites
+├── GuideManager.php   # Electronic Program Guide (EPG) data management
+└── Recorder.php       # DVR scheduling, recording, time-shifting
+```
+
+### Component Responsibilities
+
+| Component | Responsibility |
+|-----------|----------------|
+| `LiveTvManager` | Tuner discovery, channel scanning, channel tuning, orchestration |
+| `ChannelManager` | Channel lifecycle, lineups, favorites, visibility management |
+| `GuideManager` | EPG data, program info, guide caching, import/export |
+| `Recorder` | Recording lifecycle, storage management, time-shifting |
+
+### Tuner Types
+
+The system supports multiple DVB tuner standards:
+
+| Type | Constant | Description |
+|------|----------|-------------|
+| DVB-Terrestrial | `TUNER_TYPE_DVB_T` | Free-to-air terrestrial (EU, AU) |
+| DVB-Satellite | `TUNER_TYPE_DVB_S` | Satellite dishes |
+| DVB-Cable | `TUNER_TYPE_DVB_C` | Cable TV |
+| ATSC | `TUNER_TYPE_ATSC` | North American digital TV |
+
+### Tuner Status Flow
+
+```
+IDLE → SCANNING → IDLE
+       ↓
+     TUNING → STREAMING → IDLE
+                  ↓
+               ERROR → IDLE
+```
+
+### LiveTvManager (`LiveTvManager`)
+
+The main entry point for LiveTV operations:
+
+```php
+// Discover available tuners on the system
+$tuners = $liveTvManager->discoverTuners();
+
+// Scan for channels using a specific tuner
+$channels = $liveTvManager->scanChannels('dvb_0', [
+    'frequencies' => [474000000, 498000000, 522000000]
+]);
+
+// Tune to a channel and get stream URL
+$result = $liveTvManager->tuneToChannel('channel_123');
+// ['id' => 'tune_req_abc', 'channel_id' => 'channel_123', 'stream_url' => '/livetv/abc/stream']
+
+// Stop tuning and release tuner
+$liveTvManager->stopTuning($result['id']);
+
+// Get the ChannelManager for channel operations
+$channelManager = $liveTvManager->getChannelManager();
+
+// Get the GuideManager for EPG operations
+$guideManager = $liveTvManager->getGuideManager();
+
+// Get the Recorder for DVR operations
+$recorder = $liveTvManager->getRecorder();
+```
+
+### ChannelManager (`ChannelManager`)
+
+Manages channel data and user preferences:
+
+```php
+// Create a channel
+$channel = $channelManager->createChannel([
+    'name' => 'BBC One',
+    'number' => 1,
+    'type' => ChannelManager::TYPE_TV,
+    'frequency' => 474000000,
+]);
+
+// Get all visible channels
+$channels = $channelManager->getAllChannels('number', 'ASC');
+
+// Get channels by type (TV, radio, data)
+$radioChannels = $channelManager->getChannelsByType(ChannelManager::TYPE_RADIO);
+
+// Update a channel
+$channelManager->updateChannel($channelId, ['name' => 'BBC One HD']);
+
+// Hide/delete a channel
+$channelManager->hideChannel($channelId);
+$channelManager->deleteChannel($channelId);
+
+// Restore a hidden/deleted channel
+$channelManager->restoreChannel($channelId);
+
+// Manage favorites
+$channelManager->addToFavorites($channelId, $userId);
+$favorites = $channelManager->getFavoriteChannels($userId);
+$isFav = $channelManager->isFavorite($channelId, $userId);
+
+// Manage lineups
+$lineup = $channelManager->createLineup('My TV', $userId, [$ch1, $ch2]);
+$channelManager->addChannelToLineup($lineupId, $channelId, $position);
+$channels = $channelManager->getLineupChannels($lineupId);
+```
+
+### GuideManager (`GuideManager`)
+
+Electronic Program Guide (EPG) functionality:
+
+```php
+// Get current program on a channel
+$current = $guideManager->getCurrentProgram($channelId);
+
+// Get programs for a time range
+$programs = $guideManager->getProgramsForChannel($channelId, time(), time() + 86400);
+
+// Get guide for next 7 days
+$guide = $guideManager->getChannelGuide($channelId, 7);
+
+// Search programs
+$results = $guideManager->searchPrograms('News');
+
+// Get programs by category
+$sports = $guideManager->getProgramsByCategory(GuideManager::CATEGORY_SPORTS);
+
+// Get upcoming episodes for a series
+$episodes = $guideManager->getUpcomingBySeries($seriesId);
+
+// Add/update a program
+$guideManager->upsertProgram([
+    'channel_id' => 'ch_1',
+    'title' => ' Evening News',
+    'start_time' => strtotime('today 6pm'),
+    'end_time' => strtotime('today 6:30pm'),
+    'category' => GuideManager::CATEGORY_NEWS,
+]);
+
+// Import guide data from external source
+$result = $guideManager->importGuideData($externalData);
+// ['imported' => 150, 'errors' => []]
+
+// Clean up old programs (retention policy)
+$deleted = $guideManager->cleanupOldPrograms(7); // Keep 7 days
+
+// Cache management
+$guideManager->setCacheTtl(3600);
+$stats = $guideManager->getCacheStats();
+// ['entries' => 50, 'ttl' => 3600]
+```
+
+### Recorder (`Recorder`)
+
+DVR recording and time-shifting:
+
+```php
+// Schedule a recording
+$recording = $recorder->scheduleRecording([
+    'channel_id' => 'ch_1',
+    'program_id' => $programId,
+    'title' => 'My Show',
+    'start_time' => strtotime('today 8pm'),
+    'end_time' => strtotime('today 9pm'),
+    'priority' => Recorder::PRIORITY_NORMAL,
+]);
+
+// Get recordings
+$all = $recorder->getAllRecordings();
+$upcoming = $recorder->getUpcomingRecordings(10);
+$byChannel = $recorder->getRecordingsForChannel($channelId);
+$userRecordings = $recorder->getUserRecordings($userId);
+
+// Recording lifecycle
+$recorder->startRecording($recordingId);
+$recorder->stopRecording($recordingId);
+$recorder->cancelRecording($recordingId);
+$recorder->deleteRecording($recordingId);
+
+// Update priority
+$recorder->updatePriority($recordingId, Recorder::PRIORITY_HIGH);
+
+// Time-shifting (pause/rewind live TV)
+$timeShift = $recorder->startTimeShift($sessionId, $channelId);
+// ['time_shift_id' => 'ts_abc', 'stream_url' => '/livetv/timeshift/abc/stream', 'buffer_start' => ..., 'buffer_end' => ...]
+
+$position = $recorder->getTimeShiftPosition($sessionId);
+$recorder->seekTimeShift($sessionId, time() - 300); // Seek 5 minutes back
+$recorder->stopTimeShift($sessionId);
+
+// Storage management
+$stats = $recorder->getStorageStats();
+// ['used_bytes' => 5368709120, 'available_bytes' => 10737418240, 'max_bytes' => 17179869184, ...]
+$used = $recorder->getUsedStorageBytes();
+$available = $recorder->getAvailableStorageBytes();
+```
+
+### EPG Data Structure
+
+Program data stored in `livetv_programs` table:
+
+```json
+{
+    "program_id": "prog_abc123",
+    "channel_id": "ch_1",
+    "title": "Evening News",
+    "description": "Latest news coverage...",
+    "start_time": 1700000000,
+    "end_time": 1700001800,
+    "duration": 1800,
+    "category": "news",
+    "series_id": null,
+    "episode_number": null,
+    "episode_title": null,
+    "rating_system": "tv",
+    "rating": "TV-G",
+    "year": null,
+    "series_episode": null,
+    "is_repeat": false,
+    "is_film": false
+}
+```
+
+---
+
 ## Metadata Fetching System
 
 ### Metadata Manager (`MetadataManager`)

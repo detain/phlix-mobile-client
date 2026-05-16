@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Phlex\LiveTv;
 
 use Phlex\Common\Logger\LogChannels;
@@ -15,33 +17,139 @@ use Workerman\MySQL\Connection;
  * - Guide data caching
  * - Program search
  * - EPG data import/export
+ *
+ * ## Program Categories
+ *
+ * - CATEGORY_MOVIE: Feature films
+ * - CATEGORY_SERIES: TV series episodes
+ * - CATEGORY_NEWS: News broadcasts
+ * - CATEGORY_SPORTS: Sports events
+ * - CATEGORY_KIDS: Children's programming
+ * - CATEGORY_MUSIC: Music broadcasts
+ * - CATEGORY_EDUCATION: Educational content
+ * - CATEGORY_OTHER: Miscellaneous content
+ *
+ * ## Rating Systems
+ *
+ * - RATING_SYSTEM_TV: US TV ratings (TV-Y, TV-G, etc.)
+ * - RATING_SYSTEM_MPAA: MPAA film ratings (G, PG, etc.)
+ * - RATING_SYSTEM_ACB: Australian Classification Board
+ *
+ * ## EPG Data Structure
+ *
+ * Each program contains:
+ * - channel_id: Source channel
+ * - title: Program title
+ * - description: Program description
+ * - start_time/end_time: Air time (Unix timestamps)
+ * - category: Program category
+ * - series_id: Series grouping (for episodes)
+ * - episode info: episode_number, episode_title, series_episode
+ * - rating: Content rating
+ * - year: Release/production year
+ * - is_repeat/is_film: Flags
+ *
+ * @author Phlex Development Team
+ * @version 1.0.0
+ * @see LiveTvManager For channel integration
  */
 class GuideManager
 {
+    /** @var Connection Database connection */
     private Connection $db;
+
+    /** @var StructuredLogger Structured logger instance */
     private StructuredLogger $logger;
+
+    /** @var array<string, array<string, mixed>> In-memory cache for program data */
     private array $cache = [];
-    private int $cacheTtl = 3600; // 1 hour default
+
+    /** @var int Cache TTL in seconds (default: 1 hour) */
+    private int $cacheTtl = 3600;
 
     /**
-     * Program category constants.
+     * Movie category.
+     *
+     * @var string
      */
     public const CATEGORY_MOVIE = 'movie';
+
+    /**
+     * TV series episode category.
+     *
+     * @var string
+     */
     public const CATEGORY_SERIES = 'series';
+
+    /**
+     * News broadcast category.
+     *
+     * @var string
+     */
     public const CATEGORY_NEWS = 'news';
+
+    /**
+     * Sports category.
+     *
+     * @var string
+     */
     public const CATEGORY_SPORTS = 'sports';
+
+    /**
+     * Children's programming category.
+     *
+     * @var string
+     */
     public const CATEGORY_KIDS = 'kids';
+
+    /**
+     * Music broadcast category.
+     *
+     * @var string
+     */
     public const CATEGORY_MUSIC = 'music';
+
+    /**
+     * Educational content category.
+     *
+     * @var string
+     */
     public const CATEGORY_EDUCATION = 'education';
+
+    /**
+     * Miscellaneous content category.
+     *
+     * @var string
+     */
     public const CATEGORY_OTHER = 'other';
 
     /**
-     * Rating system constants.
+     * US TV rating system.
+     *
+     * @var string
      */
     public const RATING_SYSTEM_TV = 'tv';
+
+    /**
+     * MPAA film rating system.
+     *
+     * @var string
+     */
     public const RATING_SYSTEM_MPAA = 'mpaa';
+
+    /**
+     * Australian Classification Board rating system.
+     *
+     * @var string
+     */
     public const RATING_SYSTEM_ACB = 'acb';
 
+    /**
+     * Creates a new GuideManager instance.
+     *
+     * @param Connection $db Database connection
+     * @param StructuredLogger|null $logger Optional logger, defaults to Livetv channel
+     */
     public function __construct(Connection $db, ?StructuredLogger $logger = null)
     {
         $this->db = $db;
@@ -49,7 +157,10 @@ class GuideManager
     }
 
     /**
-     * Get current program for a channel.
+     * Get the currently airing program for a channel.
+     *
+     * @param string $channelId The channel identifier
+     * @return array<string, mixed>|null The current program or null if none airing
      */
     public function getCurrentProgram(string $channelId): ?array
     {
@@ -70,11 +181,15 @@ class GuideManager
     }
 
     /**
-     * Get program by ID.
+     * Get a program by its ID.
+     *
+     * Uses in-memory cache for repeated lookups.
+     *
+     * @param string $programId The program identifier
+     * @return array<string, mixed>|null The program or null if not found
      */
     public function getProgram(string $programId): ?array
     {
-        // Check cache first
         $cacheKey = "program:$programId";
         if (isset($this->cache[$cacheKey])) {
             return $this->cache[$cacheKey];
@@ -98,16 +213,23 @@ class GuideManager
     /**
      * Get programs for a channel within a time range.
      *
-     * @param string $channelId Channel ID
-     * @param int $startTime Start timestamp
-     * @param int $endTime End timestamp
-     * @return array List of programs
+     * Results are cached for the duration of the request.
+     *
+     * @param string $channelId The channel identifier
+     * @param int $startTime Start timestamp (Unix)
+     * @param int $endTime End timestamp (Unix)
+     * @return array<int, array<string, mixed>> List of programs in time range
+     *
+     * @example
+     * ```php
+     * $programs = $guide->getProgramsForChannel('ch_1', time(), time() + 86400);
+     * // Get all programs for the next 24 hours
+     * ```
      */
     public function getProgramsForChannel(string $channelId, int $startTime, int $endTime): array
     {
         $cacheKey = "channel:$channelId:$startTime:$endTime";
 
-        // Check cache
         if (isset($this->cache[$cacheKey])) {
             return $this->cache[$cacheKey];
         }
@@ -124,14 +246,20 @@ class GuideManager
             $programs[] = $this->mapProgram($row);
         }
 
-        // Cache the result
         $this->cache[$cacheKey] = $programs;
 
         return $programs;
     }
 
     /**
-     * Get programs for multiple channels.
+     * Get programs for multiple channels within a time range.
+     *
+     * Returns programs grouped by channel ID.
+     *
+     * @param array<string> $channelIds List of channel identifiers
+     * @param int $startTime Start timestamp (Unix)
+     * @param int $endTime End timestamp (Unix)
+     * @return array<string, array<int, array<string, mixed>>> Programs grouped by channel
      */
     public function getProgramsForChannels(array $channelIds, int $startTime, int $endTime): array
     {
@@ -163,6 +291,12 @@ class GuideManager
 
     /**
      * Search programs by title.
+     *
+     * Performs a LIKE search on program titles, returning upcoming programs.
+     *
+     * @param string $query Search query string
+     * @param int $limit Maximum number of results (default: 50)
+     * @return array<int, array<string, mixed>> Matching programs
      */
     public function searchPrograms(string $query, int $limit = 50): array
     {
@@ -186,6 +320,10 @@ class GuideManager
 
     /**
      * Get programs by category.
+     *
+     * @param string $category One of the CATEGORY_* constants
+     * @param int $limit Maximum number of results (default: 100)
+     * @return array<int, array<string, mixed>> Programs in category
      */
     public function getProgramsByCategory(string $category, int $limit = 100): array
     {
@@ -206,7 +344,11 @@ class GuideManager
     }
 
     /**
-     * Get upcoming programs by series.
+     * Get upcoming episodes for a series.
+     *
+     * @param string $seriesId The series identifier
+     * @param int $limit Maximum number of results (default: 20)
+     * @return array<int, array<string, mixed>> Upcoming episodes
      */
     public function getUpcomingBySeries(string $seriesId, int $limit = 20): array
     {
@@ -227,7 +369,25 @@ class GuideManager
     }
 
     /**
-     * Add or update a program.
+     * Add or update a program in the guide.
+     *
+     * @param array<string, mixed> $data Program data including:
+     *   - channel_id: string Required
+     *   - title: string (default: 'Unknown')
+     *   - description: string|null
+     *   - start_time: int (default: current time)
+     *   - end_time: int (default: current time + 1 hour)
+     *   - category: string (default: CATEGORY_OTHER)
+     *   - series_id: string|null
+     *   - episode_number: int|null
+     *   - episode_title: string|null
+     *   - rating_system: string (default: RATING_SYSTEM_TV)
+     *   - rating: string|null
+     *   - year: int|null
+     *   - series_episode: string|null
+     *   - is_repeat: bool (default: false)
+     *   - is_film: bool (default: false)
+     * @return array<string, mixed>|null The upserted program or null on failure
      */
     public function upsertProgram(array $data): array
     {
@@ -284,7 +444,10 @@ class GuideManager
     }
 
     /**
-     * Delete a program.
+     * Delete a program from the guide.
+     *
+     * @param string $programId The program to delete
+     * @return bool True if deleted, false if not found
      */
     public function deleteProgram(string $programId): bool
     {
@@ -295,7 +458,6 @@ class GuideManager
 
         $this->db->query("DELETE FROM livetv_programs WHERE program_id = ?", [$programId]);
 
-        // Invalidate cache
         $this->invalidateCacheForChannel($program['channel_id']);
 
         $this->logger->debug('Program deleted', ['program_id' => $programId]);
@@ -304,13 +466,16 @@ class GuideManager
     }
 
     /**
-     * Clean up old program data.
+     * Remove programs that have ended before the cutoff date.
+     *
+     * @param int $daysToKeep Number of days of programs to retain (default: 7)
+     * @return int Number of programs deleted
      */
     public function cleanupOldPrograms(int $daysToKeep = 7): int
     {
         $cutoff = time() - ($daysToKeep * 86400);
 
-        $result = $this->db->query(
+        $this->db->query(
             "DELETE FROM livetv_programs WHERE end_time < ?",
             [$cutoff]
         );
@@ -326,7 +491,21 @@ class GuideManager
     }
 
     /**
-     * Import guide data from external source.
+     * Import guide data from an external source.
+     *
+     * Accepts an array of program data arrays and inserts/updates each.
+     * Requires channel_id, start_time, and end_time for each program.
+     *
+     * @param array<int, array<string, mixed>> $programs Array of program data
+     * @return array{imported: int, errors: array<string>} Import results with count and errors
+     *
+     * @example
+     * ```php
+     * $result = $guide->importGuideData([
+     *     ['channel_id' => 'ch_1', 'title' => 'News', 'start_time' => time(), 'end_time' => time() + 3600],
+     * ]);
+     * echo "Imported: {$result['imported']}, Errors: " . count($result['errors']);
+     * ```
      */
     public function importGuideData(array $programs): array
     {
@@ -356,6 +535,10 @@ class GuideManager
 
     /**
      * Export guide data for a time range.
+     *
+     * @param int $startTime Start timestamp (Unix)
+     * @param int $endTime End timestamp (Unix)
+     * @return array<int, array<string, mixed>> Programs in the time range
      */
     public function exportGuideData(int $startTime, int $endTime): array
     {
@@ -376,6 +559,12 @@ class GuideManager
 
     /**
      * Get guide data for a specific channel.
+     *
+     * Convenience method that fetches programs for the next N days.
+     *
+     * @param string $channelId The channel identifier
+     * @param int $days Number of days to fetch (default: 7)
+     * @return array<int, array<string, mixed>> Upcoming programs
      */
     public function getChannelGuide(string $channelId, int $days = 7): array
     {
@@ -386,7 +575,10 @@ class GuideManager
     }
 
     /**
-     * Set cache TTL.
+     * Set the cache TTL (time-to-live).
+     *
+     * @param int $seconds Cache TTL in seconds
+     * @return void
      */
     public function setCacheTtl(int $seconds): void
     {
@@ -394,7 +586,9 @@ class GuideManager
     }
 
     /**
-     * Clear the cache.
+     * Clear all cached program data.
+     *
+     * @return void
      */
     public function clearCache(): void
     {
@@ -404,6 +598,8 @@ class GuideManager
 
     /**
      * Get cache statistics.
+     *
+     * @return array{entries: int, ttl: int} Cache stats
      */
     public function getCacheStats(): array
     {
@@ -414,17 +610,24 @@ class GuideManager
     }
 
     /**
-     * Invalidate cache for a specific channel.
+     * Invalidate cache entries for a channel.
+     *
+     * Currently clears all cache. A more sophisticated implementation
+     * would track cache keys per channel.
+     *
+     * @param string $channelId The channel whose cache should be invalidated
+     * @return void
      */
     private function invalidateCacheForChannel(string $channelId): void
     {
-        // Simple approach: clear all cache when data changes
-        // A more sophisticated approach would track cache keys per channel
         $this->cache = [];
     }
 
     /**
      * Map a database row to a program array.
+     *
+     * @param array<string, mixed> $row Raw database row
+     * @return array<string, mixed> Normalized program data
      */
     private function mapProgram(array $row): array
     {
@@ -453,7 +656,9 @@ class GuideManager
     }
 
     /**
-     * Generate a unique ID.
+     * Generate a unique UUID v4 string.
+     *
+     * @return string A UUID in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
      */
     private function generateUuid(): string
     {
