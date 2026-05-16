@@ -27,7 +27,9 @@ const SearchScreen: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      return;
+    }
 
     try {
       setIsSearching(true);

@@ -1,12 +1,10 @@
 // src/components/media/PosterCard.tsx
 import React from 'react';
 import {
-  View,
   Text,
   Image,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
 
@@ -17,8 +15,6 @@ interface PosterCardProps {
   onPress: () => void;
   showTitle?: boolean;
 }
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const PosterCard: React.FC<PosterCardProps> = ({
   item,

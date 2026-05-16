@@ -1,7 +1,6 @@
 // src/components/player/SeekBar.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Slider from '@react-native-community/slider';
 
 interface SeekBarProps {
   currentTime: number;
@@ -14,7 +13,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export const SeekBar: React.FC<SeekBarProps> = ({
   currentTime,
   duration,
-  onSeek,
+  onSeek: _onSeek,
 }) => {
   const formatTime = (seconds: number): string => {
     const hrs = Math.floor(seconds / 3600);

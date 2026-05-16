@@ -97,6 +97,7 @@ const TabNavigator = () => (
       },
       tabBarActiveTintColor: '#0066cc',
       tabBarInactiveTintColor: '#888',
+      // eslint-disable-next-line react/no-unstable-nested-components
       tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
     })}
   >
