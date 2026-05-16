@@ -1,6 +1,9 @@
 # ios/Podfile
 # React Native iOS dependencies and PhlexPlayer native module
 
+# Disable New Architecture for better compatibility with prebuilt binaries
+ENV['RCT_NEW_ARCH_ENABLED'] = '0'
+
 require_relative '../node_modules/react-native/scripts/react_native_pods'
 
 platform :ios, '15.1'
@@ -9,7 +12,8 @@ target 'PhlexMobile' do
   config = use_native_modules!
   use_react_native!(
     :path => '../node_modules/react-native',
-    :app_path => '..'
+    :app_path => '..',
+    :new_arch_enabled => false
   )
 
   # Local PhlexPlayer native module
