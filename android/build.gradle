@@ -17,7 +17,11 @@ plugins {
 }
 
 allprojects {
-    // Configuration happens in root build.gradle
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
 }
 
 tasks.register("clean", Delete) {

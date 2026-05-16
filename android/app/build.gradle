@@ -41,11 +41,6 @@ android {
         jvmTarget = '17'
     }
 
-    buildFeatures {
-        hermes true
-        bundleInDebug false
-    }
-
     packagingOptions {
         pickFirst 'lib/x86/libc++_shared.so'
         pickFirst 'lib/x86_64/libc++_shared.so'
@@ -63,8 +58,7 @@ dependencies {
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
     // React Native
-    implementation 'com.facebook.react:react-android:+'
-    implementation 'com.facebook.react:flipper-integration:+'
+    implementation 'com.facebook.react:react-android:0.85.3'
 
     // Navigation
     implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
@@ -83,6 +77,3 @@ dependencies {
 def isNewArchitectureEnabled() {
     return project.hasProperty("newArchEnabled") && project.newArchEnabled == "true"
 }
-
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
-applyNativeModulesAppBuildGradle(project)
