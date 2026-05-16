@@ -40,7 +40,7 @@ jobs:
             build CODE_SIGNING_ALLOWED=NO
 
       - name: Create JS bundle
-        run: npx metro bundle --platform ios --entry-file index.js --out ios/main.jsbundle --minify false
+        run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -76,7 +76,7 @@ jobs:
         run: cd ios && pod install && cd ..
 
       - name: Create JS bundle
-        run: npx metro bundle --platform ios --entry-file index.js --out ios/main.jsbundle --minify false
+        run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
 
       - name: Build iOS (Release)
         run: |
