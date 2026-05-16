@@ -1,4 +1,4 @@
-// ios/LocalPods/PhlexPlayer/PhlexPlayer.podspec
+# ios/LocalPods/PhlexPlayer/PhlexPlayer.podspec
 Pod::Spec.new do |s|
   s.name         = "PhlexPlayer"
   s.version      = "1.0.0"
