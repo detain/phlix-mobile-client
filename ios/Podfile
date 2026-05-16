@@ -9,7 +9,7 @@ target 'PhlexMobile' do
   config = use_native_modules!
   use_react_native!(
     :path => '../node_modules/react-native',
-    :app_path => '../.app'
+    :app_path => '..'
   )
 
   # Local PhlexPlayer native module
