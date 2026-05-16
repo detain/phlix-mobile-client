@@ -1,259 +1,285 @@
-# Phlex Media Server
+# Phlex Mobile
 
-A comprehensive media server platform built with PHP 8.3+, featuring real-time WebSocket communication, HTTP REST APIs, and support for multiple client platforms including Roku, Samsung Tizen, and Windows.
+A cross-platform mobile application for media playback, built with React Native. Phlex connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
 
-## Overview
+## Project Overview
 
-Phlex Media Server provides a complete media management and streaming solution:
+Phlex Mobile is a React Native application designed to interface with media servers (such as Jellyfin, Emby, or compatible APIs). It provides a native mobile experience with:
 
-- **Media Library Management**: Organize and browse media collections with automatic scanning
-- **User Authentication**: JWT-based auth with refresh tokens
-- **Real-time SyncPlay**: Watch content together with friends
-- **Live TV Support**: DVR and guide integration
-- **DLNA Streaming**: Standard protocol support for compatible devices
-- **Transcoding**: On-the-fly media conversion via FFmpeg with automatic quality selection
-- **HLS Streaming**: Adaptive bitrate streaming for web clients with multi-quality playlists
-- **WebSocket Events**: Real-time progress and notification delivery
-- **Multi-Source Metadata**: Automatic metadata fetching from TMDB (movies), TVDB (TV series), Fanart.tv (artwork), and local NFO files with 24-hour cache and provider fallback
-- **Content Filtering**: Parental controls with rating and genre-based filtering
-
-## Architecture
-
-```
-src/
-├── Server/
-│   ├── Core/           # Application bootstrap and core
-│   ├── Http/            # HTTP REST API layer
-│   │   ├── Controllers/ # Request handlers
-│   │   ├── Request.php  # HTTP request representation
-│   │   ├── Response.php # HTTP response builder
-│   │   └── Router.php  # Route dispatching
-│   ├── WebSocket/       # Real-time communication
-│   │   ├── Connection.php      # Client connection wrapper
-│   │   ├── ConnectionPool.php  # Connection management
-│   │   ├── MessageHandler.php  # Event routing
-│   │   ├── WebSocketServer.php # Server implementation
-│   │   └── Events.php          # Event type constants
-│   └── WebPortal/       # Web portal (HTML UI)
-│       ├── WebPortalRouter.php # REST API for portal
-│       └── PageRenderer.php    # Smarty template rendering
-├── Session/            # Playback session management
-├── Media/              # Media library and metadata
-│   ├── Library/        # Library management (LibraryManager, ItemRepository, MediaScanner)
-│   ├── Metadata/      # Metadata fetching (TMDB, TVDB, Fanart, NFO providers)
-│   ├── Transcoding/    # FFmpeg transcoding with EncodingHelper
-│   └── Streaming/      # HLS streaming with adaptive bitrate
-├── Auth/               # Authentication services
-└── Common/             # Shared utilities
-
-public/
-├── index.php           # Web portal entry point
-├── templates/          # Smarty templates
-└── assets/             # Static assets (css, js)
-```
-
-## Requirements
-
-- **PHP**: 8.3 or higher
-- **MySQL**: 8.0+ or MariaDB 10.6+
-- **Workerman**: 5.0+ (bundled via Composer)
-- **FFmpeg**: For transcoding (optional)
+- **Movies & TV Series**: Browse, search, and play media content
+- **Music Playback**: Listen to your music library with full playback controls
+- **Photo Albums**: View your photo collections
+- **Offline Downloads**: Download content for offline viewing
+- **Cross-Platform**: Available on both iOS and Android
 
 ## Features
 
-### Web Portal
-- **Smarty-based Templates**: Server-side rendered HTML pages using Smarty
-- **REST API Endpoints**: Complete API for library browsing, media info, and user data
-- **JWT Authentication**: Integrated token-based auth with refresh support
-- **Responsive Design**: CSS-first approach with utility classes
-- **JavaScript Client**: ApiClient helper with auth, library, and player helpers
-- **Continue Watching**: Track and display in-progress media
-- **Library Browser**: Browse media by library with item counts
+### Core Features
 
-### Authentication & Security
-- **JWT-based Authentication**: Stateless auth with access tokens (1 hour TTL) and refresh tokens (7 days TTL)
-- **Secure Password Hashing**: Argon2ID for password storage
-- **Multi-Device Sessions**: Track and manage sessions across devices
-- **User Profiles**: Multiple profiles per account with parental controls
-  - Up to 5 profiles per user account
-  - Profile-specific content rating restrictions (G, PG, PG-13, R, NC-17, X, UNRATED)
-  - PIN protection (4 or 6 digits) for profile settings
-  - Genre-based filtering (allowed/blocked genre lists)
-  - Daily watch time limits per profile
-- **Content Rating Filters**: Age-based access restrictions
-- **Audit Logging**: Complete security event logging
+- **User Authentication**: Secure login with token-based authentication and automatic token refresh
+- **Media Library**: Browse movies, series, music, and photos organized by library
+- **Media Playback**: Full-featured video player with seek, volume, playback speed controls
+- **Subtitle Support**: Multiple subtitle tracks and audio tracks
+- **Search**: Global search across all media types
+- **User Preferences**: Customizable playback settings and app preferences
+- **Continue Watching**: Resume playback from where you left off
+- **Downloads**: Download media for offline playback
 
-### SyncPlay - Group Watching
-- **Synchronized Playback**: Watch content together with friends across devices with sub-second sync accuracy
-- **Host-Controlled Playback**: Only the host can control play/pause/seek; all members receive synchronized commands
-- **NTP-Style Time Sync**: Network time synchronization with latency compensation and drift correction
-- **In-Group Chat**: Real-time messaging with typing indicators and message history
-- **Playback Queue**: Host-managed queue with media info (title, thumbnail)
-- **Host Election**: Automatic host election when current host leaves (oldest member becomes host)
-- **Password Protection**: Optional password protection for private watch parties
-- **Position Tolerance**: Configurable sync tolerance (default 2s) to prevent excessive seeking
+### Technical Features
 
-### Session Management
-- **Device Sessions**: Track authenticated devices with activity timestamps
-- **Playback Progress**: Resume where you left off across sessions
-- **Continue Watching**: Track items in progress per profile
-- **Watch History**: Complete viewing history per profile with:
-  - Automatic completion detection at 90% progress threshold
-  - Watch time statistics (total, daily, by period)
-  - Resume position tracking for seamless playback continuation
+- **React Native** with TypeScript for type safety
+- **Zustand** for lightweight state management
+- **React Navigation** for navigation flows
+- **Native Modules** for optimal video playback performance
+- **Secure Storage** for authentication tokens
+- **CI/CD Pipeline** with GitHub Actions
 
-### Live TV & DVR
-- **Multi-Tuner Support**: DVB-T, DVB-S, DVB-C, and ATSC tuner types
-- **Channel Scanning**: Automatic discovery of broadcast services
-- **Electronic Program Guide**: Full EPG with program info, categories, and search
-- **DVR Scheduling**: Schedule recordings with priority management
-- **Time-Shifting**: Pause and rewind live TV with buffer
-- **Channel Lineups**: Custom channel lineups per user
-- **Favorites**: Personal favorite channels per user
-- **Storage Management**: Recording storage tracking and limits
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+### Common Requirements
+
+- **Node.js** (v18.x or later)
+- **npm** (v9.x or later) or **yarn** (v1.22.x or later)
+- **Git** (v2.x or later)
+
+### iOS Development
+
+- **Xcode** (v15.0 or later)
+- **CocoaPods** (`sudo gem install cocoapods`)
+- **macOS** (required for iOS development)
+- **Apple Developer Account** (for device deployment)
+
+### Android Development
+
+- **Android Studio** (latest stable version)
+- **Android SDK** (API level 24 or higher)
+- **Java Development Kit** (JDK 17 or higher)
+- **Gradle** (included via Android Studio)
 
 ## Installation
 
+### 1. Clone the Repository
+
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/phlex.git
-cd phlex
+git clone https://github.com/your-org/phlex-mobile.git
+cd phlex-mobile
+```
 
-# Install dependencies
-composer install
+### 2. Install Dependencies
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your database and service credentials
+```bash
+# Using npm
+npm install
 
-# Run database migrations
-php scripts/migrate.php
+# Or using yarn
+yarn install
+```
 
-# Start the development server
-php start.php server
+### 3. Install iOS Dependencies (macOS only)
+
+```bash
+cd ios && pod install && cd ..
+```
+
+### 4. Configure Environment
+
+Create a `.env` file in the root directory (optional for development):
+
+```env
+API_BASE_URL=https://api.phlex.app
 ```
 
 ## Configuration
 
-Configuration is managed via PHP files in `config/`:
+### API Configuration
 
-```php
-// config/server.php
-return [
-    'server' => [
-        'name' => 'Phlex Media Server',
-        'host' => '0.0.0.0',
-        'port' => 8080,
-    ],
-    'websocket' => [
-        'host' => '0.0.0.0',
-        'port' => 8097,
-    ],
-    'database' => [
-        'host' => '127.0.0.1',
-        'port' => 3306,
-        'database' => 'phlex',
-        'username' => 'phlex',
-        'password' => 'secure-password',
-    ],
-    'debug' => false,
-];
+The app connects to a media server API. Configure the base URL in:
+
+- **Development**: Uses default `https://api.phlex.app`
+- **Self-hosted**: Update `BASE_URL` in `src/api/client.ts`
+
+### Native Module Configuration
+
+#### iOS (PhlexPlayer)
+
+The iOS player is implemented as a local CocoaPod in `ios/LocalPods/PhlexPlayer/`. It provides native video playback using AVPlayer.
+
+#### Android (PhlexPlayer)
+
+The Android player is implemented as a native module in `android/app/src/main/java/com/phlexmobile/player/`. It uses ExoPlayer for video playback.
+
+### Building for iOS
+
+#### Prerequisites
+
+1. Ensure CocoaPods dependencies are installed
+2. Open `ios/PhlexMobile.xcworkspace` in Xcode
+3. Select your target device or simulator
+4. Configure signing (if deploying to a real device)
+
+#### Build Commands
+
+```bash
+# Using xcodebuild (requires macOS)
+xcodebuild -workspace ios/PhlexMobile.xcworkspace \
+  -scheme PhlexMobile \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=iPhone 15' \
+  build
+
+# Or build for release
+xcodebuild -workspace ios/PhlexMobile.xcworkspace \
+  -scheme PhlexMobile \
+  -configuration Release \
+  -destination 'platform=iOS Simulator,name=iPhone 15' \
+  build
 ```
 
-## API Reference
+#### Running the App
 
-### HTTP Endpoints
+```bash
+# Start Metro bundler
+npm start
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/system/info` | Server information |
-| POST | `/api/v1/auth/register` | User registration |
-| POST | `/api/v1/auth/login` | User login |
-| POST | `/api/v1/auth/refresh` | Token refresh |
-| GET | `/api/v1/auth/me` | Current user profile |
-| GET | `/api/v1/sessions` | List user sessions |
-| DELETE | `/api/v1/sessions/{id}` | End a session |
-| POST | `/api/v1/sessions/{id}/progress` | Report playback progress |
-| GET | `/api/v1/sessions/{id}/progress` | Get playback state |
+# In another terminal, run on iOS simulator
+npx react-native run-ios
 
-### WebSocket Events
+# Or specify a device
+npx react-native run-ios --device "iPhone 15"
+```
 
-**Connection Events:**
-- `connected` - Sent on successful connection
-- `client_disconnected` - Broadcast when client disconnects
+### Building for Android
 
-**Authentication Events:**
-- `auth_request` - Request authentication
-- `auth_success` - Authentication successful
-- `auth_failure` - Authentication failed
+#### Prerequisites
 
-**Playback Events:**
-- `playback_start` - Playback started
-- `playback_pause` - Playback paused
-- `playback_stop` - Playback stopped
-- `playback_progress` - Progress update
-- `playback_seek` - Seek performed
+1. Ensure Android SDK is properly configured
+2. Set `ANDROID_HOME` environment variable
+3. Add platform tools to PATH
 
-**SyncPlay Events:**
-- `syncplay_create_group` - Create watch group
-- `syncplay_join_group` - Join watch group
-- `syncplay_leave_group` - Leave watch group
-- `syncplay_sync_state` - State synchronization
+#### Build Commands
 
-## Development
+```bash
+# Debug build
+cd android && ./gradlew assembleDebug
+
+# Release build
+cd android && ./gradlew assembleRelease
+```
+
+The APK will be generated at:
+- Debug: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Release: `android/app/build/outputs/apk/release/app-release.apk`
+
+#### Running the App
+
+```bash
+# Start Metro bundler
+npm start
+
+# In another terminal, run on Android
+npx react-native run-android
+```
+
+## Testing
 
 ### Running Tests
 
 ```bash
 # Run all tests
-./vendor/bin/phpunit
+npm test
 
-# Run with coverage
-./vendor/bin/phpunit --coverage-html coverage-report
+# Run tests with coverage
+npm test -- --coverage
 
-# Run specific test suite
-./vendor/bin/phpunit --testsuite Unit
-./vendor/bin/phpunit --testsuite Integration
+# Run tests in watch mode
+npm test -- --watch
+
+# Run specific test file
+npm test -- --testPathPattern="src/stores"
 ```
 
-### Code Standards
+### Test Structure
 
-This project follows PSR-12 coding standards and uses static analysis tools:
+Tests are located alongside source files with the naming convention:
+
+```
+src/
+├── stores/
+│   ├── __tests__/
+│   │   └── usePlayerStore.test.ts
+│   └── usePlayerStore.ts
+├── api/
+│   ├── __tests__/
+│   │   └── client.test.ts
+│   └── client.ts
+```
+
+### Linting
 
 ```bash
-# Check code style
-./vendor/bin/phpcs --standard=PSR12 src/
+# Run ESLint
+npm run lint
 
-# Run static analysis
-./vendor/bin/phpstan analyze src/ --level=9
-./vendor/bin/psalm
+# Fix auto-fixable issues
+npm run lint -- --fix
 ```
 
-### Git Workflow
+### Type Checking
 
-1. Create a feature branch: `git checkout -b feature/my-feature`
-2. Make changes and commit: `git commit -am 'Add new feature'`
-3. Push to remote: `git push origin feature/my-feature`
-4. Create Pull Request on GitHub
-5. After review, merge via squash-merge
+```bash
+# Run TypeScript type checking
+npm run typecheck
+```
 
-## Contributing
+## Deployment
 
-1. Fork the repository
-2. Create your feature branch
-3. Ensure all tests pass (`./vendor/bin/phpunit`)
-4. Follow PSR-12 coding standards
-5. Submit a pull request
+### iOS
 
-## License
+1. **TestFlight**: Use Xcode to archive and upload to App Store Connect
+2. **App Store**: Create a new app in App Store Connect, then archive and distribute
+3. **Enterprise**: Build for enterprise distribution as needed
 
-Proprietary - All rights reserved.
+### Android
+
+1. **Google Play Store**: Sign the release APK and upload to Google Play Console
+2. **Direct APK**: Distribute the unsigned or signed APK directly
+3. **FDroid**: Build a release and publish to F-Droid repository
+
+### CI/CD
+
+The project includes GitHub Actions workflows for automated:
+
+- **Testing**: Runs on every push and PR
+- **iOS Build**: Builds iOS app (requires macOS runner, manual trigger)
+- **Android Build**: Builds Android debug APK on every push
+
+## Troubleshooting
+
+### Common Issues
+
+#### iOS Build Failures
+
+- Ensure Xcode and Command Line Tools are up to date
+- Run `cd ios && pod install` to refresh dependencies
+- Clean build folder in Xcode: `Cmd + Shift + K`
+
+#### Android Build Failures
+
+- Verify Android SDK path: `echo $ANDROID_HOME`
+- Clean Gradle cache: `cd android && ./gradlew clean`
+- Ensure JDK 17 is being used
+
+#### Metro Bundler Issues
+
+- Reset cache: `npm start -- --reset-cache`
+- Delete node_modules and reinstall
 
 ## Support
 
-For issues and feature requests, please use the GitHub issue tracker.
+For issues and feature requests, please open an issue on the GitHub repository.
 
----
+## License
 
-For detailed development documentation, see [DEVELOPER.md](DEVELOPER.md).
+This project is licensed under the MIT License.
