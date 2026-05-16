@@ -37,12 +37,14 @@ const LibraryScreen: React.FC = () => {
 
   useEffect(() => {
     loadLibraries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedLibrary) {
       loadLibraryItems(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLibrary]);
 
   const loadLibraries = async () => {
@@ -61,12 +63,16 @@ const LibraryScreen: React.FC = () => {
   };
 
   const loadLibraryItems = async (reset = false) => {
-    if (!selectedLibrary) return;
+    if (!selectedLibrary) {
+      return;
+    }
 
     try {
       if (reset) {
         setIsLoadingItems(true);
         setOffset(0);
+      } else {
+        // continue with current offset
       }
 
       const newOffset = reset ? 0 : offset;

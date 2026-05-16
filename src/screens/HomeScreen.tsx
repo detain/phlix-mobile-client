@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -40,6 +40,7 @@ const HomeScreen: React.FC = () => {
 
   useEffect(() => {
     loadHomeData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadHomeData = async () => {

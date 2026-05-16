@@ -29,8 +29,6 @@ const SettingsScreen: React.FC = () => {
     setEnableNotifications,
     enableBiometricAuth,
     setEnableBiometricAuth,
-    theme,
-    setTheme,
   } = useSettingsStore();
 
   const handleLogout = () => {

@@ -172,7 +172,9 @@ class DownloadService {
   // Get download progress
   getProgress(taskId: string): number {
     const task = this.downloads.get(taskId);
-    if (!task || task.totalBytes === 0) return 0;
+    if (!task || task.totalBytes === 0) {
+      return 0;
+    }
     return task.downloadedBytes / task.totalBytes;
   }
 
@@ -231,7 +233,7 @@ class DownloadService {
   }
 
   // Handle download error
-  handleError(taskId: string, error: string): void {
+  handleError(taskId: string, _error: string): void {
     const task = this.downloads.get(taskId);
     if (task) {
       task.status = 'failed';

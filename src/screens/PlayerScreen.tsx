@@ -13,7 +13,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { playbackManager } from '../api/PlaybackManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
-import { StreamInfo, DeviceProfile, SubtitleTrack, AudioTrack } from '../types/playback';
+import { StreamInfo, DeviceProfile } from '../types/playback';
 import { PlayerControls } from '../components/player/PlayerControls';
 import { SeekBar } from '../components/player/SeekBar';
 import { ErrorView } from '../components/ui/ErrorView';
@@ -47,14 +47,13 @@ const PlayerScreen: React.FC = () => {
   const setPlayerStreamInfo = usePlayerStore((state) => state.setStreamInfo);
   const setSubtitleTracks = usePlayerStore((state) => state.setSubtitleTracks);
   const setAudioTracks = usePlayerStore((state) => state.setAudioTracks);
-  const setCurrentSubtitleTrackId = usePlayerStore((state) => state.setCurrentSubtitleTrackId);
-  const setCurrentAudioTrackId = usePlayerStore((state) => state.setCurrentAudioTrackId);
   const playerSetCurrentTime = usePlayerStore((state) => state.setCurrentTime);
   const playerSetDuration = usePlayerStore((state) => state.setDuration);
   const playerSetIsPlaying = usePlayerStore((state) => state.setIsPlaying);
 
   useEffect(() => {
     loadPlaybackInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
   useEffect(() => {
@@ -68,6 +67,7 @@ const PlayerScreen: React.FC = () => {
         clearTimeout(hideControlsTimeout.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showControls, isPlaying]);
 
   const loadPlaybackInfo = async () => {
@@ -157,13 +157,6 @@ const PlayerScreen: React.FC = () => {
   const handleSeekForward = () => {
     const newPosition = Math.min(duration, currentTime + 15);
     handleSeek(newPosition);
-  };
-
-  const handleProgress = (progress: { currentTime: number; duration: number }) => {
-    setCurrentTime(progress.currentTime);
-    setDuration(progress.duration);
-    playerSetCurrentTime(progress.currentTime);
-    playerSetDuration(progress.duration);
   };
 
   if (isLoading) {

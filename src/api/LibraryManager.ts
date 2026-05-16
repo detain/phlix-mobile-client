@@ -1,6 +1,6 @@
 // src/api/LibraryManager.ts
 import apiClient from './client';
-import { MediaItem, Movie, Series, Season, Episode, Library } from '../types/media';
+import { MediaItem, Season, Episode, Library } from '../types/media';
 
 export interface PaginatedResponse<T> {
   items: T[];

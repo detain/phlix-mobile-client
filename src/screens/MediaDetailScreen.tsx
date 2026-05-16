@@ -15,7 +15,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import { libraryManager } from '../api/LibraryManager';
 import { MediaItem, Season, Episode } from '../types/media';
-import { SafeContainer } from '../components/layout';
 import { PosterCard } from '../components/media/PosterCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
@@ -42,6 +41,7 @@ const MediaDetailScreen: React.FC = () => {
 
   useEffect(() => {
     loadMediaDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
   useEffect(() => {

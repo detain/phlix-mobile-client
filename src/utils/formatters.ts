@@ -17,7 +17,9 @@ export const formatTime = (seconds: number): string => {
  * Format file size in bytes to human-readable string
  */
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
+  if (bytes === 0) {
+    return '0 B';
+  }
 
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -67,6 +69,8 @@ export const formatRelativeTime = (date: Date): string => {
  * Truncate text with ellipsis
  */
 export const truncateText = (text: string, maxLength: number): string => {
-  if (text.length <= maxLength) return text;
+  if (text.length <= maxLength) {
+    return text;
+  }
   return text.substring(0, maxLength - 3) + '...';
 };
