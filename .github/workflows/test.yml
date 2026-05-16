@@ -11,34 +11,29 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '24.x'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm install
 
       - name: Type check
-        run: npm run typecheck || npm run typecheck || true
+        run: npm run typecheck
 
       - name: Run ESLint
-        run: npm run lint || true
+        run: npm run lint
 
       - name: Run tests
         run: npm test -- --passWithNoTests
 
       - name: Upload coverage
-        if: matrix.node-version == '20.x'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage/lcov.info
