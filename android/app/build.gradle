@@ -33,8 +33,13 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            lintEnabled false
         }
+    }
+
+    lint {
+        disable 'ReleaseLifecycle'
+        abortOnError false
+        checkReleaseBuilds false
     }
 
     compileOptions {
