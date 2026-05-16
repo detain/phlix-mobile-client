@@ -10,7 +10,6 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.facebook.react.shell.MainReactPackage
-import com.phlexmobile.player.PhlexPlayerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -18,8 +17,8 @@ class MainApplication : Application(), ReactApplication {
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> {
             return listOf(
-                MainReactPackage(),  // Main React Native package
-                PhlexPlayerPackage() // Custom player package
+                MainReactPackage()  // Main React Native package
+                // PhlexPlayerPackage disabled - needs update for RN 0.85
             )
         }
 

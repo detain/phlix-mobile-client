@@ -5,6 +5,10 @@ android {
     namespace 'com.phlexmobile'
     compileSdk rootProject.ext.compileSdkVersion
 
+    buildFeatures {
+        buildConfig true
+    }
+
     defaultConfig {
         applicationId "com.phlexmobile"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -46,6 +50,14 @@ android {
         pickFirst 'lib/x86_64/libc++_shared.so'
         pickFirst 'lib/armeabi-v7a/libc++_shared.so'
         pickFirst 'lib/arm64-v8a/libc++_shared.so'
+    }
+
+    sourceSets {
+        main {
+            kotlin {
+                exclude 'player/**'
+            }
+        }
     }
 }
 
