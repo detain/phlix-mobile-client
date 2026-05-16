@@ -74,7 +74,8 @@ export const storage = {
    */
   async keys(): Promise<string[]> {
     try {
-      return await AsyncStorage.getAllKeys();
+      const keys = await AsyncStorage.getAllKeys();
+      return [...keys];
     } catch (error) {
       console.error('Error getting all keys:', error);
       return [];
@@ -86,8 +87,10 @@ export const storage = {
    */
   async multiSet(items: Array<[string, any]>): Promise<void> {
     try {
-      const pairs = items.map(([key, value]) => [key, JSON.stringify(value)]);
-      await AsyncStorage.multiSet(pairs);
+      const pairs: readonly (readonly [string, string])[] = items.map(
+        ([key, value]) => [key, JSON.stringify(value)] as const
+      );
+      await AsyncStorage.multiSet([...pairs]);
     } catch (error) {
       console.error('Error setting multiple values:', error);
       throw error;

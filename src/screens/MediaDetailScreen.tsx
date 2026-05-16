@@ -118,7 +118,7 @@ const MediaDetailScreen: React.FC = () => {
   }
 
   const isSeries = item.type === 'series';
-  const hasResumePosition = item.user_data?.resume_position_ticks > 0;
+  const hasResumePosition = Boolean(item.user_data?.resume_position_ticks && item.user_data.resume_position_ticks > 0);
   const userRating = item.user_data?.rating;
   const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
 

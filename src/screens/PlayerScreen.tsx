@@ -41,7 +41,7 @@ const PlayerScreen: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
-  const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
+  const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Store actions
   const setPlayerStreamInfo = usePlayerStore((state) => state.setStreamInfo);
@@ -93,9 +93,10 @@ const PlayerScreen: React.FC = () => {
   };
 
   const getDeviceProfile = (): DeviceProfile => {
+    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
     return {
       name: Platform.OS === 'ios' ? 'iPhone' : 'Android',
-      platform: Platform.OS,
+      platform,
       version: Platform.Version.toString(),
       capabilities: {
         video_codecs: ['h264', 'h265', 'vp9'],
