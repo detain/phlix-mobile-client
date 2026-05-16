@@ -1,7 +1,6 @@
 package com.phlexmobile
 
 import android.app.Application
-import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeHost
@@ -10,15 +9,19 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
+import com.facebook.react.shell.MainReactPackage
+import com.phlexmobile.player.PhlexPlayerPackage
 
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost =
       object : DefaultReactNativeHost(this) {
-        override fun getPackages(): List<ReactPackage> =
-            PackageList(this).packages.apply {
-              // Packages that cannot be automatically linked yet can be added manually here
-            }
+        override fun getPackages(): List<ReactPackage> {
+            return listOf(
+                MainReactPackage(),  // Main React Native package
+                PhlexPlayerPackage() // Custom player package
+            )
+        }
 
         override fun getJSMainModuleName(): String = "index"
 
