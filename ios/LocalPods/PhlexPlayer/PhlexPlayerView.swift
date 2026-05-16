@@ -53,8 +53,8 @@ class PhlexPlayerViewWrapper: UIView {
         playerLayer = AVPlayerLayer()
         playerLayer?.videoGravity = .resizeAspect
         playerLayer?.frame = bounds
-        if let layer = playerLayer {
-            layer.addSublayer(layer)
+        if let playerLayer = playerLayer {
+            self.layer.addSublayer(playerLayer)
         }
     }
 
