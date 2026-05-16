@@ -7,36 +7,110 @@ namespace Phlex\Session\SyncPlay;
 /**
  * GroupState - Manages state for a SyncPlay group
  *
- * Tracks members, current media, playback position, host election,
- * and handles state synchronization within a group.
+ * This class encapsulates all state for a single SyncPlay watching group,
+ * including member management, playback state, queue management, and chat.
+ *
+ * ## Playback States
+ *
+ * - STATE_PLAYING: Media is actively playing
+ * - STATE_PAUSED: Media is paused
+ * - STATE_BUFFERING: Media is buffering (waiting for data)
+ * - STATE_STOPPED: No media is loaded or playback is stopped
+ *
+ * ## Host Election
+ *
+ * When the host leaves the group, a new host is automatically elected
+ * based on the oldest member (longest time in the group). This ensures
+ * continuity even when the original host disconnects.
+ *
+ * ## Position Tolerance
+ *
+ * Position tolerance (default 2000ms) is used to determine if a member's
+ * playback position is "in sync" with the group. Members outside this
+ * tolerance may need to seek to catch up.
+ *
+ * @author Phlex Development Team
+ * @copyright 2024 Phlex Media Server
+ * @license Proprietary
+ *
+ * @see SyncPlayManager For group lifecycle management
+ * @see TimeSync For time synchronization
  */
 class GroupState
 {
-    // Playback states
+    /**
+     * Playback state: Media is actively playing.
+     */
     public const STATE_PLAYING = 'playing';
+
+    /**
+     * Playback state: Media is paused.
+     */
     public const STATE_PAUSED = 'paused';
+
+    /**
+     * Playback state: Media is buffering.
+     */
     public const STATE_BUFFERING = 'buffering';
+
+    /**
+     * Playback state: No media loaded or playback stopped.
+     */
     public const STATE_STOPPED = 'stopped';
 
-    // Maximum members per group
+    /**
+     * Maximum number of members allowed per group.
+     */
     public const MAX_MEMBERS = 50;
 
-    // Default playback position tolerance in milliseconds
+    /**
+     * Default playback position tolerance in milliseconds.
+     *
+     * Members whose position differs from host by more than this
+     * are considered "out of sync".
+     */
     public const POSITION_TOLERANCE = 2000;
 
+    /** @var string Unique group identifier (format: sp_*) */
     private string $id;
+
+    /** @var string Display name of the group */
     private string $name;
+
+    /** @var string|null SHA256 hash of the group password, null if no password */
     private ?string $passwordHash = null;
+
+    /** @var array<string, array{name: string, connection_id: string|null, joined_at: int, is_active: bool, is_host?: bool}> Group members indexed by member ID */
     private array $members = [];
+
+    /** @var string|null The member ID of the current host, null if no host */
     private ?string $hostId = null;
+
+    /** @var string|null The current media item ID being played */
     private ?string $currentMediaId = null;
+
+    /** @var int Duration of the current media in milliseconds */
     private int $currentMediaDuration = 0;
+
+    /** @var int Current playback position in milliseconds */
     private int $playbackPosition = 0;
+
+    /** @var string Current playback state (one of STATE_*) */
     private string $playbackState = self::STATE_STOPPED;
+
+    /** @var array<int, array{media_id: string, media_info: array, added_at: int, added_by: string|null}> Playback queue items */
     private array $playbackQueue = [];
+
+    /** @var array<int, array{member_id: string, message: string, timestamp: int}> Chat messages (max 100 stored) */
     private array $chatMessages = [];
+
+    /** @var int Unix timestamp when the group was created */
     private int $createdAt;
+
+    /** @var int Unix timestamp of the last group activity */
     private int $lastActivityAt;
+
+    /** @var int Position tolerance in milliseconds for sync detection */
     private int $positionTolerance;
 
     public function __construct(
@@ -54,7 +128,9 @@ class GroupState
     }
 
     /**
-     * Get the group ID
+     * Get the unique group identifier.
+     *
+     * @return string Group ID (format: sp_*)
      */
     public function getId(): string
     {
@@ -62,7 +138,9 @@ class GroupState
     }
 
     /**
-     * Get the group name
+     * Get the group's display name.
+     *
+     * @return string The group name
      */
     public function getName(): string
     {
@@ -70,7 +148,9 @@ class GroupState
     }
 
     /**
-     * Check if group has a password
+     * Check if the group is password protected.
+     *
+     * @return bool True if a password is required to join
      */
     public function hasPassword(): bool
     {
@@ -78,7 +158,13 @@ class GroupState
     }
 
     /**
-     * Verify a password against the group's password
+     * Verify a password against the group's password.
+     *
+     * If the group has no password, this always returns true.
+     * Uses timing-safe comparison to prevent timing attacks.
+     *
+     * @param string $password The password to verify
+     * @return bool True if password is correct or no password required
      */
     public function verifyPassword(string $password): bool
     {
@@ -90,7 +176,9 @@ class GroupState
     }
 
     /**
-     * Get all members
+     * Get all members of the group.
+     *
+     * @return array<string, array{name: string, connection_id: string|null, joined_at: int, is_active: bool, is_host?: bool}> Members indexed by ID
      */
     public function getMembers(): array
     {
@@ -98,7 +186,9 @@ class GroupState
     }
 
     /**
-     * Get the number of members
+     * Get the number of members in the group.
+     *
+     * @return int Member count
      */
     public function getMemberCount(): int
     {
@@ -106,7 +196,10 @@ class GroupState
     }
 
     /**
-     * Check if a member exists
+     * Check if a member exists in the group.
+     *
+     * @param string $memberId The member ID to check
+     * @return bool True if member exists
      */
     public function hasMember(string $memberId): bool
     {
@@ -114,7 +207,10 @@ class GroupState
     }
 
     /**
-     * Get a specific member
+     * Get a specific member's data.
+     *
+     * @param string $memberId The member ID to retrieve
+     * @return array|null Member data array or null if not found
      */
     public function getMember(string $memberId): ?array
     {
@@ -122,7 +218,11 @@ class GroupState
     }
 
     /**
-     * Add a member to the group
+     * Add a member to the group.
+     *
+     * @param string $memberId Unique identifier for the member
+     * @param array{name?: string, connection_id?: string|null} $memberData Member data including name and optional connection_id
+     * @return bool True if added successfully, false if at capacity or duplicate
      */
     public function addMember(string $memberId, array $memberData): bool
     {
@@ -145,7 +245,13 @@ class GroupState
     }
 
     /**
-     * Remove a member from the group
+     * Remove a member from the group.
+     *
+     * If the removed member was the host, a new host will be automatically
+     * elected from the remaining members.
+     *
+     * @param string $memberId The member ID to remove
+     * @return bool True if removed, false if member not found
      */
     public function removeMember(string $memberId): bool
     {
@@ -166,7 +272,11 @@ class GroupState
     }
 
     /**
-     * Update a member's status
+     * Update a member's data.
+     *
+     * @param string $memberId The member ID to update
+     * @param array<string, mixed> $updates Key-value pairs to update
+     * @return bool True if updated, false if member not found
      */
     public function updateMember(string $memberId, array $updates): bool
     {
@@ -181,7 +291,9 @@ class GroupState
     }
 
     /**
-     * Get the current host
+     * Get the current host's member ID.
+     *
+     * @return string|null The host's member ID, or null if no host
      */
     public function getHostId(): ?string
     {
@@ -189,7 +301,10 @@ class GroupState
     }
 
     /**
-     * Set the host
+     * Set a member as the group host.
+     *
+     * @param string $hostId The member ID to set as host
+     * @return bool True if set successfully, false if member not found
      */
     public function setHost(string $hostId): bool
     {
@@ -206,7 +321,12 @@ class GroupState
     }
 
     /**
-     * Elect a new host when the current host leaves
+     * Elect a new host when the current host leaves.
+     *
+     * The new host is selected based on the oldest member (earliest joined).
+     * If no members remain, returns null.
+     *
+     * @return string|null The new host's member ID, or null if group is empty
      */
     public function electNewHost(): ?string
     {
@@ -241,7 +361,10 @@ class GroupState
     }
 
     /**
-     * Check if a member is the host
+     * Check if a member is the group host.
+     *
+     * @param string $memberId The member ID to check
+     * @return bool True if the member is the host
      */
     public function isHost(string $memberId): bool
     {
@@ -249,7 +372,9 @@ class GroupState
     }
 
     /**
-     * Get the current media ID
+     * Get the current media item ID.
+     *
+     * @return string|null The media ID or null if no media is loaded
      */
     public function getCurrentMediaId(): ?string
     {
@@ -257,7 +382,9 @@ class GroupState
     }
 
     /**
-     * Get the current media duration
+     * Get the duration of the current media.
+     *
+     * @return int Duration in milliseconds
      */
     public function getCurrentMediaDuration(): int
     {
@@ -265,7 +392,9 @@ class GroupState
     }
 
     /**
-     * Get the playback position
+     * Get the current playback position.
+     *
+     * @return int Position in milliseconds
      */
     public function getPlaybackPosition(): int
     {
@@ -273,7 +402,9 @@ class GroupState
     }
 
     /**
-     * Get the playback state
+     * Get the current playback state.
+     *
+     * @return string One of STATE_PLAYING, STATE_PAUSED, STATE_BUFFERING, STATE_STOPPED
      */
     public function getPlaybackState(): string
     {
@@ -281,7 +412,9 @@ class GroupState
     }
 
     /**
-     * Check if playback is active
+     * Check if media is currently playing.
+     *
+     * @return bool True if playback state is STATE_PLAYING
      */
     public function isPlaying(): bool
     {
@@ -289,7 +422,11 @@ class GroupState
     }
 
     /**
-     * Set the current media
+     * Set the current media item to play.
+     *
+     * @param string|null $mediaId The media item ID, or null to clear
+     * @param int $duration Duration in milliseconds (default: 0)
+     * @return void
      */
     public function setCurrentMedia(?string $mediaId, int $duration = 0): void
     {
@@ -301,7 +438,11 @@ class GroupState
     }
 
     /**
-     * Update playback state
+     * Update the playback state and position.
+     *
+     * @param string $state One of STATE_PLAYING, STATE_PAUSED, STATE_BUFFERING, STATE_STOPPED
+     * @param int $position Current position in milliseconds
+     * @return void
      */
     public function updatePlayback(string $state, int $position): void
     {
@@ -311,7 +452,12 @@ class GroupState
     }
 
     /**
-     * Set playback position (used for sync)
+     * Set the playback position without changing state.
+     *
+     * Used during synchronization when receiving seek commands.
+     *
+     * @param int $position New position in milliseconds
+     * @return void
      */
     public function setPlaybackPosition(int $position): void
     {
@@ -320,7 +466,9 @@ class GroupState
     }
 
     /**
-     * Get playback queue
+     * Get the current playback queue.
+     *
+     * @return array<int, array{media_id: string, media_info: array, added_at: int, added_by: string|null}> Queue items
      */
     public function getPlaybackQueue(): array
     {
@@ -328,7 +476,11 @@ class GroupState
     }
 
     /**
-     * Add to playback queue
+     * Add an item to the playback queue.
+     *
+     * @param string $mediaId The media item ID to add
+     * @param array<string, mixed> $mediaInfo Additional media information (title, thumbnail, etc.)
+     * @return void
      */
     public function addToQueue(string $mediaId, array $mediaInfo): void
     {
@@ -342,7 +494,10 @@ class GroupState
     }
 
     /**
-     * Remove from playback queue
+     * Remove an item from the playback queue.
+     *
+     * @param string $mediaId The media ID to remove
+     * @return bool True if found and removed
      */
     public function removeFromQueue(string $mediaId): bool
     {
@@ -357,7 +512,9 @@ class GroupState
     }
 
     /**
-     * Clear playback queue
+     * Clear all items from the playback queue.
+     *
+     * @return void
      */
     public function clearQueue(): void
     {
@@ -366,7 +523,9 @@ class GroupState
     }
 
     /**
-     * Get next item in queue
+     * Get the next item in the queue without removing it.
+     *
+     * @return array|null The first queue item or null if queue is empty
      */
     public function getNextInQueue(): ?array
     {
@@ -374,7 +533,13 @@ class GroupState
     }
 
     /**
-     * Get chat messages
+     * Get recent chat messages.
+     *
+     * Returns the most recent messages up to the specified limit.
+     * Messages are returned in chronological order (oldest first).
+     *
+     * @param int $limit Maximum number of messages to return (default: 50, max: 100)
+     * @return array<int, array{member_id: string, message: string, timestamp: int}> Chat messages
      */
     public function getChatMessages(int $limit = 50): array
     {
@@ -382,7 +547,14 @@ class GroupState
     }
 
     /**
-     * Add a chat message
+     * Add a chat message to the group chat.
+     *
+     * Messages are stored in a rolling buffer of up to 100 messages.
+     * Older messages are automatically discarded when the limit is exceeded.
+     *
+     * @param string $memberId The ID of the member sending the message
+     * @param string $message The chat message content
+     * @return void
      */
     public function addChatMessage(string $memberId, string $message): void
     {
@@ -401,7 +573,9 @@ class GroupState
     }
 
     /**
-     * Get creation timestamp
+     * Get the timestamp when the group was created.
+     *
+     * @return int Unix timestamp
      */
     public function getCreatedAt(): int
     {
@@ -409,7 +583,12 @@ class GroupState
     }
 
     /**
-     * Get last activity timestamp
+     * Get the timestamp of the last group activity.
+     *
+     * Activity includes member joins/leaves, playback commands, and chat messages.
+     * Used for stale group cleanup.
+     *
+     * @return int Unix timestamp
      */
     public function getLastActivityAt(): int
     {
@@ -417,7 +596,9 @@ class GroupState
     }
 
     /**
-     * Get the position tolerance
+     * Get the position tolerance setting.
+     *
+     * @return int Tolerance in milliseconds
      */
     public function getPositionTolerance(): int
     {
@@ -425,7 +606,14 @@ class GroupState
     }
 
     /**
-     * Check if another member's position is in sync with this group
+     * Check if a member's position is in sync with the group.
+     *
+     * When playback is active, compares the member's position against
+     * the host's position within the tolerance threshold. Always returns
+     * true when not playing (paused/stopped positions don't need sync).
+     *
+     * @param int $memberPosition The member's playback position in milliseconds
+     * @return bool True if in sync or not playing, false if out of sync
      */
     public function isInSync(int $memberPosition): bool
     {
@@ -437,7 +625,18 @@ class GroupState
     }
 
     /**
-     * Get full state for broadcasting
+     * Get the full group state for broadcasting to clients.
+     *
+     * Returns a comprehensive state array including members list,
+     * playback info, queue, and timestamps.
+     *
+     * @return array<string, mixed> Full group state
+     *
+     * @example
+     * ```php
+     * $state = $group->getState();
+     * // ['group_id' => 'sp_abc123', 'group_name' => 'Movie Night', 'members' => [...], ...]
+     * ```
      */
     public function getState(): array
     {
@@ -468,7 +667,14 @@ class GroupState
     }
 
     /**
-     * Serialize group state for persistence
+     * Serialize group state for persistence.
+     *
+     * Creates an array representation of the group state that can be
+     * stored and later restored using deserialize().
+     *
+     * @return array<string, mixed> Serialized group state
+     *
+     * @see deserialize() For restoring serialized state
      */
     public function serialize(): array
     {
@@ -491,7 +697,15 @@ class GroupState
     }
 
     /**
-     * Restore group state from serialized data
+     * Restore a group state from serialized data.
+     *
+     * Reconstructs a GroupState instance from data previously created
+     * by serialize().
+     *
+     * @param array<string, mixed> $data Serialized group state
+     * @return self Restored group state instance
+     *
+     * @see serialize() For creating serializable state
      */
     public static function deserialize(array $data): self
     {
@@ -517,7 +731,10 @@ class GroupState
     }
 
     /**
-     * Create a password hash
+     * Create a SHA256 hash of a password.
+     *
+     * @param string $password The plaintext password
+     * @return string 64-character hex string (SHA256)
      */
     public static function hashPassword(string $password): string
     {

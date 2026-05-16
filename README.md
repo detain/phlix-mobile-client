@@ -79,11 +79,14 @@ public/
 - **Audit Logging**: Complete security event logging
 
 ### SyncPlay - Group Watching
-- **Synchronized Playback**: Watch content together with friends across devices
-- **Host-Controlled Playback**: Host controls play/pause/seek for all members
-- **Time Synchronization**: NTP-style time sync with drift correction
-- **Chat & Notifications**: In-group messaging
-- **Playback Queue**: Host-managed media queue
+- **Synchronized Playback**: Watch content together with friends across devices with sub-second sync accuracy
+- **Host-Controlled Playback**: Only the host can control play/pause/seek; all members receive synchronized commands
+- **NTP-Style Time Sync**: Network time synchronization with latency compensation and drift correction
+- **In-Group Chat**: Real-time messaging with typing indicators and message history
+- **Playback Queue**: Host-managed queue with media info (title, thumbnail)
+- **Host Election**: Automatic host election when current host leaves (oldest member becomes host)
+- **Password Protection**: Optional password protection for private watch parties
+- **Position Tolerance**: Configurable sync tolerance (default 2s) to prevent excessive seeking
 
 ### Session Management
 - **Device Sessions**: Track authenticated devices with activity timestamps

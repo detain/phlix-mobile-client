@@ -13,31 +13,92 @@ use Phlex\Server\WebSocket\MessageHandler;
 /**
  * SyncPlayManager - Main manager for SyncPlay group watching functionality
  *
- * Handles group management (create, join, leave), playback synchronization,
- * host-controlled playback queue, and WebSocket integration for real-time
- * communication.
+ * This class orchestrates synchronized group watching sessions where multiple users
+ * can watch content together remotely. The host controls playback (play, pause, seek)
+ * and all members receive synchronized playback commands.
+ *
+ * ## Architecture Overview
+ *
+ * SyncPlay uses a host-controlled model where only the group host can initiate
+ * playback commands. Non-host members receive these commands via WebSocket
+ * broadcasts and adjust their local playback to match.
+ *
+ * ## Time Synchronization
+ *
+ * The TimeSync component handles NTP-style time synchronization to ensure all
+ * clients can calculate accurate playback positions despite network latency.
+ *
+ * ## Group Lifecycle
+ *
+ * 1. Host creates group → receives sp_* group ID
+ * 2. Members join using group ID and optional password
+ * 3. Host controls playback → broadcasts to all members
+ * 4. Members leave or host leaves → group state updated
+ * 5. Empty groups are automatically cleaned up
+ *
+ * @author Phlex Development Team
+ * @copyright 2024 Phlex Media Server
+ * @license Proprietary
+ *
+ * @see GroupState For individual group state management
+ * @see TimeSync For time synchronization logic
+ * @see Messages For WebSocket message type definitions
  */
 class SyncPlayManager
 {
-    // Default position tolerance in milliseconds
+    /**
+     * Default position tolerance in milliseconds.
+     *
+     * If a member's playback position differs from the host's by more than
+     * this tolerance, they are considered "out of sync".
+     */
     private const DEFAULT_POSITION_TOLERANCE = 2000;
 
-    // Maximum groups allowed
+    /**
+     * Maximum number of SyncPlay groups allowed per server instance.
+     *
+     * This limit prevents resource exhaustion on the server.
+     */
     private const MAX_GROUPS = 100;
 
-    // Group inactivity timeout (seconds)
+    /**
+     * Group inactivity timeout in seconds.
+     *
+     * Groups with no activity (no members checking in) for this duration
+     * will be automatically removed during cleanup.
+     */
     private const GROUP_TIMEOUT = 3600;
 
-    // Sync interval for host broadcasts (milliseconds)
+    /**
+     * Sync interval for host broadcasts in milliseconds.
+     *
+     * The host broadcasts playback state updates at this interval
+     * to keep all members synchronized.
+     */
     private const SYNC_INTERVAL = 1000;
 
+    /** @var array<string, GroupState> Active groups indexed by group ID */
     private array $groups = [];
+
+    /** @var array<string, string> Member ID to group ID mapping */
     private array $memberToGroup = [];
+
+    /** @var array<string, string> Connection ID to member ID mapping */
     private array $connectionToMember = [];
+
+    /** @var TimeSync Time synchronization handler for playback sync */
     private TimeSync $timeSync;
+
+    /** @var MessageHandler|null WebSocket message handler for broadcasts */
     private ?MessageHandler $messageHandler = null;
+
+    /** @var StructuredLogger|null Optional structured logger for debugging */
     private ?StructuredLogger $logger;
+
+    /** @var int Position tolerance in milliseconds for sync detection */
     private int $positionTolerance;
+
+    /** @var int Timestamp of last sync broadcast */
     private int $lastSyncTime = 0;
 
     public function __construct(
@@ -50,7 +111,19 @@ class SyncPlayManager
     }
 
     /**
-     * Initialize with a message handler for broadcasting
+     * Initialize with a message handler for broadcasting.
+     *
+     * Sets up the message handler and registers all WebSocket event listeners
+     * for SyncPlay message types.
+     *
+     * @param MessageHandler $messageHandler WebSocket message handler for broadcasts
+     * @return void
+     *
+     * @example
+     * ```php
+     * $manager = new SyncPlayManager();
+     * $manager->initialize($messageHandler);
+     * ```
      */
     public function initialize(MessageHandler $messageHandler): void
     {
@@ -59,7 +132,12 @@ class SyncPlayManager
     }
 
     /**
-     * Register WebSocket message handlers
+     * Register WebSocket message handlers for all SyncPlay message types.
+     *
+     * This method binds the message handler to handle incoming WebSocket messages
+     * for group management and playback control.
+     *
+     * @return void
      */
     private function registerMessageHandlers(): void
     {
@@ -84,7 +162,16 @@ class SyncPlayManager
     }
 
     /**
-     * Handle incoming WebSocket message
+     * Handle incoming WebSocket message from a client connection.
+     *
+     * Routes the message to the appropriate handler based on message type.
+     * All exceptions are caught and reported back to the client as error messages.
+     *
+     * @param Connection $connection The WebSocket connection that sent the message
+     * @param array<string, mixed> $payload The decoded message payload
+     * @return void
+     *
+     * @see Messages For all valid message type constants
      */
     private function handleMessage(Connection $connection, array $payload): void
     {
@@ -141,7 +228,26 @@ class SyncPlayManager
     }
 
     /**
-     * Create a new group
+     * Create a new SyncPlay group.
+     *
+     * Creates a new group with the specified name and optional password protection.
+     * If memberId and memberName are provided, the creator is automatically added
+     * as the first member and designated as the host.
+     *
+     * @param string $name The display name for the group (max 255 chars recommended)
+     * @param string|null $password Optional password to protect the group (null for open groups)
+     * @param string|null $memberId The member ID of the group creator (null if not joining)
+     * @param string|null $memberName The display name of the creator (defaults to 'Host')
+     * @return array{success: bool, group?: array, error?: string} Result with group state or error
+     *
+     * @example
+     * ```php
+     * // Create a group without password
+     * $result = $manager->createGroup('Movie Night');
+     *
+     * // Create a protected group with the creator as host
+     * $result = $manager->createGroup('Private Watch Party', 'secret123', 'user_1', 'Host');
+     * ```
      */
     public function createGroup(string $name, ?string $password = null, ?string $memberId = null, ?string $memberName = null): array
     {
@@ -183,7 +289,24 @@ class SyncPlayManager
     }
 
     /**
-     * Join an existing group
+     * Join an existing SyncPlay group.
+     *
+     * Adds a member to the specified group. If the group requires a password,
+     * it must be provided and verified before joining succeeds.
+     *
+     * @param string $groupId The group ID to join (format: sp_*)
+     * @param string $memberId Unique identifier for the member joining
+     * @param string $memberName Display name for the member
+     * @param string|null $password Optional password if group is protected
+     * @return array{success: bool, group?: array, error?: string} Result with group state or error
+     *
+     * @example
+     * ```php
+     * $result = $manager->joinGroup('sp_abc123def456', 'member_2', 'Guest User');
+     *
+     * // Join a password-protected group
+     * $result = $manager->joinGroup('sp_abc123', 'member_2', 'Guest', 'secret');
+     * ```
      */
     public function joinGroup(string $groupId, string $memberId, string $memberName, ?string $password = null): array
     {
@@ -235,7 +358,19 @@ class SyncPlayManager
     }
 
     /**
-     * Leave a group
+     * Remove a member from their current SyncPlay group.
+     *
+     * If the member is the host and other members remain, a new host will be
+     * automatically elected (oldest member). If no members remain, the group
+     * is deleted.
+     *
+     * @param string $memberId The ID of the member leaving
+     * @return array{success: bool, message?: string, error?: string} Result with message or error
+     *
+     * @example
+     * ```php
+     * $result = $manager->leaveGroup('member_2');
+     * ```
      */
     public function leaveGroup(string $memberId): array
     {
@@ -283,7 +418,14 @@ class SyncPlayManager
     }
 
     /**
-     * Get a group's state
+     * Get the current state of a SyncPlay group.
+     *
+     * Returns the full group state including members, playback info, and queue.
+     *
+     * @param string $groupId The group ID to retrieve
+     * @return array|null The group state array, or null if group not found
+     *
+     * @see GroupState::getState() For the structure of the returned array
      */
     public function getGroupState(string $groupId): ?array
     {
@@ -292,7 +434,21 @@ class SyncPlayManager
     }
 
     /**
-     * Get all groups (for listing)
+     * List all available SyncPlay groups.
+     *
+     * Returns a summary of all groups including member count, password protection,
+     * current media, and playback state. Does not include password-protected
+     * details unless verified.
+     *
+     * @return array<int, array{id: string, name: string, member_count: int, has_password: bool, current_media: string|null, is_playing: bool}> Array of group summaries
+     *
+     * @example
+     * ```php
+     * $groups = $manager->listGroups();
+     * foreach ($groups as $group) {
+     *     echo "{$group['name']}: {$group['member_count']} members\n";
+     * }
+     * ```
      */
     public function listGroups(): array
     {
@@ -313,7 +469,16 @@ class SyncPlayManager
     }
 
     /**
-     * Handle playback play from a member
+     * Handle playback play command from a group host.
+     *
+     * Only the host can initiate playback commands. The position is updated
+     * and broadcast to all other group members.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, position, server_time
+     * @return void
+     *
+     * @fires Messages::TYPE_PLAYBACK_PLAY Broadcast to group members
      */
     private function handlePlaybackPlay(Connection $connection, array $payload): void
     {
@@ -344,7 +509,13 @@ class SyncPlayManager
     }
 
     /**
-     * Handle playback pause from a member
+     * Handle playback pause command from a group host.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, position, server_time
+     * @return void
+     *
+     * @fires Messages::TYPE_PLAYBACK_PAUSE Broadcast to group members
      */
     private function handlePlaybackPause(Connection $connection, array $payload): void
     {
@@ -375,7 +546,13 @@ class SyncPlayManager
     }
 
     /**
-     * Handle playback seek from a member
+     * Handle playback seek command from a group host.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, from_position, to_position, server_time
+     * @return void
+     *
+     * @fires Messages::TYPE_PLAYBACK_SEEK Broadcast to group members
      */
     private function handlePlaybackSeek(Connection $connection, array $payload): void
     {
@@ -408,7 +585,15 @@ class SyncPlayManager
     }
 
     /**
-     * Handle playback queue update from host
+     * Handle playback queue update from a group host.
+     *
+     * Replaces the group's current playback queue with the provided queue items.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, queue array
+     * @return void
+     *
+     * @fires Messages::TYPE_PLAYBACK_QUEUE Broadcast to group members
      */
     private function handlePlaybackQueue(Connection $connection, array $payload): void
     {
@@ -440,7 +625,16 @@ class SyncPlayManager
     }
 
     /**
-     * Handle chat message
+     * Handle incoming chat message from a group member.
+     *
+     * Broadcasts the chat message to all other group members along with
+     * the sender's name and timestamp.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, message
+     * @return void
+     *
+     * @fires Messages::TYPE_CHAT_MESSAGE Broadcast to group members (excluding sender)
      */
     private function handleChatMessage(Connection $connection, array $payload): void
     {
@@ -471,7 +665,16 @@ class SyncPlayManager
     }
 
     /**
-     * Handle time sync ping
+     * Handle time synchronization ping from a client.
+     *
+     * Processes the ping and returns a pong with server timestamp for
+     * calculating network latency and clock offset.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing client_time
+     * @return void
+     *
+     * @see TimeSync::processPing() For ping/pong protocol details
      */
     private function handleTimePing(Connection $connection, array $payload): void
     {
@@ -480,7 +683,16 @@ class SyncPlayManager
     }
 
     /**
-     * Handle group creation request
+     * Handle group creation request via WebSocket.
+     *
+     * Creates a new group with the requesting member as the host.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id, member_name, group_name, password
+     * @return void
+     *
+     * @fires Messages::TYPE_GROUP_STATE Sent to the creating member on success
+     * @fires Messages::TYPE_ERROR Sent on failure
      */
     private function handleGroupCreate(Connection $connection, array $payload): void
     {
@@ -502,7 +714,14 @@ class SyncPlayManager
     }
 
     /**
-     * Handle group join request
+     * Handle group join request via WebSocket.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing group_id, member_id, member_name, password
+     * @return void
+     *
+     * @fires Messages::TYPE_GROUP_STATE Sent to the joining member on success
+     * @fires Messages::TYPE_ERROR Sent on failure
      */
     private function handleGroupJoin(Connection $connection, array $payload): void
     {
@@ -524,7 +743,14 @@ class SyncPlayManager
     }
 
     /**
-     * Handle group leave request
+     * Handle group leave request via WebSocket.
+     *
+     * @param Connection $connection The WebSocket connection
+     * @param array<string, mixed> $payload Payload containing member_id
+     * @return void
+     *
+     * @fires Messages::TYPE_INFO Sent on success
+     * @fires Messages::TYPE_ERROR Sent on failure
      */
     private function handleGroupLeave(Connection $connection, array $payload): void
     {
@@ -542,7 +768,18 @@ class SyncPlayManager
     }
 
     /**
-     * Broadcast a message to all group members
+     * Broadcast a message to all members of a group.
+     *
+     * Sends a WebSocket message to all connected group members except those
+     * in the excludeIds list.
+     *
+     * @param string $groupId The group ID to broadcast to
+     * @param string $type The message type (see Messages constants)
+     * @param array<string, mixed> $data The message data
+     * @param array<string> $excludeIds Member IDs to exclude from the broadcast
+     * @return void
+     *
+     * @see Messages For valid message type constants
      */
     private function broadcastToGroup(string $groupId, string $type, array $data, array $excludeIds = []): void
     {
@@ -568,7 +805,14 @@ class SyncPlayManager
     }
 
     /**
-     * Send error message to connection
+     * Send an error message to a specific connection.
+     *
+     * @param Connection $connection The WebSocket connection to send to
+     * @param string $code Error code (e.g., 'NOT_IN_GROUP', 'NOT_HOST')
+     * @param string $message Human-readable error message
+     * @return void
+     *
+     * @see Messages::TYPE_ERROR For the error message format
      */
     private function sendError(Connection $connection, string $code, string $message): void
     {
@@ -579,7 +823,14 @@ class SyncPlayManager
     }
 
     /**
-     * Get the time sync instance
+     * Get the TimeSync instance for this manager.
+     *
+     * The TimeSync component handles NTP-style time synchronization to ensure
+     * accurate playback position calculation across network latency.
+     *
+     * @return TimeSync The time synchronization handler
+     *
+     * @see TimeSync For time synchronization details
      */
     public function getTimeSync(): TimeSync
     {
@@ -587,7 +838,18 @@ class SyncPlayManager
     }
 
     /**
-     * Get a member's current group ID
+     * Get the group ID that a member is currently in.
+     *
+     * @param string $memberId The member ID to look up
+     * @return string|null The group ID if found, null if member is not in any group
+     *
+     * @example
+     * ```php
+     * $groupId = $manager->getMemberGroup('member_123');
+     * if ($groupId !== null) {
+     *     // Member is in a group
+     * }
+     * ```
      */
     public function getMemberGroup(string $memberId): ?string
     {
@@ -603,7 +865,20 @@ class SyncPlayManager
     }
 
     /**
-     * Clean up stale groups
+     * Clean up stale/inactive groups.
+     *
+     * Removes groups that have had no activity (no members checking in) for
+     * longer than the specified timeout. Members are notified before removal.
+     *
+     * @param int $timeout Timeout in seconds (default: 3600 = 1 hour)
+     * @return int The number of groups removed
+     *
+     * @example
+     * ```php
+     * // Clean up groups inactive for more than 2 hours
+     * $removed = $manager->cleanupStaleGroups(7200);
+     * echo "Removed {$removed} stale groups";
+     * ```
      */
     public function cleanupStaleGroups(int $timeout = self::GROUP_TIMEOUT): int
     {
@@ -631,7 +906,11 @@ class SyncPlayManager
     }
 
     /**
-     * Get statistics
+     * Get statistics about the SyncPlay subsystem.
+     *
+     * @return array{total_groups: int, total_members: int, time_sync_status: array} Statistics
+     *
+     * @see TimeSync::getStatus() For the structure of time_sync_status
      */
     public function getStats(): array
     {
@@ -643,7 +922,14 @@ class SyncPlayManager
     }
 
     /**
-     * Log a message
+     * Log a message using the configured logger.
+     *
+     * If no logger is configured, messages are silently discarded.
+     *
+     * @param string $level Log level (info, warning, error, etc.)
+     * @param string $message Log message
+     * @param array<string, mixed> $context Additional context data
+     * @return void
      */
     private function log(string $level, string $message, array $context = []): void
     {

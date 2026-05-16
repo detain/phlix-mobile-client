@@ -1343,28 +1343,101 @@ $controller->clearProgress('session-123', 'media-456');
 
 ### SyncPlay Architecture
 
-SyncPlay enables synchronized group watching with host-controlled playback.
+SyncPlay enables synchronized group watching with host-controlled playback. Multiple users can watch content together remotely, with the host controlling playback while all members receive synchronized commands.
+
+#### Component Overview
 
 ```
-Group Creation:
-    → SyncPlayManager::createGroup(name, password, memberId, memberName)
-    ← Returns group state
-
-Join Group:
-    → SyncPlayManager::joinGroup(groupId, memberId, memberName, password)
-    ← Returns updated group state
-
-Playback Control (host only):
-    → handlePlaybackPlay()
-    → handlePlaybackPause()
-    → handlePlaybackSeek()
-    → Broadcast to all members
-
-Time Synchronization:
-    → TimeSync::processPing()
-    → Calculate offset and latency
-    → Apply drift correction
+src/Session/SyncPlay/
+├── SyncPlayManager.php  # Main orchestrator for group sessions
+├── GroupState.php     # Individual group state management
+├── TimeSync.php       # NTP-style time synchronization
+└── Messages.php        # WebSocket message type definitions
 ```
+
+#### Protocol Flow
+
+```
+Client A (Host)                    Server                        Client B (Guest)
+      |                               |                               |
+      | --- CREATE_GROUP -----------> |                               |
+      | <-- GROUP_STATE ------------- |                               |
+      |                               |                               |
+      |                               | --- JOIN_GROUP --------------> |
+      |                               | <-- GROUP_STATE ------------- |
+      |                               |                               |
+      | --- PLAY -------------------- | ----------------------------> |
+      | (broadcast position+time)     |                               |
+      |                               |                               |
+      | --- SEEK -------------------- | ----------------------------> |
+      | (broadcast new position)      |                               |
+      |                               |                               |
+      | --- PING --------------------> |                               |
+      | <-- PONG --------------------- |                               |
+      | (calculate latency/offset)     |                               |
+```
+
+#### WebSocket Message Types
+
+| Category | Type | Direction | Description |
+|---------|------|----------|-------------|
+| Group | `syncplay_group_create` | C→S | Create new group |
+| Group | `syncplay_group_join` | C→S | Join existing group |
+| Group | `syncplay_group_leave` | C→S | Leave current group |
+| Group | `syncplay_group_state` | S→C | Full group state broadcast |
+| Playback | `syncplay_playback_play` | C→S→C | Play/resume command |
+| Playback | `syncplay_playback_pause` | C→S→C | Pause command |
+| Playback | `syncplay_playback_seek` | C→S→C | Seek command |
+| Playback | `syncplay_playback_queue` | C→S→C | Queue update |
+| Chat | `syncplay_chat` | C→S→C | Chat message |
+| Host | `syncplay_host_elect` | S→C | Automatic host election |
+| Time | `syncplay_time_ping` | C→S | Time sync ping |
+| Time | `syncplay_time_pong` | S→C | Time sync pong |
+| Info | `syncplay_error` | S→C | Error notification |
+| Info | `syncplay_info` | S→C | Info message |
+
+#### Group Lifecycle
+
+```
+                    ┌─────────────────┐
+                    │   NO GROUP      │
+                    └────────┬────────┘
+                             │ createGroup()
+                             ▼
+                    ┌─────────────────┐
+         ┌─────────>│  GROUP_CREATED │<─────────┐
+         │          └────────┬────────┘          │
+         │                 │ joinGroup()        │
+         │                 ▼                    │
+         │          ┌─────────────────┐          │
+         │          │   MEMBER_ADDED  │          │
+         │          └────────┬────────┘          │
+         │                 │                   │
+         │    leaveGroup() │                   │
+         │                 ▼                   │
+         │          ┌─────────────────┐       │
+         └──────────│  MEMBER_REMOVED │───────┘
+                    └────────┬────────┘
+                             │
+                  (if last member)
+                             ▼
+                    ┌─────────────────┐
+                    │   GROUP_REMOVED │
+                    └─────────────────┘
+```
+
+#### Time Synchronization
+
+SyncPlay uses NTP-style time synchronization to ensure accurate playback positioning across network latency:
+
+1. Client sends `timePing` with local timestamp
+2. Server responds with `timePong` containing both timestamps
+3. Client calculates:
+   - Round-trip time (RTT)
+   - One-way latency (RTT / 2)
+   - Clock offset (server_time - client_time + latency)
+4. Multiple samples are averaged with weighting by RTT
+5. Drift rate is calculated and applied to predicted positions
 
 ### SyncPlayManager (`SyncPlayManager`)
 
