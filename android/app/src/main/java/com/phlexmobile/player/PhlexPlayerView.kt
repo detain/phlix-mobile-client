@@ -123,8 +123,11 @@ class PhlexPlayerView(context: Context) : FrameLayout(context) {
 
     private fun updatePlayerState() {
         player?.let { p ->
-            p.volume = currentVolume
-            p.isMuted = currentMuted
+            if (currentMuted) {
+                p.volume = 0f
+            } else {
+                p.volume = currentVolume.coerceIn(0f, 1f)
+            }
         }
     }
 
@@ -173,12 +176,18 @@ class PhlexPlayerView(context: Context) : FrameLayout(context) {
 
     fun setVolume(volume: Float) {
         currentVolume = volume.coerceIn(0f, 1f)
-        player?.volume = currentVolume
+        if (!currentMuted) {
+            player?.volume = currentVolume
+        }
     }
 
     fun setMuted(muted: Boolean) {
         currentMuted = muted
-        player?.isMuted = currentMuted
+        if (muted) {
+            player?.volume = 0f
+        } else {
+            player?.volume = currentVolume.coerceIn(0f, 1f)
+        }
     }
 
     fun play() {
