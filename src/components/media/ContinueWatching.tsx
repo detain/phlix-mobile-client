@@ -45,7 +45,7 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
         />
         <View style={styles.overlay}>
           <View style={styles.infoContainer}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
               {item.name}
             </Text>
             <Text style={styles.progressText}>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   infoContainer: {
     flex: 1,
   },
-  title: {
+  cardTitle: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',

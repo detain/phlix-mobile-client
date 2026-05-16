@@ -42,7 +42,7 @@ export const SeekBar: React.FC<SeekBarProps> = ({
         <View
           style={[
             styles.sliderThumb,
-            { left: `${duration > 0 ? (currentTime / duration) * (SCREEN_WIDTH - 100) : 0}` },
+            { left: (duration > 0 ? (currentTime / duration) * (SCREEN_WIDTH - 100) : 0) as number },
           ]}
         />
       </View>

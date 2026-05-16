@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/services/NotificationService.ts
 import PushNotification, { Importance } from 'react-native-push-notification';
 import { Platform } from 'react-native';

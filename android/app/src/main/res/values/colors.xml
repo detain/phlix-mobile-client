@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary brand color -->
+    <color name="primary">#0066CC</color>
+    <color name="primary_dark">#0052A3</color>
+    <color name="accent">#00A3E0</color>
+    
+    <!-- Background colors -->
+    <color name="background_dark">#0F0F1A</color>
+    <color name="surface_dark">#1A1A2E</color>
+    <color name="card_dark">#2D2D44</color>
+    
+    <!-- Text colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#888888</color>
+    
+    <!-- Status colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
+</resources>
