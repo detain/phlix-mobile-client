@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   controlsOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'space-between',
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
