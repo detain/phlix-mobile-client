@@ -25,6 +25,25 @@ Phlex Mobile is a React Native application designed to interface with media serv
 - **Continue Watching**: Resume playback from where you left off
 - **Downloads**: Download media for offline playback
 
+### Hub Mode
+
+Phlex Mobile supports **Hub Mode** for remote access to your media servers:
+
+- **Sign in to Hub**: Authenticate with a Phlex Hub to access your claimed servers
+- **Multi-Server Support**: View and manage multiple claimed servers from a single app
+- **Server Switching**: Quickly switch between servers with the Server Switcher
+- **Direct Mode**: Connect directly to your server over LAN when on the same network
+- **Relay Mode**: Connect to your server remotely via the Hub relay when away from home
+
+#### Hub Connection Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **Direct** | Connects directly to server hostname (e.g., `https://192.168.1.100:32400`) | Same network as server |
+| **Via Hub Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
+
+Hub session data is persisted securely using `AsyncStorage`, allowing seamless reconnection across app restarts.
+
 ### Technical Features
 
 - **React Native** with TypeScript for type safety
