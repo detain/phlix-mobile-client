@@ -1,184 +1,171 @@
 // src/services/DownloadService.ts
 import { NativeModules, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaItem } from '../types/media';
+import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { playbackManager } from '../api/PlaybackManager';
 
-interface DownloadTask {
-  id: string;
-  itemId: string;
-  item: MediaItem;
-  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed';
-  progress: number;
-  downloadedBytes: number;
-  totalBytes: number;
-  localPath: string;
-  createdAt: number;
-  completedAt?: number;
-}
-
-const DOWNLOADS_KEY = 'phlex_downloads';
+const MAX_CONCURRENT_DOWNLOADS = 2;
 
 class DownloadService {
-  private downloads: Map<string, DownloadTask> = new Map();
+  private activeDownloads: Set<string> = new Set();
   private listeners: Set<(task: DownloadTask) => void> = new Set();
+  private resumeData: Map<string, { downloadedBytes: number }> = new Map();
 
   constructor() {
-    this.loadDownloads();
+    useDownloadStore.getState().loadPersistedTasks();
   }
 
-  // Load downloads from storage
-  private async loadDownloads(): Promise<void> {
-    try {
-      const data = await AsyncStorage.getItem(DOWNLOADS_KEY);
-      if (data) {
-        const parsed = JSON.parse(data) as DownloadTask[];
-        parsed.forEach((task) => {
-          this.downloads.set(task.id, task);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load downloads:', error);
+  async startDownload(item: MediaItem, quality = 'original'): Promise<string> {
+    const store = useDownloadStore.getState();
+    const existingTask = Object.values(store.tasks).find(
+      (t) => t.itemId === item.id && t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'failed'
+    );
+    if (existingTask) return existingTask.id;
+
+    const taskId = await store.addDownload(item, quality);
+    this.processQueue();
+    return taskId;
+  }
+
+  pauseDownload(taskId: string): void {
+    const store = useDownloadStore.getState();
+    const task = store.tasks[taskId];
+    if (!task || task.status !== 'downloading') return;
+
+    const PhlexDownloader = NativeModules.PhlexDownloader;
+    if (PhlexDownloader?.pauseDownload) {
+      PhlexDownloader.pauseDownload(taskId);
+    } else {
+      store.updateTaskStatus(taskId, 'paused');
     }
+    this.activeDownloads.delete(taskId);
+    this.processQueue();
   }
 
-  // Save downloads to storage
-  private async saveDownloads(): Promise<void> {
-    try {
-      const data = Array.from(this.downloads.values());
-      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('Failed to save downloads:', error);
+  resumeDownload(taskId: string): void {
+    const store = useDownloadStore.getState();
+    const task = store.tasks[taskId];
+    if (!task || task.status !== 'paused') return;
+    store.updateTaskStatus(taskId, 'queued');
+    this.processQueue();
+  }
+
+  async cancelDownload(taskId: string): Promise<void> {
+    const store = useDownloadStore.getState();
+    const PhlexDownloader = NativeModules.PhlexDownloader;
+    if (PhlexDownloader?.cancelDownload) {
+      PhlexDownloader.cancelDownload(taskId);
     }
+    this.activeDownloads.delete(taskId);
+    this.resumeData.delete(taskId);
+    await store.removeDownload(taskId);
+    this.processQueue();
   }
 
-  // Subscribe to download updates
+  retryDownload(taskId: string): void {
+    useDownloadStore.getState().retryDownload(taskId);
+    this.processQueue();
+  }
+
   subscribe(callback: (task: DownloadTask) => void): () => void {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
 
-  // Notify listeners
-  private notifyListeners(task: DownloadTask): void {
-    this.listeners.forEach((listener) => listener(task));
+  getAllDownloads(): DownloadTask[] {
+    return Object.values(useDownloadStore.getState().tasks);
   }
 
-  // Start download
-  async startDownload(item: MediaItem): Promise<string> {
-    const taskId = `download_${item.id}_${Date.now()}`;
+  getCompletedDownloads(): DownloadTask[] {
+    return useDownloadStore.getState().getCompletedDownloads();
+  }
 
-    // Get stream info for download
-    const streamInfo = await playbackManager.getStreamUrl(item.id, {
-      quality: 'original',
-    });
+  getDownloadForItem(itemId: string): DownloadTask | undefined {
+    return useDownloadStore.getState().getDownloadForItem(itemId);
+  }
 
-    const task: DownloadTask = {
-      id: taskId,
-      itemId: item.id,
-      item,
-      status: 'pending',
-      progress: 0,
-      downloadedBytes: 0,
-      totalBytes: streamInfo.size || 0,
-      localPath: this.getLocalPath(item),
-      createdAt: Date.now(),
-    };
+  isItemDownloaded(itemId: string): boolean {
+    return useDownloadStore.getState().isItemDownloaded(itemId);
+  }
 
-    this.downloads.set(taskId, task);
-    await this.saveDownloads();
-    this.notifyListeners(task);
+  getItemLocalPath(itemId: string): string | null {
+    return useDownloadStore.getState().getItemLocalPath(itemId);
+  }
 
-    // Start native download
+  async deleteDownload(taskId: string): Promise<void> {
+    const store = useDownloadStore.getState();
+    const task = store.tasks[taskId];
+    if (!task || task.status !== 'completed') return;
+
     const PhlexDownloader = NativeModules.PhlexDownloader;
-    if (PhlexDownloader) {
-      PhlexDownloader.startDownload(taskId, streamInfo.url, task.localPath);
-    } else {
-      // Simulate download for development
-      task.status = 'downloading';
-      this.simulateDownload(taskId);
+    if (PhlexDownloader?.deleteFile) {
+      try { await PhlexDownloader.deleteFile(task.localPath); } catch {}
     }
-
-    return taskId;
+    await store.removeDownload(taskId);
   }
 
-  // Simulate download for development
-  private simulateDownload(taskId: string): void {
+  private processQueue(): void {
+    const store = useDownloadStore.getState();
+    const activeCount = Object.values(store.tasks).filter((t) => t.status === 'downloading').length;
+    if (activeCount >= MAX_CONCURRENT_DOWNLOADS) return;
+
+    const queued = Object.values(store.tasks).filter((t) => t.status === 'queued');
+    if (queued.length === 0) return;
+    this.beginDownload(queued[0]);
+  }
+
+  private async beginDownload(task: DownloadTask): Promise<void> {
+    const taskId = task.id;
+    this.activeDownloads.add(taskId);
+
+    const store = useDownloadStore.getState();
+    store.updateTaskStatus(taskId, 'downloading');
+
+    try {
+      const streamInfo = await playbackManager.getStreamUrl(task.itemId, { quality: task.quality });
+      const localPath = this.getLocalPath(task.item);
+      store.updateTaskProgress(taskId, task.resumeOffset ?? 0, streamInfo.size);
+
+      const PhlexDownloader = NativeModules.PhlexDownloader;
+      if (PhlexDownloader?.startDownload) {
+        PhlexDownloader.startDownload(taskId, streamInfo.url, localPath, task.resumeOffset ?? 0, streamInfo.size);
+      } else {
+        this.downloadSimulated(taskId, streamInfo.size);
+      }
+    } catch (err) {
+      store.updateTaskStatus(taskId, 'failed', err instanceof Error ? err.message : 'Failed to start download');
+      this.activeDownloads.delete(taskId);
+      this.processQueue();
+    }
+  }
+
+  private downloadSimulated(taskId: string, totalBytes: number): void {
+    const store = useDownloadStore.getState();
+    let downloaded = store.tasks[taskId]?.downloadedBytes ?? 0;
+
     const interval = setInterval(() => {
-      const task = this.downloads.get(taskId);
+      const task = store.tasks[taskId];
       if (!task || task.status !== 'downloading') {
         clearInterval(interval);
         return;
       }
+      downloaded = Math.min(downloaded + Math.floor(totalBytes * 0.1), totalBytes);
+      store.updateTaskProgress(taskId, downloaded, totalBytes);
 
-      task.progress = Math.min(1, task.progress + 0.1);
-      task.downloadedBytes = Math.floor(task.totalBytes * task.progress);
+      const updated = store.tasks[taskId];
+      this.notifyListeners(updated);
 
-      if (task.progress >= 1) {
-        task.status = 'completed';
-        task.completedAt = Date.now();
+      if (downloaded >= totalBytes) {
         clearInterval(interval);
+        const localPath = this.getLocalPath(updated.item);
+        store.updateTaskLocalPath(taskId, localPath);
+        store.updateTaskStatus(taskId, 'completed');
+        this.activeDownloads.delete(taskId);
+        this.processQueue();
       }
-
-      this.downloads.set(taskId, task);
-      this.saveDownloads();
-      this.notifyListeners(task);
     }, 500);
   }
 
-  // Pause download
-  async pauseDownload(taskId: string): Promise<void> {
-    const task = this.downloads.get(taskId);
-    if (task && task.status === 'downloading') {
-      const PhlexDownloader = NativeModules.PhlexDownloader;
-      if (PhlexDownloader) {
-        PhlexDownloader.pauseDownload(taskId);
-      }
-      task.status = 'paused';
-      this.downloads.set(taskId, task);
-      await this.saveDownloads();
-      this.notifyListeners(task);
-    }
-  }
-
-  // Resume download
-  async resumeDownload(taskId: string): Promise<void> {
-    const task = this.downloads.get(taskId);
-    if (task && task.status === 'paused') {
-      const PhlexDownloader = NativeModules.PhlexDownloader;
-      if (PhlexDownloader) {
-        PhlexDownloader.resumeDownload(taskId);
-      }
-      task.status = 'downloading';
-      this.downloads.set(taskId, task);
-      await this.saveDownloads();
-      this.notifyListeners(task);
-      this.simulateDownload(taskId);
-    }
-  }
-
-  // Cancel download
-  async cancelDownload(taskId: string): Promise<void> {
-    const task = this.downloads.get(taskId);
-    if (task) {
-      const PhlexDownloader = NativeModules.PhlexDownloader;
-      if (PhlexDownloader) {
-        PhlexDownloader.cancelDownload(taskId);
-      }
-      this.downloads.delete(taskId);
-      await this.saveDownloads();
-    }
-  }
-
-  // Get download progress
-  getProgress(taskId: string): number {
-    const task = this.downloads.get(taskId);
-    if (!task || task.totalBytes === 0) {
-      return 0;
-    }
-    return task.downloadedBytes / task.totalBytes;
-  }
-
-  // Get local file path for item
   private getLocalPath(item: MediaItem): string {
     const filename = `${item.id}_${item.name.replace(/[^a-z0-9]/gi, '_')}.mp4`;
     if (Platform.OS === 'ios') {
@@ -187,60 +174,38 @@ class DownloadService {
     return `/storage/emulated/0/Download/Phlex/${filename}`;
   }
 
-  // Get all downloads
-  getAllDownloads(): DownloadTask[] {
-    return Array.from(this.downloads.values());
+  handleNativeProgress(taskId: string, downloadedBytes: number, totalBytes: number): void {
+    const store = useDownloadStore.getState();
+    store.updateTaskProgress(taskId, downloadedBytes, totalBytes);
+    this.resumeData.set(taskId, { downloadedBytes });
   }
 
-  // Get completed downloads
-  getCompletedDownloads(): DownloadTask[] {
-    return Array.from(this.downloads.values()).filter(
-      (task) => task.status === 'completed'
-    );
+  handleNativeComplete(taskId: string, localPath: string): void {
+    const store = useDownloadStore.getState();
+    store.updateTaskLocalPath(taskId, localPath);
+    store.updateTaskStatus(taskId, 'completed');
+    this.activeDownloads.delete(taskId);
+    this.resumeData.delete(taskId);
+    this.processQueue();
   }
 
-  // Get download by item ID
-  getDownloadForItem(itemId: string): DownloadTask | undefined {
-    return Array.from(this.downloads.values()).find(
-      (task) => task.itemId === itemId && task.status === 'completed'
-    );
+  handleNativeError(taskId: string, error: string): void {
+    const store = useDownloadStore.getState();
+    store.updateTaskStatus(taskId, 'failed', error);
+    this.activeDownloads.delete(taskId);
+    this.processQueue();
   }
 
-  // Handle download progress from native module
-  handleProgress(taskId: string, downloadedBytes: number, totalBytes: number): void {
-    const task = this.downloads.get(taskId);
-    if (task) {
-      task.downloadedBytes = downloadedBytes;
-      task.totalBytes = totalBytes;
-      task.progress = totalBytes > 0 ? downloadedBytes / totalBytes : 0;
-      task.status = 'downloading';
-      this.downloads.set(taskId, task);
-      this.notifyListeners(task);
-    }
+  handleNativePaused(taskId: string, downloadedBytes: number): void {
+    const store = useDownloadStore.getState();
+    this.resumeData.set(taskId, { downloadedBytes });
+    store.updateTaskStatus(taskId, 'paused');
+    this.activeDownloads.delete(taskId);
+    this.processQueue();
   }
 
-  // Handle download completion
-  handleComplete(taskId: string): void {
-    const task = this.downloads.get(taskId);
-    if (task) {
-      task.status = 'completed';
-      task.progress = 1;
-      task.completedAt = Date.now();
-      this.downloads.set(taskId, task);
-      this.saveDownloads();
-      this.notifyListeners(task);
-    }
-  }
-
-  // Handle download error
-  handleError(taskId: string, _error: string): void {
-    const task = this.downloads.get(taskId);
-    if (task) {
-      task.status = 'failed';
-      this.downloads.set(taskId, task);
-      this.saveDownloads();
-      this.notifyListeners(task);
-    }
+  private notifyListeners(task: DownloadTask): void {
+    this.listeners.forEach((cb) => cb(task));
   }
 }
 
