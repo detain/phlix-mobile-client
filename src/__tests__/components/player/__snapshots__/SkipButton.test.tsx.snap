@@ -1,0 +1,115 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SkipButton snapshots intro button matches snapshot when in range 1`] = `
+<View
+  accessibilityHint="Tap to skip intro"
+  accessibilityLabel="Skip Intro"
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": undefined,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "backgroundColor": "rgba(0,0,0,0.7)",
+      "borderColor": "rgba(255,255,255,0.3)",
+      "borderRadius": 20,
+      "borderWidth": 1,
+      "opacity": 1,
+      "paddingHorizontal": 16,
+      "paddingVertical": 8,
+    }
+  }
+>
+  <Text
+    style={
+      {
+        "color": "#fff",
+        "fontSize": 14,
+        "fontWeight": "600",
+      }
+    }
+  >
+    Skip Intro
+  </Text>
+</View>
+`;
+
+exports[`SkipButton snapshots outro button matches snapshot when in range 1`] = `
+<View
+  accessibilityHint="Tap to skip outro"
+  accessibilityLabel="Skip Outro"
+  accessibilityState={
+    {
+      "busy": undefined,
+      "checked": undefined,
+      "disabled": undefined,
+      "expanded": undefined,
+      "selected": undefined,
+    }
+  }
+  accessibilityValue={
+    {
+      "max": undefined,
+      "min": undefined,
+      "now": undefined,
+      "text": undefined,
+    }
+  }
+  accessible={true}
+  collapsable={false}
+  focusable={true}
+  onClick={[Function]}
+  onResponderGrant={[Function]}
+  onResponderMove={[Function]}
+  onResponderRelease={[Function]}
+  onResponderTerminate={[Function]}
+  onResponderTerminationRequest={[Function]}
+  onStartShouldSetResponder={[Function]}
+  style={
+    {
+      "backgroundColor": "rgba(0,0,0,0.7)",
+      "borderColor": "rgba(255,255,255,0.3)",
+      "borderRadius": 20,
+      "borderWidth": 1,
+      "opacity": 1,
+      "paddingHorizontal": 16,
+      "paddingVertical": 8,
+    }
+  }
+>
+  <Text
+    style={
+      {
+        "color": "#fff",
+        "fontSize": 14,
+        "fontWeight": "600",
+      }
+    }
+  >
+    Skip Outro
+  </Text>
+</View>
+`;

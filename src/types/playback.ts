@@ -42,12 +42,21 @@ export interface DeviceProfile {
   };
 }
 
+/** Skip marker boundaries returned from /api/v1/media/{id}/playback */
+export interface SkipMarkers {
+  skip_intro_start: number | null;
+  skip_intro_end: number | null;
+  skip_outro_start: number | null;
+  skip_outro_end: number | null;
+}
+
 export interface PlaybackInfo {
   media_source: MediaSource;
   play_session_id: string;
   stream_info: StreamInfo;
   subtitle_tracks: SubtitleTrack[];
   audio_tracks: AudioTrack[];
+  markers?: SkipMarkers;
 }
 
 export interface MediaSource {
