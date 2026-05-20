@@ -22,7 +22,7 @@ describe('hubStore', () => {
       version: '1.0.0',
       status: 'online' as const,
       hostname: 'https://192.168.1.100:32400',
-      relayHostname: 'https://relay.phlex.app/server-1',
+      relayHostname: 'https://relay.phlix.app/server-1',
       capabilities: ['direct-play'],
     },
     {
@@ -31,7 +31,7 @@ describe('hubStore', () => {
       version: '0.9.0',
       status: 'offline' as const,
       hostname: 'https://192.168.1.101:32400',
-      relayHostname: 'https://relay.phlex.app/server-2',
+      relayHostname: 'https://relay.phlix.app/server-2',
       capabilities: [],
     },
   ];
@@ -129,7 +129,7 @@ describe('hubStore', () => {
       expect(state.servers).toEqual([]);
       expect(state.activeServerId).toBeNull();
       expect(state.effectiveServerUrl).toBe('');
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('phlex_hub_session');
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('phlix_hub_session');
     });
   });
 
@@ -164,7 +164,7 @@ describe('hubStore', () => {
 
       const state = useHubStore.getState();
       expect(state.connectionMode).toBe('relay');
-      expect(state.effectiveServerUrl).toBe('https://relay.phlex.app/server-1');
+      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/server-1');
     });
 
     it('should not update if serverId not found', async () => {
@@ -202,7 +202,7 @@ describe('hubStore', () => {
 
       expect(useHubStore.getState().connectionMode).toBe('relay');
       expect(useHubStore.getState().effectiveServerUrl).toBe(
-        'https://relay.phlex.app/server-1'
+        'https://relay.phlix.app/server-1'
       );
     });
 
@@ -331,7 +331,7 @@ describe('hubStore', () => {
       expect(state.session).toEqual(mockSession);
       expect(state.activeServerId).toBe('server-2');
       expect(state.connectionMode).toBe('relay');
-      expect(state.effectiveServerUrl).toBe('https://relay.phlex.app/server-2');
+      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/server-2');
     });
 
     it('should handle missing persisted data gracefully', async () => {

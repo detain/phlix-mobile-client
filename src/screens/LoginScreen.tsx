@@ -56,7 +56,7 @@ const LoginScreen: React.FC = () => {
           {/* Logo/Header */}
           <View style={styles.header}>
             <Text style={styles.logo}>📺</Text>
-            <Text style={styles.appName}>Phlex</Text>
+            <Text style={styles.appName}>Phlix</Text>
             <Text style={styles.tagline}>Media Server</Text>
           </View>
 

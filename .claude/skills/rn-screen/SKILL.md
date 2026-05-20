@@ -6,7 +6,7 @@ paths:
   - src/navigation/**
   - src/types/navigation.ts
 ---
-# rn-screen — Scaffold a React Native screen for Phlex Mobile
+# rn-screen — Scaffold a React Native screen for Phlix Mobile
 
 ## Critical
 

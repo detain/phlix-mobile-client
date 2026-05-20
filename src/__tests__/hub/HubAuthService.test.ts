@@ -150,7 +150,7 @@ describe('HubAuthService', () => {
               version: '1.0.0',
               status: 'online',
               hostname: 'https://192.168.1.100:32400',
-              relay_hostname: 'https://relay.phlex.app/server-1',
+              relay_hostname: 'https://relay.phlix.app/server-1',
               capabilities: ['direct-play', 'transcode'],
             },
             {
@@ -176,7 +176,7 @@ describe('HubAuthService', () => {
         version: '1.0.0',
         status: 'online',
         hostname: 'https://192.168.1.100:32400',
-        relayHostname: 'https://relay.phlex.app/server-1',
+        relayHostname: 'https://relay.phlix.app/server-1',
         capabilities: ['direct-play', 'transcode'],
       });
       expect(result[1].relayHostname).toBeUndefined();

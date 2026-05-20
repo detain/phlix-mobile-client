@@ -25,7 +25,7 @@ function makeTask(overrides: Partial<DownloadTask> = {}): DownloadTask {
     progress: 0,
     downloadedBytes: 0,
     totalBytes: 1024 * 1024 * 500,
-    localPath: '/storage/emulated/0/Download/Phlex/media-1_Test_Movie.mp4',
+    localPath: '/storage/emulated/0/Download/Phlix/media-1_Test_Movie.mp4',
     quality: 'original',
     createdAt: Date.now(),
     ...overrides,

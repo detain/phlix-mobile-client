@@ -1,10 +1,10 @@
 ---
 name: native-bridge
-description: Adds or extends a native module bridge across src/native/types.ts, ios/LocalPods/PhlexPlayer/ (Swift + Obj-C RCT_EXTERN_MODULE), and android/app/src/main/java/com/phlexmobile/ (Kotlin @ReactProp/@ReactMethod). Keeps event names and prop signatures aligned across all three layers, handles cleanup/observer removal. Use when user says 'add native module', 'expose to JS', 'bridge ios/android player feature', or edits PhlexPlayerView.swift/PhlexPlayerView.kt. Do NOT use for pure JS features, JS-only components, or features that don't require native code.
+description: Adds or extends a native module bridge across src/native/types.ts, ios/LocalPods/PhlixPlayer/ (Swift + Obj-C RCT_EXTERN_MODULE), and android/app/src/main/java/com/phlixmobile/ (Kotlin @ReactProp/@ReactMethod). Keeps event names and prop signatures aligned across all three layers, handles cleanup/observer removal. Use when user says 'add native module', 'expose to JS', 'bridge ios/android player feature', or edits PhlixPlayerView.swift/PhlixPlayerView.kt. Do NOT use for pure JS features, JS-only components, or features that don't require native code.
 paths:
   - src/native/**
-  - ios/LocalPods/PhlexPlayer/**
-  - android/app/src/main/java/com/phlexmobile/**
+  - ios/LocalPods/PhlixPlayer/**
+  - android/app/src/main/java/com/phlixmobile/**
 ---
 # Native Bridge
 
@@ -12,9 +12,9 @@ Add or extend a native module/view bridge so a feature is exposed identically ac
 
 ## Critical
 
-- **Three-layer rule**: every new prop, method, or event MUST be added to ALL of: `src/native/types.ts`, `ios/LocalPods/PhlexPlayer/`, `android/app/src/main/java/com/phlexmobile/`. Skipping a layer ships a broken bridge.
+- **Three-layer rule**: every new prop, method, or event MUST be added to ALL of: `src/native/types.ts`, `ios/LocalPods/PhlixPlayer/`, `android/app/src/main/java/com/phlixmobile/`. Skipping a layer ships a broken bridge.
 - **Names must match exactly**:
-  - View manager name: iOS `RCT_EXTERN_MODULE(PhlexPlayerViewManager, …)` ↔ Android `override fun getName() = "PhlexPlayerView"` ↔ JS `requireNativeComponent('PhlexPlayerView')`.
+  - View manager name: iOS `RCT_EXTERN_MODULE(PhlixPlayerViewManager, …)` ↔ Android `override fun getName() = "PhlixPlayerView"` ↔ JS `requireNativeComponent('PhlixPlayerView')`.
   - Event names: iOS `@objc var onProgress: RCTBubblingEventBlock?` ↔ Android `WritableMap` with `"onProgress"` via `RCTEventEmitter` ↔ TS callback prop `onProgress`.
   - Prop names: must match between `RCT_EXPORT_VIEW_PROPERTY` (Obj-C) and `@ReactProp(name = "…")` (Kotlin) and the TS interface field.
 - **Cleanup is mandatory**: any KVO observer (iOS), `Player.Listener` (Android), or timer added in setup MUST be removed in the corresponding teardown (`removeObserver`, `removeListener`, `invalidate`). Leaks crash on view recycling.
@@ -29,7 +29,7 @@ Edit `src/native/types.ts`. Add the prop/method/event to the existing interface.
 
 ```ts
 // src/native/types.ts
-export interface PhlexPlayerViewProps {
+export interface PhlixPlayerViewProps {
   source: { uri: string; headers?: Record<string, string> };
   paused?: boolean;
   onProgress?: (e: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => void;
@@ -44,9 +44,9 @@ For a TurboModule/method (non-view), add to the module interface and re-export f
 
 ### Step 2 — iOS: Swift view + Obj-C bridge
 
-Two files in `ios/LocalPods/PhlexPlayer/`:
+Two files in `ios/LocalPods/PhlixPlayer/`:
 
-**`PhlexPlayerView.swift`** — add the `@objc` property and emit the event. For props, use `@objc var <name>: <Type> = <default> { didSet { … } }`. For event callbacks, use `@objc var onBuffer: RCTBubblingEventBlock?` and call `onBuffer?(["isBuffering": true])` from a KVO callback or AVPlayer observer.
+**`PhlixPlayerView.swift`** — add the `@objc` property and emit the event. For props, use `@objc var <name>: <Type> = <default> { didSet { … } }`. For event callbacks, use `@objc var onBuffer: RCTBubblingEventBlock?` and call `onBuffer?(["isBuffering": true])` from a KVO callback or AVPlayer observer.
 
 ```swift
 @objc var onBuffer: RCTBubblingEventBlock?
@@ -60,7 +60,7 @@ private func observePlayer() {
 deinit { playerItemObserver?.invalidate() }  // MUST clean up
 ```
 
-**`PhlexPlayerViewManager.m`** — register the prop/event with Obj-C macros (file is `.m`, NOT `.swift`):
+**`PhlixPlayerViewManager.m`** — register the prop/event with Obj-C macros (file is `.m`, NOT `.swift`):
 
 ```objc
 RCT_EXPORT_VIEW_PROPERTY(onBuffer, RCTBubblingEventBlock)
@@ -79,13 +79,13 @@ RCT_EXTERN_METHOD(getMetadata:(NSString *)url
 
 ### Step 3 — Android: Kotlin view manager + module
 
-Edit `android/app/src/main/java/com/phlexmobile/player/PhlexPlayerViewManager.kt`.
+Edit `android/app/src/main/java/com/phlixmobile/player/PhlixPlayerViewManager.kt`.
 
 **Props**: annotate with `@ReactProp(name = "…")` — name MUST match the TS prop and iOS `RCT_EXPORT_VIEW_PROPERTY`:
 
 ```kotlin
 @ReactProp(name = "paused")
-fun setPaused(view: PhlexPlayerView, paused: Boolean) {
+fun setPaused(view: PhlixPlayerView, paused: Boolean) {
   view.setPaused(paused)
 }
 ```
@@ -99,7 +99,7 @@ override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> = m
 )
 ```
 
-**Emit** from `PhlexPlayerView.kt` via `RCTEventEmitter`:
+**Emit** from `PhlixPlayerView.kt` via `RCTEventEmitter`:
 
 ```kotlin
 private fun sendEvent(name: String, payload: WritableMap) {
@@ -155,11 +155,11 @@ Wire the new prop/event into the actual screen using it (typically `src/screens/
 **User says**: "Expose a buffering event from the native player to JS."
 
 **Actions taken**:
-1. Add `onBuffer?: (e: NativeSyntheticEvent<{ isBuffering: boolean }>) => void;` to `PhlexPlayerViewProps` in `src/native/types.ts`.
-2. In `PhlexPlayerView.swift`, add `@objc var onBuffer: RCTBubblingEventBlock?` and a KVO observer on `isPlaybackBufferEmpty` that calls it; invalidate the observer in `deinit`.
-3. In `PhlexPlayerViewManager.m`, add `RCT_EXPORT_VIEW_PROPERTY(onBuffer, RCTBubblingEventBlock)`.
-4. In `PhlexPlayerViewManager.kt`, register `onBuffer` in `getExportedCustomBubblingEventTypeConstants()`.
-5. In `PhlexPlayerView.kt`, add a `Player.Listener` that emits `onBuffer` via `RCTEventEmitter`; remove the listener in `onDropViewInstance()`.
+1. Add `onBuffer?: (e: NativeSyntheticEvent<{ isBuffering: boolean }>) => void;` to `PhlixPlayerViewProps` in `src/native/types.ts`.
+2. In `PhlixPlayerView.swift`, add `@objc var onBuffer: RCTBubblingEventBlock?` and a KVO observer on `isPlaybackBufferEmpty` that calls it; invalidate the observer in `deinit`.
+3. In `PhlixPlayerViewManager.m`, add `RCT_EXPORT_VIEW_PROPERTY(onBuffer, RCTBubblingEventBlock)`.
+4. In `PhlixPlayerViewManager.kt`, register `onBuffer` in `getExportedCustomBubblingEventTypeConstants()`.
+5. In `PhlixPlayerView.kt`, add a `Player.Listener` that emits `onBuffer` via `RCTEventEmitter`; remove the listener in `onDropViewInstance()`.
 6. Consume `onBuffer` in `src/screens/PlayerScreen.tsx` to drive a loading spinner.
 7. Run `grep -rn onBuffer src/native ios/LocalPods android/app/src/main` — confirm hits in each layer.
 
@@ -167,12 +167,12 @@ Wire the new prop/event into the actual screen using it (typically `src/screens/
 
 ## Common Issues
 
-- **`Unrecognized selector sent to instance` on iOS at runtime**: The Swift property is missing `@objc`, or `PhlexPlayerViewManager.m` lacks the matching `RCT_EXPORT_VIEW_PROPERTY`. Add `@objc var` and the macro line; re-run `pod install`.
-- **`Module 'PhlexPlayerView' is not registered` (Android logcat)**: The new view manager was added but not included in the package list. Register it in `MainApplication.kt` inside the `getPackages()`/`PhlexPackage` `createViewManagers()` return list.
+- **`Unrecognized selector sent to instance` on iOS at runtime**: The Swift property is missing `@objc`, or `PhlixPlayerViewManager.m` lacks the matching `RCT_EXPORT_VIEW_PROPERTY`. Add `@objc var` and the macro line; re-run `pod install`.
+- **`Module 'PhlixPlayerView' is not registered` (Android logcat)**: The new view manager was added but not included in the package list. Register it in `MainApplication.kt` inside the `getPackages()`/`PhlixPackage` `createViewManagers()` return list.
 - **Event handler in JS never fires, no errors**: Event name mismatch between layers. Run `grep -rn "on<EventName>" src/native ios/LocalPods android/app/src/main` — must appear in all three. On Android specifically, missing from `getExportedCustomBubblingEventTypeConstants()` silently drops the event.
-- **`TypeError: undefined is not an object (evaluating 'PhlexPlayer.getMetadata')`**: Native method exists on one platform only, or the module hasn't been added to the package's `createNativeModules()`. Re-check `MainApplication.kt` / `PhlexPackage.kt` and the Obj-C `RCT_EXTERN_METHOD` declaration.
+- **`TypeError: undefined is not an object (evaluating 'PhlixPlayer.getMetadata')`**: Native method exists on one platform only, or the module hasn't been added to the package's `createNativeModules()`. Re-check `MainApplication.kt` / `PhlixPackage.kt` and the Obj-C `RCT_EXTERN_METHOD` declaration.
 - **Memory leak / crash on view recycle (Android)**: `Player.Listener` not removed in `onDropViewInstance()`. Add `player?.removeListener(listener)` and `player?.release()`.
 - **iOS works in Debug, crashes in Release**: Swift property without `@objc` is stripped by the Swift→Obj-C bridge under optimization. Add `@objc` to every property `RCT_EXPORT_VIEW_PROPERTY` references.
-- **Build fails with `pod install` complaining about PhlexPlayer.podspec`**: After editing native files in `ios/LocalPods/PhlexPlayer/`, run `cd ios && pod install && cd ..` — Xcode caches headers and won't see new methods until pods are reinstalled.
+- **Build fails with `pod install` complaining about PhlixPlayer.podspec`**: After editing native files in `ios/LocalPods/PhlixPlayer/`, run `cd ios && pod install && cd ..` — Xcode caches headers and won't see new methods until pods are reinstalled.
 - **Prop change doesn't apply on view update (Android)**: `@ReactProp` setter doesn't actually push the value into the underlying player. Inside the setter, call the view's apply method (e.g. `view.setPaused(paused)`), not just store the field.
 - **TS callback receives `undefined` for payload fields**: Native is emitting different keys than TS expects. Native dictionary/`WritableMap` keys MUST match the TS event payload field names exactly (case-sensitive).

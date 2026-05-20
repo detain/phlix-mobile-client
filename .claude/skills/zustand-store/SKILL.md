@@ -1,6 +1,6 @@
 ---
 name: zustand-store
-description: Scaffolds a new Zustand store under src/stores/ using the create<State>((set, get) => ({...})) pattern with typed State interface, initialState + reset(), optional AsyncStorage persistence via the phlex_ key prefix, and wires the hook into src/stores/index.ts. Use when the user says 'add a store', 'new zustand store', 'add state for X', 'persist X across launches', or creates a file under src/stores/. Do NOT use for modifying existing stores' actions, for ephemeral component-local state (use useState), or for non-Zustand state (Redux/Context/Recoil are not used in this codebase).
+description: Scaffolds a new Zustand store under src/stores/ using the create<State>((set, get) => ({...})) pattern with typed State interface, initialState + reset(), optional AsyncStorage persistence via the phlix_ key prefix, and wires the hook into src/stores/index.ts. Use when the user says 'add a store', 'new zustand store', 'add state for X', 'persist X across launches', or creates a file under src/stores/. Do NOT use for modifying existing stores' actions, for ephemeral component-local state (use useState), or for non-Zustand state (Redux/Context/Recoil are not used in this codebase).
 paths:
   - src/stores/**/*.ts
 ---
@@ -13,7 +13,7 @@ Scaffold a new Zustand store under `src/stores/` matching the exact pattern used
 - File MUST live in `src/stores/` and be named `useDomainStore.ts` style (camelCase `use` prefix, PascalCase domain, `Store` suffix, TypeScript extension).
 - State interface MUST be a single exported `interface DomainState` containing BOTH data fields and action signatures — do not split into separate types.
 - Use `create<State>()((set, get) => ({...}))` — explicit generic, no middleware unless persistence is required.
-- Persistence keys MUST be prefixed with `phlex_` (e.g. `phlex_settings`, `phlex_auth_token`). Never store secrets in AsyncStorage — use `react-native-keychain` (see `src/stores/useAuthStore.ts` for the token pattern).
+- Persistence keys MUST be prefixed with `phlix_` (e.g. `phlix_settings`, `phlix_auth_token`). Never store secrets in AsyncStorage — use `react-native-keychain` (see `src/stores/useAuthStore.ts` for the token pattern).
 - Always wire the new hook into `src/stores/index.ts` as a named re-export. The barrel file is the single import surface for screens/components.
 - Do NOT call `set` from inside a selector or render path. Actions only.
 - Do NOT introduce Redux, Context, or Recoil. This codebase is Zustand-only.
@@ -74,7 +74,7 @@ Scaffold a new Zustand store under `src/stores/` matching the exact pattern used
    ```ts
    import AsyncStorage from '@react-native-async-storage/async-storage';
 
-   const STORAGE_KEY = 'phlex_downloads'; // MUST start with phlex_
+   const STORAGE_KEY = 'phlix_downloads'; // MUST start with phlix_
 
    const persist = (state: Partial<DownloadsState>) => {
      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
@@ -95,7 +95,7 @@ Scaffold a new Zustand store under `src/stores/` matching the exact pattern used
    }));
    ```
 
-   Call `useDownloadsStore.getState().hydrate()` once from `src/App.tsx` startup. Verify the key starts with `phlex_` before proceeding to Step 4.
+   Call `useDownloadsStore.getState().hydrate()` once from `src/App.tsx` startup. Verify the key starts with `phlix_` before proceeding to Step 4.
 
 4. **Wire the hook into `src/stores/index.ts`.** Open the file and add a named re-export beside the existing ones — keep alphabetical order:
 
@@ -159,12 +159,12 @@ Scaffold a new Zustand store under `src/stores/` matching the exact pattern used
 **Actions taken:**
 1. Read `src/stores/useSettingsStore.ts` to copy the persistence pattern.
 2. Create `src/stores/useDownloadsStore.ts` with `DownloadsState` interface (`queued: DownloadItem[]`, `completed: DownloadItem[]`, `enqueue`, `markComplete`, `remove`, `reset`).
-3. Add `STORAGE_KEY = 'phlex_downloads'` and persist on every action.
+3. Add `STORAGE_KEY = 'phlix_downloads'` and persist on every action.
 4. Add `export { useDownloadsStore } from './useDownloadsStore';` to `src/stores/index.ts` (alphabetical position).
 5. Add `src/stores/__tests__/useDownloadsStore.test.ts` covering initial state, `enqueue`, `markComplete`, and `reset`.
 6. Run `npm run typecheck && npm run lint && npm test -- --testPathPattern="stores"`.
 
-**Result:** New store importable as `import { useDownloadsStore } from '../stores';` from `src/screens/DownloadsScreen.tsx`, persisted under key `phlex_downloads`, fully typed, three Jest tests green.
+**Result:** New store importable as `import { useDownloadsStore } from '../stores';` from `src/screens/DownloadsScreen.tsx`, persisted under key `phlix_downloads`, fully typed, three Jest tests green.
 
 ## Common Issues
 
@@ -174,5 +174,5 @@ Scaffold a new Zustand store under `src/stores/` matching the exact pattern used
 - **`AsyncStorage.setItem` rejects with `Unhandled promise rejection`** — Persist call missing `.catch(() => {})`. The `persist` helper in Step 3 includes it; do not remove.
 - **State persists across tests, causing order-dependent failures** — Missing `beforeEach(() => useXStore.setState(useXStore.getInitialState()))`. Zustand stores are module-singletons; tests must reset.
 - **`Module '"../stores"' has no exported member 'useXStore'`** — Forgot Step 4. Add the re-export to `src/stores/index.ts`.
-- **AsyncStorage key collides with another app/build** — Key missing the `phlex_` prefix. All keys MUST be namespaced; rename and ship a one-time migration if the store already shipped.
+- **AsyncStorage key collides with another app/build** — Key missing the `phlix_` prefix. All keys MUST be namespaced; rename and ship a one-time migration if the store already shipped.
 - **Sensitive value (token, password) ended up in AsyncStorage** — AsyncStorage is plaintext on disk. Move to `react-native-keychain` (see `src/stores/useAuthStore.ts` for the exact pattern) and delete the AsyncStorage entry on next launch.

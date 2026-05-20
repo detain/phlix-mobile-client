@@ -28,7 +28,7 @@ import { syncPlayService } from '../syncplay/SyncPlayService';
 import { useSyncplayStore } from '../store/syncplayStore';
 
 // Define the native player props interface
-interface NativePhlexPlayerProps {
+interface NativePhlixPlayerProps {
   src?: string;
   autoPlay?: boolean;
   startPosition?: number;
@@ -42,11 +42,11 @@ interface NativePhlexPlayerProps {
 }
 
 // Native player component - only works when native module is properly linked
-let PhlexPlayerView: React.ComponentType<NativePhlexPlayerProps> | null = null;
+let PhlixPlayerView: React.ComponentType<NativePhlixPlayerProps> | null = null;
 try {
-  PhlexPlayerView = requireNativeComponent('PhlexPlayerView');
+  PhlixPlayerView = requireNativeComponent('PhlixPlayerView');
 } catch (e) {
-  console.warn('PhlexPlayerView native module not available, using placeholder');
+  console.warn('PhlixPlayerView native module not available, using placeholder');
 }
 
 // Helper to dispatch commands to native player
@@ -404,8 +404,8 @@ const PlayerScreen: React.FC = () => {
         onPress={toggleControls}
         style={styles.playerWrapper}
       >
-        {PhlexPlayerView && streamInfo?.url ? (
-          <PhlexPlayerView
+        {PhlixPlayerView && streamInfo?.url ? (
+          <PhlixPlayerView
             ref={playerRef}
             style={styles.player}
             src={streamInfo.url}

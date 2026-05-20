@@ -1,6 +1,6 @@
 ---
 name: jest-rn-test
-description: Writes Jest tests for the phlex-mobile React Native app using preset `react-native`, placing files at `src/<dir>/__tests__/<file>.test.ts` with `@/*` path aliases and reusing global mocks from `jest.setup.js`. Use when user says 'write test', 'add jest test', 'cover this store', 'test this component', or mentions TDD for TS/TSX files under `src/`. Capabilities: Zustand store testing with `getState`/`setState` reset, component snapshot/render testing via `react-test-renderer`, axios manager tests with `jest.mock('./client')`, async/await assertions, coverage filtering. Do NOT use for native iOS Swift/XCTest or Android JUnit/Espresso tests, Metro/build config tests, or non-React-Native projects.
+description: Writes Jest tests for the phlix-mobile React Native app using preset `react-native`, placing files at `src/<dir>/__tests__/<file>.test.ts` with `@/*` path aliases and reusing global mocks from `jest.setup.js`. Use when user says 'write test', 'add jest test', 'cover this store', 'test this component', or mentions TDD for TS/TSX files under `src/`. Capabilities: Zustand store testing with `getState`/`setState` reset, component snapshot/render testing via `react-test-renderer`, axios manager tests with `jest.mock('./client')`, async/await assertions, coverage filtering. Do NOT use for native iOS Swift/XCTest or Android JUnit/Espresso tests, Metro/build config tests, or non-React-Native projects.
 paths:
   - src/**/__tests__/**/*.test.ts
   - src/**/__tests__/**/*.test.tsx

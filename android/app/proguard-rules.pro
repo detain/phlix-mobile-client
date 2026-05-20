@@ -7,7 +7,7 @@
 -keep class com.facebook.jni.** { *; }
 
 # Native Modules
--keep class com.phlexmobile.** { *; }
+-keep class com.phlixmobile.** { *; }
 
 # Navigation
 -keepnames class * extends android.os.Parcelable

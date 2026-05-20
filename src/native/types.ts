@@ -17,7 +17,7 @@ export interface DownloadEvent {
 }
 
 // Native player view props
-export interface PhlexPlayerViewProps {
+export interface PhlixPlayerViewProps {
   src?: string;
   autoPlay?: boolean;
   startPosition?: number;
@@ -28,7 +28,7 @@ export interface PhlexPlayerViewProps {
   onError?: (event: NativeSyntheticEvent<{ error: string }>) => void;
 }
 
-export interface PhlexPlayerInterface extends NativeModule {
+export interface PhlixPlayerInterface extends NativeModule {
   play(): void;
   pause(): void;
   seekTo(position: number): void;
@@ -38,7 +38,7 @@ export interface PhlexPlayerInterface extends NativeModule {
   getDuration(callback: (duration: number) => void): void;
 }
 
-export interface PhlexDownloaderInterface extends NativeModule {
+export interface PhlixDownloaderInterface extends NativeModule {
   startDownload(taskId: string, url: string, localPath: string): void;
   pauseDownload(taskId: string): void;
   resumeDownload(taskId: string): void;

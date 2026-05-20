@@ -5,7 +5,7 @@ paths:
 
 # API Manager Conventions
 
-- All HTTP goes through `apiClient` from `src/api/client.ts` (axios, `BASE_URL = 'https://api.phlex.app'`, 30s timeout, auth + 401-refresh interceptors). Do not import `axios` directly elsewhere.
+- All HTTP goes through `apiClient` from `src/api/client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors). Do not import `axios` directly elsewhere.
 - Managers are classes with async methods returning typed promises — see `src/api/LibraryManager.ts`.
 - Export pattern at file bottom:
   ```ts

@@ -2,7 +2,7 @@
 import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SERVICE_NAME = 'com.phlex.mobile';
+const SERVICE_NAME = 'com.phlix.mobile';
 const ACCESS_TOKEN_KEY = 'access_token';
 
 class SecureStorage {
@@ -90,7 +90,7 @@ class SecureStorage {
       const credentials = await Keychain.getGenericPassword({
         service: `${SERVICE_NAME}.refresh`,
         authenticationPrompt: {
-          title: 'Authenticate to access Phlex',
+          title: 'Authenticate to access Phlix',
           subtitle: 'Use biometric authentication',
           cancel: 'Cancel',
         },

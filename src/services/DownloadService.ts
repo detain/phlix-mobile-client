@@ -32,9 +32,9 @@ class DownloadService {
     const task = store.tasks[taskId];
     if (!task || task.status !== 'downloading') return;
 
-    const PhlexDownloader = NativeModules.PhlexDownloader;
-    if (PhlexDownloader?.pauseDownload) {
-      PhlexDownloader.pauseDownload(taskId);
+    const PhlixDownloader = NativeModules.PhlixDownloader;
+    if (PhlixDownloader?.pauseDownload) {
+      PhlixDownloader.pauseDownload(taskId);
     } else {
       store.updateTaskStatus(taskId, 'paused');
     }
@@ -52,9 +52,9 @@ class DownloadService {
 
   async cancelDownload(taskId: string): Promise<void> {
     const store = useDownloadStore.getState();
-    const PhlexDownloader = NativeModules.PhlexDownloader;
-    if (PhlexDownloader?.cancelDownload) {
-      PhlexDownloader.cancelDownload(taskId);
+    const PhlixDownloader = NativeModules.PhlixDownloader;
+    if (PhlixDownloader?.cancelDownload) {
+      PhlixDownloader.cancelDownload(taskId);
     }
     this.activeDownloads.delete(taskId);
     this.resumeData.delete(taskId);
@@ -97,9 +97,9 @@ class DownloadService {
     const task = store.tasks[taskId];
     if (!task || task.status !== 'completed') return;
 
-    const PhlexDownloader = NativeModules.PhlexDownloader;
-    if (PhlexDownloader?.deleteFile) {
-      try { await PhlexDownloader.deleteFile(task.localPath); } catch {}
+    const PhlixDownloader = NativeModules.PhlixDownloader;
+    if (PhlixDownloader?.deleteFile) {
+      try { await PhlixDownloader.deleteFile(task.localPath); } catch {}
     }
     await store.removeDownload(taskId);
   }
@@ -126,9 +126,9 @@ class DownloadService {
       const localPath = this.getLocalPath(task.item);
       store.updateTaskProgress(taskId, task.resumeOffset ?? 0, streamInfo.size);
 
-      const PhlexDownloader = NativeModules.PhlexDownloader;
-      if (PhlexDownloader?.startDownload) {
-        PhlexDownloader.startDownload(taskId, streamInfo.url, localPath, task.resumeOffset ?? 0, streamInfo.size);
+      const PhlixDownloader = NativeModules.PhlixDownloader;
+      if (PhlixDownloader?.startDownload) {
+        PhlixDownloader.startDownload(taskId, streamInfo.url, localPath, task.resumeOffset ?? 0, streamInfo.size);
       } else {
         this.downloadSimulated(taskId, streamInfo.size);
       }
@@ -169,9 +169,9 @@ class DownloadService {
   private getLocalPath(item: MediaItem): string {
     const filename = `${item.id}_${item.name.replace(/[^a-z0-9]/gi, '_')}.mp4`;
     if (Platform.OS === 'ios') {
-      return `${NativeModules.PhlexDownloader?.documentsPath || ''}/${filename}`;
+      return `${NativeModules.PhlixDownloader?.documentsPath || ''}/${filename}`;
     }
-    return `/storage/emulated/0/Download/Phlex/${filename}`;
+    return `/storage/emulated/0/Download/Phlix/${filename}`;
   }
 
   handleNativeProgress(taskId: string, downloadedBytes: number, totalBytes: number): void {

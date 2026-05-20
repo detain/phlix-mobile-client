@@ -1,5 +1,5 @@
-// android/app/src/main/java/com/phlexmobile/player/PhlexPlayerView.kt
-package com.phlexmobile.player
+// android/app/src/main/java/com/phlixmobile/player/PhlixPlayerView.kt
+package com.phlixmobile.player
 
 import android.content.Context
 import android.net.Uri
@@ -15,7 +15,7 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
 
-class PhlexPlayerView(context: Context) : FrameLayout(context) {
+class PhlixPlayerView(context: Context) : FrameLayout(context) {
     private var playerView: PlayerView? = null
     private var player: ExoPlayer? = null
     private var currentSrc: String = ""

@@ -1,10 +1,10 @@
-# Phlex Mobile
+# Phlix Mobile
 
-A cross-platform mobile application for media playback, built with React Native. Phlex connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
+A cross-platform mobile application for media playback, built with React Native. Phlix connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
 
 ## Project Overview
 
-Phlex Mobile is a React Native application designed to interface with media servers (such as Jellyfin, Emby, or compatible APIs). It provides a native mobile experience with:
+Phlix Mobile is a React Native application designed to interface with media servers (such as Jellyfin, Emby, or compatible APIs). It provides a native mobile experience with:
 
 - **Movies & TV Series**: Browse, search, and play media content
 - **Music Playback**: Listen to your music library with full playback controls
@@ -27,9 +27,9 @@ Phlex Mobile is a React Native application designed to interface with media serv
 
 ### Hub Mode
 
-Phlex Mobile supports **Hub Mode** for remote access to your media servers:
+Phlix Mobile supports **Hub Mode** for remote access to your media servers:
 
-- **Sign in to Hub**: Authenticate with a Phlex Hub to access your claimed servers
+- **Sign in to Hub**: Authenticate with a Phlix Hub to access your claimed servers
 - **Multi-Server Support**: View and manage multiple claimed servers from a single app
 - **Server Switching**: Quickly switch between servers with the Server Switcher
 - **Direct Mode**: Connect directly to your server over LAN when on the same network
@@ -82,8 +82,8 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/phlex-mobile.git
-cd phlex-mobile
+git clone https://github.com/your-org/phlix-mobile.git
+cd phlix-mobile
 ```
 
 ### 2. Install Dependencies
@@ -107,7 +107,7 @@ cd ios && pod install && cd ..
 Create a `.env` file in the root directory (optional for development):
 
 ```env
-API_BASE_URL=https://api.phlex.app
+API_BASE_URL=https://api.phlix.app
 ```
 
 ## Configuration
@@ -116,25 +116,25 @@ API_BASE_URL=https://api.phlex.app
 
 The app connects to a media server API. Configure the base URL in:
 
-- **Development**: Uses default `https://api.phlex.app`
+- **Development**: Uses default `https://api.phlix.app`
 - **Self-hosted**: Update `BASE_URL` in `src/api/client.ts`
 
 ### Native Module Configuration
 
-#### iOS (PhlexPlayer)
+#### iOS (PhlixPlayer)
 
-The iOS player is implemented as a local CocoaPod in `ios/LocalPods/PhlexPlayer/`. It provides native video playback using AVPlayer.
+The iOS player is implemented as a local CocoaPod in `ios/LocalPods/PhlixPlayer/`. It provides native video playback using AVPlayer.
 
-#### Android (PhlexPlayer)
+#### Android (PhlixPlayer)
 
-The Android player is implemented as a native module in `android/app/src/main/java/com/phlexmobile/player/`. It uses ExoPlayer for video playback.
+The Android player is implemented as a native module in `android/app/src/main/java/com/phlixmobile/player/`. It uses ExoPlayer for video playback.
 
 ### Building for iOS
 
 #### Prerequisites
 
 1. Ensure CocoaPods dependencies are installed
-2. Open `ios/PhlexMobile.xcworkspace` in Xcode
+2. Open `ios/PhlixMobile.xcworkspace` in Xcode
 3. Select your target device or simulator
 4. Configure signing (if deploying to a real device)
 
@@ -142,15 +142,15 @@ The Android player is implemented as a native module in `android/app/src/main/ja
 
 ```bash
 # Using xcodebuild (requires macOS)
-xcodebuild -workspace ios/PhlexMobile.xcworkspace \
-  -scheme PhlexMobile \
+xcodebuild -workspace ios/PhlixMobile.xcworkspace \
+  -scheme PhlixMobile \
   -configuration Debug \
   -destination 'platform=iOS Simulator,name=iPhone 15' \
   build
 
 # Or build for release
-xcodebuild -workspace ios/PhlexMobile.xcworkspace \
-  -scheme PhlexMobile \
+xcodebuild -workspace ios/PhlixMobile.xcworkspace \
+  -scheme PhlixMobile \
   -configuration Release \
   -destination 'platform=iOS Simulator,name=iPhone 15' \
   build

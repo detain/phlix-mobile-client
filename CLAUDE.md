@@ -1,6 +1,6 @@
-# Phlex Mobile — Agent Context
+# Phlix Mobile — Agent Context
 
-Cross-platform React Native 0.85 app (`phlex-mobile`) connecting to a media server (Jellyfin/Emby-compatible). TypeScript strict, Zustand state, React Navigation v6, native players via `ios/LocalPods/PhlexPlayer/` (AVPlayer/Swift) and `android/app/src/main/java/com/phlexmobile/player/` (ExoPlayer/Kotlin).
+Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a media server (Jellyfin/Emby-compatible). TypeScript strict, Zustand state, React Navigation v6, native players via `ios/LocalPods/PhlixPlayer/` (AVPlayer/Swift) and `android/app/src/main/java/com/phlixmobile/player/` (ExoPlayer/Kotlin).
 
 See `@./DEVELOPER.md` for full architecture/native module deep-dive and `@./README.md` for setup/deployment.
 
@@ -25,9 +25,9 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 
 ## Layout
 
-**Entry**: `index.js` → `src/App.tsx` (wraps `GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlexMobile`.
+**Entry**: `index.js` → `src/App.tsx` (wraps `GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
 
-**`src/api/`** (axios + manager singletons): `client.ts` (`BASE_URL = 'https://api.phlex.app'`, 30s timeout, auth interceptor, 401 refresh) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `index.ts` re-exports.
+**`src/api/`** (axios + manager singletons): `client.ts` (`BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth interceptor, 401 refresh) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `index.ts` re-exports.
 
 **`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts` re-exports. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
@@ -39,15 +39,15 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 
 **`src/types/`**: `media.ts` (`MediaItem`, `Library`, `Series`, `Season`, `Episode`, `UserData`) · `navigation.ts` (`RootStackParamList`, `TabParamList`, screen prop types) · `playback.ts` (`StreamInfo`, `DeviceProfile`, `SubtitleTrack`, `AudioTrack`, `PlaybackSession`).
 
-**`src/services/`**: `SecureStorage.ts` (`react-native-keychain`, service `com.phlex.mobile`) · `DownloadService.ts` · `NotificationService.ts` · `index.ts`.
+**`src/services/`**: `SecureStorage.ts` (`react-native-keychain`, service `com.phlix.mobile`) · `DownloadService.ts` · `NotificationService.ts` · `index.ts`.
 
 **`src/utils/`**: `formatters.ts` (`formatTime`, `formatRuntime`, `formatFileSize`, `formatRelativeTime`, `truncateText`) · `storage.ts` (typed `AsyncStorage` wrapper).
 
-**`src/native/types.ts`**: `PhlexPlayerInterface`, `PhlexDownloaderInterface`, `PlaybackEvent`, `DownloadEvent`.
+**`src/native/types.ts`**: `PhlixPlayerInterface`, `PhlixDownloaderInterface`, `PlaybackEvent`, `DownloadEvent`.
 
-**iOS native**: `ios/LocalPods/PhlexPlayer/PhlexPlayer.podspec` · `PhlexPlayerView.swift` (AVPlayer, KVO `status`, periodic time observer) · `PhlexPlayerViewManager.m` (`RCT_EXTERN_MODULE` bridge, props `src`/`autoPlay`/`startPosition`/`volume`/`muted`, methods `play`/`pause`/`seekTo`).
+**iOS native**: `ios/LocalPods/PhlixPlayer/PhlixPlayer.podspec` · `PhlixPlayerView.swift` (AVPlayer, KVO `status`, periodic time observer) · `PhlixPlayerViewManager.m` (`RCT_EXTERN_MODULE` bridge, props `src`/`autoPlay`/`startPosition`/`volume`/`muted`, methods `play`/`pause`/`seekTo`).
 
-**Android native**: `android/app/src/main/java/com/phlexmobile/MainActivity.kt` · `MainApplication.kt` · `player/PhlexPlayerPackage.kt` · `player/PhlexPlayerView.kt` (ExoPlayer, `@ReactProp` for `src`/`autoPlay`/`startPosition`/`volume`/`muted`/`rate`/`pictureInPicture`, `@ReactMethod` for control). Manifest: `android/app/src/main/AndroidManifest.xml`. Build: `android/app/build.gradle` · `android/build.gradle`.
+**Android native**: `android/app/src/main/java/com/phlixmobile/MainActivity.kt` · `MainApplication.kt` · `player/PhlixPlayerPackage.kt` · `player/PhlixPlayerView.kt` (ExoPlayer, `@ReactProp` for `src`/`autoPlay`/`startPosition`/`volume`/`muted`/`rate`/`pictureInPicture`, `@ReactMethod` for control). Manifest: `android/app/src/main/AndroidManifest.xml`. Build: `android/app/build.gradle` · `android/build.gradle`.
 
 ## Conventions
 
@@ -57,7 +57,7 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 - **Screens**: wrap in `<SafeContainer edges={['top']}>`, handle `isLoading`/`error` with `<LoadingSpinner fullScreen />` / `<ErrorView onRetry={...}>` / `<EmptyState>`.
 - **Stores**: `create<State>((set, get) => ({...}))`, expose `setX` mutators, async actions wrap in try/catch and set `error`/`isLoading`. Settings stores auto-persist via `get().saveSettings()` after each setter.
 - **API managers**: classes with async methods returning typed promises, exported as `export const xManager = new XManager(); export default xManager;`.
-- **AsyncStorage keys**: prefixed `phlex_` (e.g. `phlex_downloads`, `phlex_settings`).
+- **AsyncStorage keys**: prefixed `phlix_` (e.g. `phlix_downloads`, `phlix_settings`).
 - **Time units**: ticks are 100ns (divide by `10000000` for seconds, by `600000000` for minutes — see `MediaDetailScreen.tsx`/`formatters.ts`).
 - **Navigation params**: declared in `src/types/navigation.ts`; `Player` accepts `{ itemId: string; startPosition?: number }`.
 
@@ -82,7 +82,7 @@ npm test -- -u                                 # update snapshots
 ```bash
 cd android && ./gradlew bundleRelease          # build AAB for Play Store upload
 cd android && ./gradlew assembleRelease        # build signed APK
-cd ios && xcodebuild -workspace PhlexMobile.xcworkspace -scheme PhlexMobile -configuration Release  # iOS release build
+cd ios && xcodebuild -workspace PhlixMobile.xcworkspace -scheme PhlixMobile -configuration Release  # iOS release build
 npm run lint -- --fix                          # auto-fix lint errors
 npm run typecheck && npm run lint && npm test  # full pre-push gate
 ```
@@ -90,8 +90,8 @@ npm run typecheck && npm run lint && npm test  # full pre-push gate
 ## Gotchas
 
 - `BASE_URL` is hardcoded in `src/api/client.ts` — change there for self-hosted.
-- iOS player is a **LocalPod** under `ios/LocalPods/PhlexPlayer/`; bump `podspec` and re-run `pod install` after Swift changes.
-- Android Kotlin code references `MainActivity` for PiP — `PhlexPlayerView.kt` casts `reactApplicationContext.currentActivity as? MainActivity`.
+- iOS player is a **LocalPod** under `ios/LocalPods/PhlixPlayer/`; bump `podspec` and re-run `pod install` after Swift changes.
+- Android Kotlin code references `MainActivity` for PiP — `PhlixPlayerView.kt` casts `reactApplicationContext.currentActivity as? MainActivity`.
 - Push-notification typings live in `src/types/react-native-push-notification.d.ts`.
 - `proguard-rules.pro` at `android/app/proguard-rules.pro`.
 

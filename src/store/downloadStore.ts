@@ -52,8 +52,8 @@ interface DownloadState {
   getItemLocalPath: (itemId: string) => string | null;
 }
 
-const DOWNLOADS_KEY = 'phlex_downloads_v2';
-const STORAGE_KEY = 'phlex_download_storage';
+const DOWNLOADS_KEY = 'phlix_downloads_v2';
+const STORAGE_KEY = 'phlix_download_storage';
 
 export const useDownloadStore = create<DownloadState>((set, get) => ({
   tasks: {},

@@ -1,4 +1,4 @@
-package com.phlexmobile
+package com.phlixmobile
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity
@@ -8,7 +8,7 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
-  override fun getMainComponentName(): String = "PhlexMobile"
+  override fun getMainComponentName(): String = "PhlixMobile"
 
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)

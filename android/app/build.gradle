@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
-    namespace 'com.phlexmobile'
+    namespace 'com.phlixmobile'
     compileSdk rootProject.ext.compileSdkVersion
 
     buildFeatures {
@@ -10,7 +10,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.phlexmobile"
+        applicationId "com.phlixmobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

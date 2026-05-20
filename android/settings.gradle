@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = 'PhlexMobile'
+rootProject.name = 'PhlixMobile'
 include ':app'

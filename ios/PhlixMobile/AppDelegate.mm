@@ -6,7 +6,7 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-  self.moduleName = @"PhlexMobile";
+  self.moduleName = @"PhlixMobile";
   self.initialProps = @{};
 
   // You can add your custom initial props in the dictionary below.

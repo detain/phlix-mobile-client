@@ -32,8 +32,8 @@ jobs:
 
       - name: Build iOS (Debug)
         run: |
-          xcodebuild -workspace ios/PhlexMobile.xcworkspace \
-            -scheme PhlexMobile \
+          xcodebuild -workspace ios/PhlixMobile.xcworkspace \
+            -scheme PhlixMobile \
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
             -derivedDataPath ios/build \
@@ -48,7 +48,7 @@ jobs:
           name: ios-build-debug
           path: |
             ios/main.jsbundle
-            ios/build/Build/Products/Debug-iphonesimulator/PhlexMobile.app.dSYM.zip
+            ios/build/Build/Products/Debug-iphonesimulator/PhlixMobile.app.dSYM.zip
           retention-days: 7
 
   build-ios-release:
@@ -80,8 +80,8 @@ jobs:
 
       - name: Build iOS (Release)
         run: |
-          xcodebuild -workspace ios/PhlexMobile.xcworkspace \
-            -scheme PhlexMobile \
+          xcodebuild -workspace ios/PhlixMobile.xcworkspace \
+            -scheme PhlixMobile \
             -configuration Release \
             -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
             -derivedDataPath ios/build \
@@ -93,5 +93,5 @@ jobs:
           name: ios-build-release
           path: |
             ios/main.jsbundle
-            ios/build/Build/Products/Release-iphonesimulator/PhlexMobile.app.dSYM.zip
+            ios/build/Build/Products/Release-iphonesimulator/PhlixMobile.app.dSYM.zip
           retention-days: 14

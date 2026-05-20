@@ -362,7 +362,7 @@ const SettingsScreen: React.FC = () => {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appName}>Phlex Mobile</Text>
+          <Text style={styles.appName}>Phlix Mobile</Text>
           <Text style={styles.appVersion}>Version 1.0.0</Text>
         </View>
       </ScrollView>

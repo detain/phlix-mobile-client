@@ -1,10 +1,10 @@
-# Phlex Mobile - Developer Guide
+# Phlix Mobile - Developer Guide
 
-This document provides technical documentation for developers working on Phlex Mobile.
+This document provides technical documentation for developers working on Phlix Mobile.
 
 ## Architecture Overview
 
-Phlex Mobile follows a **modular architecture** with clear separation of concerns:
+Phlix Mobile follows a **modular architecture** with clear separation of concerns:
 
 ```
 src/
@@ -72,17 +72,17 @@ Located in `src/components/`, organized by domain:
 
 ## Native Module Design
 
-### iOS - PhlexPlayer (Swift)
+### iOS - PhlixPlayer (Swift)
 
-**Location**: `ios/LocalPods/PhlexPlayer/`
+**Location**: `ios/LocalPods/PhlixPlayer/`
 
 The iOS player is implemented as a local CocoaPod using AVPlayer:
 
 ```
-ios/LocalPods/PhlexPlayer/
-├── PhlexPlayer.podspec       # Pod specification
-├── PhlexPlayerView.swift     # Swift UIView implementation
-└── PhlexPlayerViewManager.m # React Native bridge (Obj-C)
+ios/LocalPods/PhlixPlayer/
+├── PhlixPlayer.podspec       # Pod specification
+├── PhlixPlayerView.swift     # Swift UIView implementation
+└── PhlixPlayerViewManager.m # React Native bridge (Obj-C)
 ```
 
 **Key Features**:
@@ -94,7 +94,7 @@ ios/LocalPods/PhlexPlayer/
 **Integration**:
 ```typescript
 // src/native/types.ts
-interface PhlexPlayerViewProps {
+interface PhlixPlayerViewProps {
   style?: ViewStyle;
   streamUrl: string;
   onPlaybackStart?: () => void;
@@ -103,16 +103,16 @@ interface PhlexPlayerViewProps {
 }
 ```
 
-### Android - PhlexPlayer (Kotlin)
+### Android - PhlixPlayer (Kotlin)
 
-**Location**: `android/app/src/main/java/com/phlexmobile/player/`
+**Location**: `android/app/src/main/java/com/phlixmobile/player/`
 
 The Android player is implemented as a React Native native module:
 
 ```
 android/.../player/
-├── PhlexPlayerView.kt         # Native view component
-└── PhlexPlayerPackage.kt     # React Native package
+├── PhlixPlayerView.kt         # Native view component
+└── PhlixPlayerPackage.kt     # React Native package
 ```
 
 **Key Features**:
@@ -152,7 +152,7 @@ interface AudioTrack {
 
 ## State Management
 
-Phlex Mobile uses **Zustand** for state management - a lightweight alternative to Redux.
+Phlix Mobile uses **Zustand** for state management - a lightweight alternative to Redux.
 
 ### Store Architecture
 
@@ -327,14 +327,14 @@ npm run lint -- --fix
 
 #### iOS Native Module Updates
 
-1. Modify files in `ios/LocalPods/PhlexPlayer/`
+1. Modify files in `ios/LocalPods/PhlixPlayer/`
 2. Run `pod install` in `ios/` directory
 3. Clean and rebuild: `xcodebuild clean`
 4. Verify in Xcode that changes compile
 
 #### Android Native Module Updates
 
-1. Modify files in `android/app/src/main/java/com/phlexmobile/player/`
+1. Modify files in `android/app/src/main/java/com/phlixmobile/player/`
 2. Clean Gradle: `./gradlew clean`
 3. Rebuild: `./gradlew assembleDebug`
 
@@ -354,13 +354,13 @@ npm run lint -- --fix
 
 ```bash
 # View Android logs
-adb logcat | grep PhlexMobile
+adb logcat | grep PhlixMobile
 ```
 
 ## Project Structure Summary
 
 ```
-phlex-mobile/
+phlix-mobile/
 ├── src/
 │   ├── api/
 │   │   ├── client.ts         # Axios client with interceptors
@@ -411,10 +411,10 @@ phlex-mobile/
 │   └── index.ts             # Entry point
 ├── ios/
 │   └── LocalPods/
-│       └── PhlexPlayer/     # Native iOS player
+│       └── PhlixPlayer/     # Native iOS player
 ├── android/
-│   └── app/src/main/java/com/phlexmobile/player/
-│       └── PhlexPlayerView.kt # Native Android player
+│   └── app/src/main/java/com/phlixmobile/player/
+│       └── PhlixPlayerView.kt # Native Android player
 ├── .github/
 │   └── workflows/          # CI/CD pipelines
 └── assets/                  # Images, fonts

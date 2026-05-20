@@ -1,12 +1,12 @@
-// ios/LocalPods/PhlexPlayer/PhlexPlayerView.swift
+// ios/LocalPods/PhlixPlayer/PhlixPlayerView.swift
 import AVKit
 import AVFoundation
 import React
 
-@objc(PhlexPlayerView)
-class PhlexPlayerView: RCTViewManager {
+@objc(PhlixPlayerView)
+class PhlixPlayerView: RCTViewManager {
     override func view() -> UIView! {
-        return PhlexPlayerViewWrapper()
+        return PhlixPlayerViewWrapper()
     }
 
     override static func requiresMainQueueSetup() -> Bool {
@@ -14,7 +14,7 @@ class PhlexPlayerView: RCTViewManager {
     }
 }
 
-class PhlexPlayerViewWrapper: UIView {
+class PhlixPlayerViewWrapper: UIView {
     private var player: AVPlayer?
     private var playerLayer: AVPlayerLayer?
     private var timeObserver: Any?

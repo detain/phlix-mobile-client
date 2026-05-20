@@ -1,4 +1,4 @@
-package com.phlexmobile
+package com.phlixmobile
 
 import android.app.Application
 import com.facebook.react.ReactApplication
@@ -10,7 +10,7 @@ import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 import com.facebook.react.shell.MainReactPackage
-import com.phlexmobile.player.PhlexPlayerPackage
+import com.phlixmobile.player.PhlixPlayerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -21,7 +21,7 @@ class MainApplication : Application(), ReactApplication {
         override fun getPackages(): List<ReactPackage> {
             return listOf(
                 MainReactPackage(),  // Main React Native package
-                PhlexPlayerPackage()  // Native video player
+                PhlixPlayerPackage()  // Native video player
             )
         }
 

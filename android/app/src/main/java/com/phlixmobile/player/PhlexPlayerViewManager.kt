@@ -1,5 +1,5 @@
-// android/app/src/main/java/com/phlexmobile/player/PhlexPlayerViewManager.kt
-package com.phlexmobile.player
+// android/app/src/main/java/com/phlixmobile/player/PhlixPlayerViewManager.kt
+package com.phlixmobile.player
 
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.common.MapBuilder
@@ -7,35 +7,35 @@ import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.annotations.ReactProp
 
-class PhlexPlayerViewManager : SimpleViewManager<PhlexPlayerView>() {
-    override fun getName(): String = "PhlexPlayerView"
+class PhlixPlayerViewManager : SimpleViewManager<PhlixPlayerView>() {
+    override fun getName(): String = "PhlixPlayerView"
 
-    override fun createViewInstance(reactContext: ThemedReactContext): PhlexPlayerView {
-        return PhlexPlayerView(reactContext)
+    override fun createViewInstance(reactContext: ThemedReactContext): PhlixPlayerView {
+        return PhlixPlayerView(reactContext)
     }
 
     @ReactProp(name = "src")
-    fun setSrc(view: PhlexPlayerView, src: String?) {
+    fun setSrc(view: PhlixPlayerView, src: String?) {
         view.setSrc(src ?: "")
     }
 
     @ReactProp(name = "autoPlay", defaultBoolean = true)
-    fun setAutoPlay(view: PhlexPlayerView, autoPlay: Boolean) {
+    fun setAutoPlay(view: PhlixPlayerView, autoPlay: Boolean) {
         view.setAutoPlay(autoPlay)
     }
 
     @ReactProp(name = "startPosition", defaultDouble = 0.0)
-    fun setStartPosition(view: PhlexPlayerView, startPosition: Double) {
+    fun setStartPosition(view: PhlixPlayerView, startPosition: Double) {
         view.setStartPosition(startPosition)
     }
 
     @ReactProp(name = "volume", defaultFloat = 1.0f)
-    fun setVolume(view: PhlexPlayerView, volume: Float) {
+    fun setVolume(view: PhlixPlayerView, volume: Float) {
         view.setVolume(volume)
     }
 
     @ReactProp(name = "muted", defaultBoolean = false)
-    fun setMuted(view: PhlexPlayerView, muted: Boolean) {
+    fun setMuted(view: PhlixPlayerView, muted: Boolean) {
         view.setMuted(muted)
     }
 
@@ -47,7 +47,7 @@ class PhlexPlayerViewManager : SimpleViewManager<PhlexPlayerView>() {
             .build()
     }
 
-    override fun receiveCommand(view: PhlexPlayerView, commandId: String, args: ReadableArray?) {
+    override fun receiveCommand(view: PhlixPlayerView, commandId: String, args: ReadableArray?) {
         when (commandId) {
             "play" -> view.play()
             "pause" -> view.pause()
@@ -69,7 +69,7 @@ class PhlexPlayerViewManager : SimpleViewManager<PhlexPlayerView>() {
         }
     }
 
-    override fun onDropViewInstance(view: PhlexPlayerView) {
+    override fun onDropViewInstance(view: PhlixPlayerView) {
         view.onDropViewInstance()
         super.onDropViewInstance(view)
     }

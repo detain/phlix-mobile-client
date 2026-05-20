@@ -47,7 +47,7 @@ interface SettingsState {
   resetSettings: () => void;
 }
 
-const SETTINGS_KEY = 'phlex_settings';
+const SETTINGS_KEY = 'phlix_settings';
 
 const defaultSettings = {
   defaultQuality: 'auto',

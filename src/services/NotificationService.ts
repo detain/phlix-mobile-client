@@ -57,7 +57,7 @@ class NotificationService {
     if (Platform.OS === 'android') {
       PushNotification.createChannel(
         {
-          channelId: 'phlex-general',
+          channelId: 'phlix-general',
           channelName: 'General',
           channelDescription: 'General notifications',
           importance: Importance.HIGH,
@@ -68,7 +68,7 @@ class NotificationService {
 
       PushNotification.createChannel(
         {
-          channelId: 'phlex-playback',
+          channelId: 'phlix-playback',
           channelName: 'Playback',
           channelDescription: 'Media playback notifications',
           importance: Importance.LOW,
@@ -111,7 +111,7 @@ class NotificationService {
         type: notification.type,
         ...notification.data,
       },
-      channelId: 'phlex-general',
+      channelId: 'phlix-general',
       importance: 'high',
       priority: 'high',
     });
@@ -122,7 +122,7 @@ class NotificationService {
     PushNotification.localNotification({
       title: title,
       message: isPlaying ? 'Now Playing' : 'Paused',
-      channelId: 'phlex-playback',
+      channelId: 'phlix-playback',
       importance: 'low',
       priority: 'low',
       ongoing: true,
@@ -134,7 +134,7 @@ class NotificationService {
 
   // Cancel playback notification
   cancelPlaybackNotification() {
-    PushNotification.cancelLocalNotification('phlex-playback');
+    PushNotification.cancelLocalNotification('phlix-playback');
   }
 
   // Handle library update notification

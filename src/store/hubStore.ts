@@ -35,7 +35,7 @@ interface HubState {
   loadPersistedState: () => Promise<void>;
 }
 
-const HUB_STORAGE_KEY = 'phlex_hub_session';
+const HUB_STORAGE_KEY = 'phlix_hub_session';
 
 export const useHubStore = create<HubState>((set, get) => ({
   hubUrl: null,
@@ -199,7 +199,7 @@ function resolveEffectiveUrl(
   }
 
   if (mode === 'relay') {
-    return server.relayHostname ?? `https://relay.phlex.app/relay/${server.serverId}`;
+    return server.relayHostname ?? `https://relay.phlix.app/relay/${server.serverId}`;
   }
 
   return server.hostname;
