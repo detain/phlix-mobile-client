@@ -1,6 +1,9 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// react-native-config: load .env file for build-time config variables
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
 android {
     namespace 'com.phlixmobile'
     compileSdk rootProject.ext.compileSdkVersion

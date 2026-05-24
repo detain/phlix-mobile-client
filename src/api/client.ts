@@ -1,8 +1,27 @@
 // src/api/client.ts
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from 'react-native-config';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
-const BASE_URL = 'https://api.phlix.app'; // Configure for self-hosted
+// Build-time default from react-native-config env var
+// Self-hosted users can set PHLIX_BASE_URL in their .env file
+const BUILD_TIME_BASE_URL = Config.PHLIX_BASE_URL || 'https://api.phlix.app';
+
+/**
+ * Gets the effective base URL for API requests.
+ * Priority:
+ * 1. Runtime override from settings store (serverUrl)
+ * 2. Build-time env var (PHLIX_BASE_URL from .env via react-native-config)
+ * 3. Hardcoded default
+ */
+const getBaseUrl = (): string => {
+  const settingsUrl = useSettingsStore.getState().serverUrl;
+  if (settingsUrl && settingsUrl.trim() !== '') {
+    return settingsUrl.trim();
+  }
+  return BUILD_TIME_BASE_URL;
+};
 
 class ApiClient {
   private client: AxiosInstance;
@@ -10,7 +29,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: BASE_URL,
+      baseURL: getBaseUrl(),
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -68,7 +87,7 @@ class ApiClient {
         throw new Error('No refresh token available');
       }
 
-      const response = await axios.post(`${BASE_URL}/auth/refresh`, {
+      const response = await axios.post(`${getBaseUrl()}/auth/refresh`, {
         refresh_token: refreshToken,
       });
 
