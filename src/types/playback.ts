@@ -1,6 +1,14 @@
 // src/types/playback.ts
 export interface StreamInfo {
   url: string;
+  /**
+   * Short-lived, signed direct-play URL (`/media/{id}/stream?exp&sig`). The media
+   * server gates the stream route, and the native players (AVPlayer/ExoPlayer) are
+   * handed a bare URI with no Authorization header — so when the server provides
+   * this signed URL the player must use it instead of `url`. Optional: older
+   * servers omit it (the player falls back to `url`).
+   */
+  stream_url?: string;
   protocol: 'hls' | 'http';
   container: string;
   size: number;
