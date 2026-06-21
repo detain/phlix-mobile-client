@@ -408,7 +408,10 @@ const PlayerScreen: React.FC = () => {
           <PhlixPlayerView
             ref={playerRef}
             style={styles.player}
-            src={streamInfo.url}
+            // Prefer the server's signed stream URL: the stream route is gated and
+            // the native player gets a bare URI (no Authorization header). Falls
+            // back to the unsigned url for older servers.
+            src={streamInfo.stream_url || streamInfo.url}
             autoPlay={true}
             startPosition={startPosition}
             volume={1.0}
