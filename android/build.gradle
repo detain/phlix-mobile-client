@@ -1,29 +1,27 @@
-// Top-level build file
+// Top-level build file — matches the RN 0.85.3 community template (buildscript
+// classpath style; the React Native gradle plugin supplies the AGP/Kotlin
+// versions, so they are NOT pinned via the plugins {} DSL here).
 buildscript {
     ext {
         buildToolsVersion = "36.0.0"
         minSdkVersion = 24
         compileSdkVersion = 36
         targetSdkVersion = 36
-        kotlinVersion = "2.1.20"
         ndkVersion = "27.1.12297006"
+        kotlinVersion = "2.1.20"
     }
-}
-
-plugins {
-    id 'com.android.application' version '8.9.2' apply false
-    id 'com.android.library' version '8.9.2' apply false
-    id 'org.jetbrains.kotlin.android' version '2.1.20' apply false
-    id 'com.facebook.react.rootproject'
-}
-
-allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
     }
 }
+
+apply plugin: "com.facebook.react.rootproject"
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
