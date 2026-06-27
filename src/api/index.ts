@@ -50,6 +50,11 @@ export {
   type TracksResponse,
 } from './MusicManager';
 export {
+  default as photoManager,
+  type PhotosResponse,
+  type SlideshowResponse,
+} from './PhotoManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
