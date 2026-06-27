@@ -18,6 +18,8 @@ import { MediaItem, Season, Episode } from '../types/media';
 import { PosterCard } from '../components/media/PosterCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
+import { downloadService } from '../services/DownloadService';
+import type { DownloadTask } from '../store/downloadStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,10 +40,27 @@ const MediaDetailScreen: React.FC = () => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // E4: live download state for this item (undefined = not downloading/downloaded).
+  const [downloadTask, setDownloadTask] = useState<DownloadTask | undefined>(undefined);
 
   useEffect(() => {
     loadMediaDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
+
+  // E4: subscribe to download-service updates and reflect this item's task
+  // (any non-cancelled state — queued/downloading/paused/failed/completed).
+  useEffect(() => {
+    const sync = () => {
+      const task = downloadService
+        .getAllDownloads()
+        .filter((t) => t.itemId === itemId && t.status !== 'cancelled')
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      setDownloadTask(task);
+    };
+    sync();
+    const unsubscribe = downloadService.subscribe(() => sync());
+    return unsubscribe;
   }, [itemId]);
 
   useEffect(() => {
@@ -102,6 +121,68 @@ const MediaDetailScreen: React.FC = () => {
         ? episode.user_data.resume_position_ticks / 10000000
         : 0,
     });
+  };
+
+  // E4: start a download for this item (movies/episodes — playable leaf types).
+  const handleDownload = () => {
+    if (!item) {
+      return;
+    }
+    // eslint-disable-next-line no-void -- intentional fire-and-forget
+    void downloadService.startDownload(item);
+  };
+
+  // E4: delete a completed download (frees local storage).
+  const handleDeleteDownload = () => {
+    if (downloadTask) {
+      // eslint-disable-next-line no-void -- intentional fire-and-forget
+      void downloadService.deleteDownload(downloadTask.id);
+    }
+  };
+
+  // E4: retry a failed download.
+  const handleRetryDownload = () => {
+    if (downloadTask) {
+      downloadService.retryDownload(downloadTask.id);
+    }
+  };
+
+  const handleDownloadPress = () => {
+    if (!downloadTask) {
+      handleDownload();
+      return;
+    }
+    switch (downloadTask.status) {
+      case 'completed':
+        handleDeleteDownload();
+        break;
+      case 'failed':
+        handleRetryDownload();
+        break;
+      default:
+        // queued / downloading / paused — no-op tap (managed from Downloads tab).
+        break;
+    }
+  };
+
+  const downloadButtonLabel = (): string => {
+    if (!downloadTask) {
+      return 'Download';
+    }
+    switch (downloadTask.status) {
+      case 'completed':
+        return 'Downloaded ✓';
+      case 'downloading':
+        return `Downloading ${Math.round(downloadTask.progress * 100)}%`;
+      case 'queued':
+        return 'Queued…';
+      case 'paused':
+        return 'Paused';
+      case 'failed':
+        return 'Retry download';
+      default:
+        return 'Download';
+    }
   };
 
   // Server `runtime` is in MINUTES (TMDB metadata). The precise media length in
@@ -184,6 +265,24 @@ const MediaDetailScreen: React.FC = () => {
                 {hasResumePosition ? 'Resume' : 'Play'}
               </Text>
             </TouchableOpacity>
+
+            {/* E4: Download action — playable leaf types only (not series containers) */}
+            {!isSeries && (
+              <TouchableOpacity
+                style={[
+                  styles.playButton,
+                  downloadTask?.status === 'completed' && styles.downloadButtonDone,
+                  downloadTask?.status === 'failed' && styles.downloadButtonFailed,
+                ]}
+                onPress={handleDownloadPress}
+                accessibilityLabel="Download"
+              >
+                <Text style={styles.playButtonIcon}>
+                  {downloadTask?.status === 'completed' ? '🗑' : '↓'}
+                </Text>
+                <Text style={styles.playButtonText}>{downloadButtonLabel()}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -365,6 +464,12 @@ const styles = StyleSheet.create({
   },
   playButtonPrimary: {
     backgroundColor: '#0066cc',
+  },
+  downloadButtonDone: {
+    backgroundColor: '#1a3d1a',
+  },
+  downloadButtonFailed: {
+    backgroundColor: '#5a1a1a',
   },
   playButtonIcon: {
     fontSize: 16,

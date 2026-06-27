@@ -47,10 +47,75 @@ export interface PhlixPlayerInterface extends NativeModule {
   getDuration(callback: (duration: number) => void): void;
 }
 
+/**
+ * Native download module surface. Method signatures + event names + payload keys
+ * MUST stay byte-for-byte aligned across this TS interface, the iOS module
+ * (`ios/LocalPods/PhlixPlayer/PhlixDownloader.swift` + `.m`) and the Android
+ * module (`android/.../download/PhlixDownloaderModule.kt`).
+ *
+ * NOTE(E4-native): the native iOS/Android implementations are UNTESTED in CI —
+ * there is no device/simulator build that runs in this environment. The JS layer
+ * (DownloadService) falls back to a simulated downloader when this module is
+ * absent (Jest + before the native side is built), so the app stays functional.
+ */
 export interface PhlixDownloaderInterface extends NativeModule {
-  startDownload(taskId: string, url: string, localPath: string): void;
+  /**
+   * Begin (or resume) a background download of `url` to `localPath`.
+   * @param taskId          Caller-owned id echoed back on every event.
+   * @param url             Signed direct-play stream URL (E2 getStreamUrl).
+   * @param localPath       Absolute destination path in the app's files dir.
+   * @param resumeOffset    Bytes already on disk to resume from (0 = fresh).
+   * @param totalBytesHint  Expected total size, or 0 if unknown (native reports
+   *                        the real size from Content-Length as it streams).
+   */
+  startDownload(
+    taskId: string,
+    url: string,
+    localPath: string,
+    resumeOffset: number,
+    totalBytesHint: number,
+  ): void;
   pauseDownload(taskId: string): void;
   resumeDownload(taskId: string): void;
   cancelDownload(taskId: string): void;
-  getDownloadProgress(taskId: string, callback: (progress: number) => void): void;
+  /** Delete a downloaded file from disk. Resolves even if the file is absent. */
+  deleteFile(localPath: string): Promise<boolean>;
+  /** Absolute path to the app's documents/files dir, exposed as a constant. */
+  documentsPath?: string;
+}
+
+/**
+ * Native download event names. Shared CONCEPTUALLY with the iOS/Android modules —
+ * keep these strings identical to the event names emitted natively.
+ */
+export const DOWNLOAD_EVENTS = {
+  progress: 'PhlixDownloadProgress',
+  complete: 'PhlixDownloadComplete',
+  error: 'PhlixDownloadError',
+  paused: 'PhlixDownloadPaused',
+} as const;
+
+/** Payload of a `PhlixDownloadProgress` event. */
+export interface DownloadProgressPayload {
+  taskId: string;
+  downloadedBytes: number;
+  totalBytes: number;
+}
+
+/** Payload of a `PhlixDownloadComplete` event. */
+export interface DownloadCompletePayload {
+  taskId: string;
+  localPath: string;
+}
+
+/** Payload of a `PhlixDownloadError` event. */
+export interface DownloadErrorPayload {
+  taskId: string;
+  error: string;
+}
+
+/** Payload of a `PhlixDownloadPaused` event. */
+export interface DownloadPausedPayload {
+  taskId: string;
+  downloadedBytes: number;
 }

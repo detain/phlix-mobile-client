@@ -85,9 +85,9 @@ const PlayerScreen: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(startPosition);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  // Offline-mode flag: the setter records whether playback is from a local file;
-  // the value itself is not read in the UI yet (TODO(E3): offline indicator).
-  const [, setIsOfflineMode] = useState(false);
+  // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
+  // a small "Offline" badge in the top bar.
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   // ── E3: transcode lifecycle ──────────────────────────────────────────────
   const [preparingTranscode, setPreparingTranscode] = useState(false);
@@ -586,6 +586,13 @@ const PlayerScreen: React.FC = () => {
             </TouchableOpacity>
 
             <View style={styles.topBarRight}>
+              {/* E4: offline badge — shown when playing a local downloaded file */}
+              {isOfflineMode && (
+                <View style={styles.offlineBadge} accessibilityLabel="Playing offline">
+                  <Text style={styles.offlineBadgeText}>⤓ Offline</Text>
+                </View>
+              )}
+
               {/* Subtitle (CC) picker — only when tracks are available */}
               {subtitleTracksState.length > 0 && (
                 <TouchableOpacity
@@ -867,6 +874,19 @@ const styles = StyleSheet.create({
   syncPlayButtonText: {
     color: '#fff',
     fontSize: 18,
+  },
+  offlineBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,102,204,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  offlineBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   syncStatusIndicator: {
     width: 12,
