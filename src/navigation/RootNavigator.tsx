@@ -22,6 +22,8 @@ import {
   CastScreen,
   LiveTvScreen,
   LiveTvRecordingsScreen,
+  MusicScreen,
+  MusicAlbumScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -208,6 +210,26 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Recordings',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="Music"
+              component={MusicScreen}
+              options={{
+                headerShown: true,
+                title: 'Music',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="MusicAlbum"
+              component={MusicAlbumScreen}
+              options={{
+                headerShown: true,
+                title: 'Album',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

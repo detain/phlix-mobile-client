@@ -14,3 +14,5 @@ export { default as AdminLibrariesScreen } from './AdminLibrariesScreen';
 export { default as CastScreen } from './CastScreen';
 export { default as LiveTvScreen } from './LiveTvScreen';
 export { default as LiveTvRecordingsScreen } from './LiveTvRecordingsScreen';
+export { default as MusicScreen } from './MusicScreen';
+export { default as MusicAlbumScreen } from './MusicAlbumScreen';

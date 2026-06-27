@@ -22,6 +22,10 @@ export type RootStackParamList = {
   AdminLibraries: undefined;
   LiveTv: undefined;
   LiveTvRecordings: undefined;
+  // E9a (Music). Music aggregates across all music libs server-side, so
+  // `libraryId` is informational only.
+  Music: { libraryId?: string };
+  MusicAlbum: { albumName: string };
   Cast: {
     mediaItemId: string;
     streamUrl: string;
