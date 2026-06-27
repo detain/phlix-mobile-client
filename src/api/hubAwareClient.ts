@@ -69,7 +69,7 @@ class HubAwareClient {
     if (connectionMode === 'relay') {
       // Inject hub session JWT on relay calls
       if (session?.accessToken) {
-        headers['Authorization'] = `Bearer ${session.accessToken}`;
+        headers.Authorization = `Bearer ${session.accessToken}`;
       }
       // Inject server ID for relay routing
       if (activeServerId) {

@@ -13,6 +13,7 @@ export {
   type BrowseMediaParams,
 } from './LibraryManager';
 export { default as userManager, type UserSettings } from './UserManager';
+export { default as profileManager } from './ProfileManager';
 export {
   default as playbackManager,
   type CreateSessionParams,
