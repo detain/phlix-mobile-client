@@ -69,13 +69,20 @@ type PlayerRouteParams = {
   Player: {
     itemId: string;
     startPosition?: number;
+    // E8 (additive): direct live-stream URL. When set, the player plays it
+    // verbatim and SKIPS the itemId detail/transcode lifecycle.
+    streamUrl?: string;
+    liveTitle?: string;
   };
 };
 
 const PlayerScreen: React.FC = () => {
   const route = useRoute<RouteProp<PlayerRouteParams, 'Player'>>();
   const navigation = useNavigation();
-  const { itemId, startPosition = 0 } = route.params;
+  const { itemId, startPosition = 0, streamUrl: directStreamUrl } = route.params;
+  // E8: live-stream mode is driven SOLELY by a present `streamUrl` param — the
+  // existing itemId playback path is untouched when this is absent.
+  const isLiveStream = typeof directStreamUrl === 'string' && directStreamUrl !== '';
 
   // Player state
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
@@ -178,7 +185,10 @@ const PlayerScreen: React.FC = () => {
 
   useEffect(() => {
     loadPlaybackInfo();
-    loadMarkers();
+    // Markers are an item concept; a live stream has none.
+    if (!isLiveStream) {
+      loadMarkers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
@@ -214,6 +224,30 @@ const PlayerScreen: React.FC = () => {
       transcodeAttempted.current = false;
       setPreparingTranscode(false);
       setTranscodeProgress(0);
+
+      // ── E8 Live TV: a direct stream URL was passed — play it verbatim and
+      // SKIP the itemId detail-fetch / transcode lifecycle entirely. This branch
+      // is reached ONLY when `streamUrl` is present, so the itemId path below is
+      // unaffected for normal/Cast playback. ──────────────────────────────────
+      if (isLiveStream && directStreamUrl) {
+        const liveStreamInfo: StreamInfo = {
+          url: directStreamUrl,
+          stream_url: directStreamUrl,
+          protocol: 'hls',
+          container: 'hls',
+          size: 0,
+          bitrate: 0,
+          duration_seconds: 0,
+        };
+        setStreamInfo(liveStreamInfo);
+        setSubtitleTracks([]);
+        setAudioTracks([]);
+        setSelectedSubtitleId(null);
+        setIsOfflineMode(false);
+        setIsLoading(false);
+        setPlayerStreamInfo(liveStreamInfo);
+        return;
+      }
 
       // ── Offline-first: check if item has a local download ──────────────────
       const localPath = downloadService.getItemLocalPath(itemId);
@@ -406,14 +440,15 @@ const PlayerScreen: React.FC = () => {
     const { error: errorMessage } = event.nativeEvent;
     // First direct-play failure → fall back to a server-side transcode rather
     // than surfacing the error. Subsequent failures (or transcode failures)
-    // bubble up via startTranscodeFallback's own error handling.
-    if (!transcodeAttempted.current && streamInfo?.protocol === 'http') {
+    // bubble up via startTranscodeFallback's own error handling. Live streams
+    // (E8) have no itemId transcode path, so errors surface directly.
+    if (!isLiveStream && !transcodeAttempted.current && streamInfo?.protocol === 'http') {
       // eslint-disable-next-line no-void -- intentional fire-and-forget; the fn owns its errors
       void startTranscodeFallback();
       return;
     }
     setError(errorMessage || 'Playback error');
-  }, [startTranscodeFallback, streamInfo?.protocol]);
+  }, [isLiveStream, startTranscodeFallback, streamInfo?.protocol]);
 
   const handlePlayPause = () => {
     if (isHost) {

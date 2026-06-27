@@ -7,11 +7,21 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined;
-  Player: { itemId: string; startPosition?: number };
+  // `streamUrl`/`liveTitle` are ADDITIVE (E8 Live TV): when `streamUrl` is
+  // present the player plays it directly and SKIPS the itemId
+  // detail-fetch/transcode lifecycle. The existing itemId path is unchanged.
+  Player: {
+    itemId: string;
+    startPosition?: number;
+    streamUrl?: string;
+    liveTitle?: string;
+  };
   Profiles: undefined;
   AdminDashboard: undefined;
   AdminUsers: undefined;
   AdminLibraries: undefined;
+  LiveTv: undefined;
+  LiveTvRecordings: undefined;
   Cast: {
     mediaItemId: string;
     streamUrl: string;

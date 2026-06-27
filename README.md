@@ -40,6 +40,12 @@ Phlix Mobile is a React Native application designed to interface with media serv
 
 > **Upstream gap:** the server exposes profile management only on admin-gated routes (`/api/v1/admin/users/{userId}/profiles`, `/api/v1/admin/profiles/{id}`); there is no user-facing `/api/v1/users/me/profiles` route yet. Mobile profile management is therefore **admin-scoped** — non-admin accounts see an informational state. A user-facing route should be added upstream for true multi-user mobile profiles.
 
+- **Live TV / EPG / DVR (admin-gated)**: Server administrators get **Settings → Admin → Live TV** — a channel list (number/name/type) with a "now playing" current-program label drawn from the EPG, an expandable per-channel guide (programs with time ranges), a one-tap **Refresh guide** action, and tap-a-channel-to-watch (the stream URL is resolved, then the player plays it). A **Recordings** screen lists upcoming + all DVR recordings, schedules a recording from any upcoming program (picker modal), deletes a recording (with confirm), and lists series rules (read-only). Most servers have no tuner — when Live TV is not configured the screens show a friendly *"Live TV is not set up on this server"* state instead of a raw error.
+
+> **Live TV is ADMIN-gated and a REACH feature.** Every route lives under `/api/v1/admin/livetv/*` (AdminMiddleware), and the server's Live TV route group is wrapped in try/catch ("not configured — silent ignore") and needs a configured tuner + EPG source. Mobile Live TV is therefore gated on `is_admin` (non-admins see "Admin access required") and treats 404/500 from these routes as "not configured". **There is NO user-facing Live TV route on the server** — add one upstream for true multi-user Live TV.
+>
+> **Stream-auth caveat (flag upstream):** `GET /admin/livetv/channels/{id}/stream` is admin-Bearer-gated and **302-redirects** to the tuner's HLS URL (not JSON). The native player can't carry a Bearer and axios silently follows redirects, so the client issues a raw `fetch(absoluteUrl, { redirect: 'manual' })` and reads the `location` header, falling back to the stream-endpoint URL itself when the header is unavailable (React Native opaque redirect). This only works if the resolved tuner URL is directly playable; if it still requires auth, the server should expose a `GET .../stream-url` JSON route or a signed-livetv-url — flagged upstream.
+
 ### Hub Mode
 
 Phlix Mobile supports **Hub Mode** for remote access to your media servers:

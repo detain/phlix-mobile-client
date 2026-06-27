@@ -12,3 +12,5 @@ export { default as AdminDashboardScreen } from './AdminDashboardScreen';
 export { default as AdminUsersScreen } from './AdminUsersScreen';
 export { default as AdminLibrariesScreen } from './AdminLibrariesScreen';
 export { default as CastScreen } from './CastScreen';
+export { default as LiveTvScreen } from './LiveTvScreen';
+export { default as LiveTvRecordingsScreen } from './LiveTvRecordingsScreen';

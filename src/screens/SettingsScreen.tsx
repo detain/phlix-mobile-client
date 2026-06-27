@@ -196,6 +196,13 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.settingLabel}>Libraries</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('LiveTv')}
+              >
+                <Text style={styles.settingLabel}>Live TV</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : null}
