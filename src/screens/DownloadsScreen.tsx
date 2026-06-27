@@ -7,18 +7,6 @@ import { downloadService } from '../services/DownloadService';
 import { useDownloadStore, DownloadTask, DownloadStatus } from '../store/downloadStore';
 import { formatFileSize } from '../utils/formatters';
 
-function getStatusLabel(status: DownloadStatus): string {
-  switch (status) {
-    case 'queued': return 'Queued';
-    case 'downloading': return 'Downloading';
-    case 'paused': return 'Paused';
-    case 'completed': return 'Completed';
-    case 'failed': return 'Failed';
-    case 'cancelled': return 'Cancelled';
-    default: return status;
-  }
-}
-
 function getStatusColor(status: DownloadStatus): string {
   switch (status) {
     case 'downloading': return '#0066cc';
@@ -149,11 +137,8 @@ const DownloadsScreen: React.FC = () => {
   const tasks = useDownloadStore((state) => state.tasks);
   const totalStorageUsed = useDownloadStore((state) => state.totalStorageUsed);
   const availableStorage = useDownloadStore((state) => state.availableStorage);
-  const pauseDownload = useDownloadStore((state) => state.pauseDownload);
-  const resumeDownload = useDownloadStore((state) => state.resumeDownload);
-  const cancelDownload = useDownloadStore((state) => state.cancelDownload);
-  const retryDownload = useDownloadStore((state) => state.retryDownload);
-  const removeDownload = useDownloadStore((state) => state.removeDownload);
+  // Download actions are driven through `downloadService` (which owns the native
+  // bridge + queue), not the store mutators directly — see the handle* callbacks.
   const refreshStorageStats = useDownloadStore((state) => state.refreshStorageStats);
   const loadPersistedTasks = useDownloadStore((state) => state.loadPersistedTasks);
 
@@ -165,7 +150,9 @@ const DownloadsScreen: React.FC = () => {
   const downloads = Object.values(tasks).sort((a, b) => {
     const order: Record<DownloadStatus, number> = { downloading: 0, queued: 1, paused: 2, failed: 3, completed: 4, cancelled: 5 };
     const diff = order[a.status] - order[b.status];
-    if (diff !== 0) return diff;
+    if (diff !== 0) {
+      return diff;
+    }
     return b.createdAt - a.createdAt;
   });
 

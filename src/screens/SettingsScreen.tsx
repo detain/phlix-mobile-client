@@ -47,7 +47,6 @@ const SettingsScreen: React.FC = () => {
     signInToHub,
     signOutOfHub,
     setConnectionMode,
-    fetchServers,
     clearError,
   } = useHubStore();
 

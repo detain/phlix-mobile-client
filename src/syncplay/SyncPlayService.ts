@@ -18,41 +18,35 @@
 
 import { useSyncplayStore } from '../store/syncplayStore';
 import { useHubStore } from '../store/hubStore';
+import {
+  SYNCPLAY_MESSAGE_TYPES,
+  PROTOCOL_VERSION,
+  OFFSET_SAMPLE_COUNT,
+  MAX_ACCEPTABLE_RTT,
+  STABILITY_VARIANCE_THRESHOLD,
+} from '@phlix/syncplay';
+import type { SyncPlayMessageType } from '@phlix/syncplay';
 
 // ---------------------------------------------------------------------------
-// Message Types (mirrors src/Session/SyncPlay/Messages.php)
+// Message Types — canonical map + protocol version come from @phlix/syncplay.
+// (mirrors src/Session/SyncPlay/Messages.php). NOTE: the package keys are
+// `CHAT`/`TYPING` (mobile previously used `CHAT_MESSAGE`/`CHAT_TYPING`); the
+// wire string values are identical, so only the key references change.
 // ---------------------------------------------------------------------------
 
-const MSG = {
-  GROUP_CREATE: 'syncplay_group_create',
-  GROUP_JOIN: 'syncplay_group_join',
-  GROUP_LEAVE: 'syncplay_group_leave',
-  GROUP_STATE: 'syncplay_group_state',
-  GROUP_LIST: 'syncplay_group_list',
-  PLAYBACK_PLAY: 'syncplay_playback_play',
-  PLAYBACK_PAUSE: 'syncplay_playback_pause',
-  PLAYBACK_SEEK: 'syncplay_playback_seek',
-  PLAYBACK_QUEUE: 'syncplay_playback_queue',
-  PLAYBACK_SYNC: 'syncplay_playback_sync',
-  CHAT_MESSAGE: 'syncplay_chat',
-  CHAT_TYPING: 'syncplay_typing',
-  HOST_TRANSFER: 'syncplay_host_transfer',
-  HOST_ELECT: 'syncplay_host_elect',
-  TIME_PING: 'syncplay_time_ping',
-  TIME_PONG: 'syncplay_time_pong',
-  TIME_SYNC: 'syncplay_time_sync',
-  ERROR: 'syncplay_error',
-  INFO: 'syncplay_info',
-} as const;
-
-type MessageType = (typeof MSG)[keyof typeof MSG];
+const MSG = SYNCPLAY_MESSAGE_TYPES;
 
 // ---------------------------------------------------------------------------
 // TimeSync - NTP-style clock offset calculation
+//
+// The numeric tuning constants (OFFSET_SAMPLE_COUNT, MAX_ACCEPTABLE_RTT,
+// STABILITY_VARIANCE_THRESHOLD) are imported from @phlix/syncplay so client and
+// server agree. The local TimeSync class is retained (rather than swapped for
+// the package's `TimeSync`) because the package class requires an injected
+// `now` clock and uses second-based drift timestamps — adopting it fully would
+// change observable timing behavior. See E1 worklog for the chosen path.
 // ---------------------------------------------------------------------------
 
-const OFFSET_SAMPLE_COUNT = 5;
-const MAX_ACCEPTABLE_RTT = 1000;
 const SYNC_INTERVAL_MS = 30000;
 
 interface OffsetSample {
@@ -123,7 +117,7 @@ class TimeSync {
     }
     const variance = varianceSum / offsets.length;
 
-    return variance < 50;
+    return variance < STABILITY_VARIANCE_THRESHOLD;
   }
 
   /**
@@ -206,7 +200,9 @@ export type PlaybackCommand = {
 };
 
 type WsMessage = {
-  type: string;
+  /** A SyncPlay wire message type (one of @phlix/syncplay's 19), or any other
+   * string the server may emit; unknown types are ignored by routeMessage. */
+  type: SyncPlayMessageType | string;
   [key: string]: unknown;
 };
 
@@ -297,7 +293,7 @@ class SyncPlayService {
   createGroup(groupName: string, password?: string): void {
     const payload: Record<string, unknown> = {
       type: MSG.GROUP_CREATE,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_name: groupName,
       member_id: this.memberId,
       member_name: this.getMemberName(),
@@ -317,7 +313,7 @@ class SyncPlayService {
   joinGroup(groupId: string, password?: string): void {
     const payload: Record<string, unknown> = {
       type: MSG.GROUP_JOIN,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: groupId,
       member_id: this.memberId,
       member_name: this.getMemberName(),
@@ -342,7 +338,7 @@ class SyncPlayService {
 
     this.send({
       type: MSG.GROUP_LEAVE,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
       timestamp: Date.now(),
@@ -365,7 +361,7 @@ class SyncPlayService {
 
     this.send({
       type: MSG.PLAYBACK_PLAY,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
       position,
@@ -390,7 +386,7 @@ class SyncPlayService {
 
     this.send({
       type: MSG.PLAYBACK_PAUSE,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
       position,
@@ -415,7 +411,7 @@ class SyncPlayService {
 
     this.send({
       type: MSG.PLAYBACK_SEEK,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
       from_position: fromPosition,
@@ -444,7 +440,7 @@ class SyncPlayService {
     // (Server may not require it but it's good for group state)
     this.send({
       type: MSG.INFO,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
       data: { position_report: position },
@@ -458,37 +454,11 @@ class SyncPlayService {
   requestTimeSync(): void {
     const t1 = Date.now();
 
-    const handler = (msg: WsMessage) => {
-      if (msg.type === MSG.TIME_PONG) {
-        const t4 = Date.now();
-        const msgAny = msg as unknown as { client_time?: number; server_time?: number };
-        const t2 = msgAny.client_time ?? t4;
-        const serverReceiveTime = msgAny.server_time ?? t4;
-
-        // Server's t3 (response time) - we use server_time as approximate t2
-        // and the pong response contains client_time (t1) and server_time (t2)
-        // The actual computation: offset = (t2 - t1 - (t3 - t2)) / 2
-        // For simplicity we use: offset = serverTime - t1 - (t4 - t1) / 2
-        const rtt = t4 - t1;
-        const latency = rtt / 2;
-        const offset = Math.round(serverReceiveTime - t1 + latency);
-
-        this.timeSync.addSample(t1, serverReceiveTime, serverReceiveTime + latency, t4);
-
-        this.events.onTimeSyncUpdate?.({
-          offset: this.timeSync.getOffset(),
-          latency: this.timeSync.getLatency(),
-          isStable: this.timeSync.isStable(),
-        });
-      }
-    };
-
-    // Use a one-time listener approach via store middleware if needed
-    // For now, the message handler routes to handleMessage which calls processPong
-
+    // The pong is routed back through handleMessage → handleTimePong, which adds
+    // the completed sample and fires onTimeSyncUpdate. We only send the ping here.
     this.send({
       type: MSG.TIME_PING,
-      protocol_version: 1,
+      protocol_version: PROTOCOL_VERSION,
       client_time: t1,
       timestamp: t1,
     });
@@ -763,12 +733,12 @@ class SyncPlayService {
     const serverTime = (msg.server_time as number) ?? t1;
     const t4 = Date.now();
 
-    // Compute approximate t2/t3 - in practice the server's pong format
-    // has client_time and server_time (server receive time)
-    // rtt = t4 - t1, latency = rtt/2, offset = serverTime - t1 + latency
+    // The server's pong carries client_time (t1) and server_time (the server
+    // receive time, t2). There is no separate t3, so we pass t3 == t2 + latency.
+    // rtt = t4 - t1; latency = rtt/2. The accepted offset is derived inside
+    // TimeSync.addSample from the same quad.
     const rtt = t4 - t1;
     const latency = rtt / 2;
-    const offset = Math.round(serverTime - t1 + latency);
 
     this.timeSync.addSample(t1, serverTime, serverTime + latency, t4);
 

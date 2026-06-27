@@ -81,7 +81,9 @@ const PlayerScreen: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [skipMarkers, setSkipMarkers] = useState<SkipMarkers | null>(null);
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  // Offline-mode flag: the setter records whether playback is from a local file;
+  // the value itself is not read in the UI yet (TODO(E3): offline indicator).
+  const [, setIsOfflineMode] = useState(false);
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -332,7 +334,9 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
-  const handlePlay = () => {
+  // TODO(E3): wire these discrete play/pause handlers + SkipButton overlay.
+  // Retained as the player-completion entry points; not referenced yet.
+  const _handlePlay = () => {
     dispatchPlayerCommand(playerRef, 'play');
     setIsPlaying(true);
     playerSetIsPlaying(true);
@@ -341,7 +345,7 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
-  const handlePause = () => {
+  const _handlePause = () => {
     dispatchPlayerCommand(playerRef, 'pause');
     setIsPlaying(false);
     playerSetIsPlaying(false);
@@ -366,15 +370,16 @@ const PlayerScreen: React.FC = () => {
     handleSeek(newPosition);
   };
 
-  const handleSkip = (endPosition: number) => {
+  // TODO(E3): wire SkipButton (skip intro/outro) using these markers + handler.
+  const _handleSkip = (endPosition: number) => {
     handleSeek(endPosition);
   };
 
-  const introMarker = skipMarkers?.skip_intro_start != null && skipMarkers?.skip_intro_end != null
+  const _introMarker = skipMarkers?.skip_intro_start != null && skipMarkers?.skip_intro_end != null
     ? { start: skipMarkers.skip_intro_start, end: skipMarkers.skip_intro_end }
     : null;
 
-  const outroMarker = skipMarkers?.skip_outro_start != null && skipMarkers?.skip_outro_end != null
+  const _outroMarker = skipMarkers?.skip_outro_start != null && skipMarkers?.skip_outro_end != null
     ? { start: skipMarkers.skip_outro_start, end: skipMarkers.skip_outro_end }
     : null;
 

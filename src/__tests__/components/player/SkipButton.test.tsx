@@ -1,5 +1,6 @@
 // src/__tests__/components/player/SkipButton.test.tsx
 import React from 'react';
+import { Text } from 'react-native';
 import renderer from 'react-test-renderer';
 import { SkipButton } from '../../../components/player/SkipButton';
 
@@ -22,7 +23,7 @@ describe('SkipButton', () => {
           onSkip={onSkip}
         />
       );
-      const text = tree.root.findByType('Text');
+      const text = tree.root.findByType(Text);
       expect(text.props.children).toBe('Skip Intro');
     });
 
@@ -59,7 +60,7 @@ describe('SkipButton', () => {
           onSkip={onSkip}
         />
       );
-      const text = tree.root.findByType('Text');
+      const text = tree.root.findByType(Text);
       expect(text.props.children).toBe('Skip Intro');
     });
 
@@ -72,7 +73,7 @@ describe('SkipButton', () => {
           onSkip={onSkip}
         />
       );
-      const text = tree.root.findByType('Text');
+      const text = tree.root.findByType(Text);
       expect(text.props.children).toBe('Skip Intro');
     });
 
@@ -105,7 +106,7 @@ describe('SkipButton', () => {
           onSkip={onSkip}
         />
       );
-      const text = tree.root.findByType('Text');
+      const text = tree.root.findByType(Text);
       expect(text.props.children).toBe('Skip Outro');
     });
 
