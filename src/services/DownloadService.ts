@@ -1,18 +1,82 @@
 // src/services/DownloadService.ts
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
+import type { EmitterSubscription } from 'react-native';
 import { MediaItem } from '../types/media';
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { playbackManager } from '../api/PlaybackManager';
+import {
+  DOWNLOAD_EVENTS,
+  type PhlixDownloaderInterface,
+  type DownloadProgressPayload,
+  type DownloadCompletePayload,
+  type DownloadErrorPayload,
+  type DownloadPausedPayload,
+} from '../native/types';
 
 const MAX_CONCURRENT_DOWNLOADS = 2;
+
+// Re-export the native event-name constants so callers/tests share one source.
+export { DOWNLOAD_EVENTS };
+
+function getNativeDownloader(): PhlixDownloaderInterface | undefined {
+  return NativeModules.PhlixDownloader as PhlixDownloaderInterface | undefined;
+}
 
 class DownloadService {
   private activeDownloads: Set<string> = new Set();
   private listeners: Set<(task: DownloadTask) => void> = new Set();
   private resumeData: Map<string, { downloadedBytes: number }> = new Map();
+  private eventSubscriptions: EmitterSubscription[] = [];
 
   constructor() {
     useDownloadStore.getState().loadPersistedTasks();
+    this.initNativeEvents();
+  }
+
+  /**
+   * Subscribe to the native PhlixDownloader event stream. Guarded so it is a
+   * no-op when the native module is absent (Jest + the simulated fallback path),
+   * which keeps the app working before the native side is built.
+   */
+  private initNativeEvents(): void {
+    const downloader = getNativeDownloader();
+    if (!downloader) {
+      return;
+    }
+    let emitter: NativeEventEmitter;
+    try {
+      emitter = new NativeEventEmitter(
+        downloader as unknown as ConstructorParameters<typeof NativeEventEmitter>[0],
+      );
+    } catch {
+      // NativeEventEmitter can throw if the module isn't a real emitter — stay
+      // on the simulated path rather than crashing.
+      return;
+    }
+    this.eventSubscriptions = [
+      emitter.addListener(DOWNLOAD_EVENTS.progress, (p: DownloadProgressPayload) => {
+        this.handleNativeProgress(p.taskId, p.downloadedBytes, p.totalBytes);
+      }),
+      emitter.addListener(DOWNLOAD_EVENTS.complete, (p: DownloadCompletePayload) => {
+        this.handleNativeComplete(p.taskId, p.localPath);
+      }),
+      emitter.addListener(DOWNLOAD_EVENTS.error, (p: DownloadErrorPayload) => {
+        this.handleNativeError(p.taskId, p.error);
+      }),
+      emitter.addListener(DOWNLOAD_EVENTS.paused, (p: DownloadPausedPayload) => {
+        this.handleNativePaused(p.taskId, p.downloadedBytes);
+      }),
+    ];
+  }
+
+  /**
+   * Remove all native event subscriptions. Not used in the normal app lifecycle
+   * (the service is an app-lifetime singleton) but provided for completeness /
+   * tests so listeners can be torn down deterministically.
+   */
+  dispose(): void {
+    this.eventSubscriptions.forEach((sub) => sub.remove());
+    this.eventSubscriptions = [];
   }
 
   async startDownload(item: MediaItem, quality = 'original'): Promise<string> {
@@ -36,7 +100,7 @@ class DownloadService {
       return;
     }
 
-    const PhlixDownloader = NativeModules.PhlixDownloader;
+    const PhlixDownloader = getNativeDownloader();
     if (PhlixDownloader?.pauseDownload) {
       PhlixDownloader.pauseDownload(taskId);
     } else {
@@ -58,7 +122,7 @@ class DownloadService {
 
   async cancelDownload(taskId: string): Promise<void> {
     const store = useDownloadStore.getState();
-    const PhlixDownloader = NativeModules.PhlixDownloader;
+    const PhlixDownloader = getNativeDownloader();
     if (PhlixDownloader?.cancelDownload) {
       PhlixDownloader.cancelDownload(taskId);
     }
@@ -105,7 +169,7 @@ class DownloadService {
       return;
     }
 
-    const PhlixDownloader = NativeModules.PhlixDownloader;
+    const PhlixDownloader = getNativeDownloader();
     if (PhlixDownloader?.deleteFile) {
       try { await PhlixDownloader.deleteFile(task.localPath); } catch {}
     }
@@ -145,8 +209,10 @@ class DownloadService {
       const localPath = this.getLocalPath(task.item);
       store.updateTaskProgress(taskId, task.resumeOffset ?? 0, 0);
 
-      const PhlixDownloader = NativeModules.PhlixDownloader;
+      const PhlixDownloader = getNativeDownloader();
       if (PhlixDownloader?.startDownload) {
+        // 5-arg shape (taskId, url, localPath, resumeOffset, totalBytesHint) —
+        // identical across the TS interface and both native modules.
         PhlixDownloader.startDownload(taskId, streamUrl, localPath, task.resumeOffset ?? 0, 0);
       } else {
         this.downloadSimulated(taskId, 0);
@@ -188,7 +254,7 @@ class DownloadService {
   private getLocalPath(item: MediaItem): string {
     const filename = `${item.id}_${item.name.replace(/[^a-z0-9]/gi, '_')}.mp4`;
     if (Platform.OS === 'ios') {
-      return `${NativeModules.PhlixDownloader?.documentsPath || ''}/${filename}`;
+      return `${getNativeDownloader()?.documentsPath || ''}/${filename}`;
     }
     return `/storage/emulated/0/Download/Phlix/${filename}`;
   }
@@ -197,6 +263,10 @@ class DownloadService {
     const store = useDownloadStore.getState();
     store.updateTaskProgress(taskId, downloadedBytes, totalBytes);
     this.resumeData.set(taskId, { downloadedBytes });
+    const updated = store.tasks[taskId];
+    if (updated) {
+      this.notifyListeners(updated);
+    }
   }
 
   handleNativeComplete(taskId: string, localPath: string): void {
@@ -205,6 +275,10 @@ class DownloadService {
     store.updateTaskStatus(taskId, 'completed');
     this.activeDownloads.delete(taskId);
     this.resumeData.delete(taskId);
+    const updated = store.tasks[taskId];
+    if (updated) {
+      this.notifyListeners(updated);
+    }
     this.processQueue();
   }
 
