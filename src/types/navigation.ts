@@ -9,6 +9,7 @@ export type RootStackParamList = {
   Main: undefined;
   Player: { itemId: string; startPosition?: number };
   Profiles: undefined;
+  AdminDashboard: undefined;
 };
 
 // Tab Navigator
