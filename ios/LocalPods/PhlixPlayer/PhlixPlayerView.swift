@@ -33,6 +33,22 @@ class PhlixPlayerViewWrapper: UIView {
     @objc var autoPlay: Bool = true
     @objc var startPosition: Double = 0
 
+    // E3-native (UNTESTED in CI): selected subtitle VTT URL, "" = off.
+    // AVPlayer cannot trivially side-load a remote sidecar WebVTT into a plain
+    // AVURLAsset; full support needs an AVMutableComposition / AVAssetResourceLoader
+    // sidecar pipeline. We store the selection and re-load so the seam is in place;
+    // deep rendering is deferred and must be verified on-device.
+    @objc var subtitleUrl: String = "" {
+        didSet {
+            // TODO(E3-native): render selected subtitleUrl via AVMutableComposition
+            // (merge external WebVTT as a text track) or AVAssetResourceLoaderDelegate.
+            // Re-load only when the source is already set and the value changed.
+            if !src.isEmpty && oldValue != subtitleUrl {
+                loadVideo()
+            }
+        }
+    }
+
     // Volume and muted are handled via methods to avoid Objective-C selector conflicts
     private var _volume: Float = 1.0
     private var _muted: Bool = false

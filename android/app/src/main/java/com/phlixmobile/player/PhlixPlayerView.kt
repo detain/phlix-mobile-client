@@ -10,6 +10,7 @@ import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.ui.PlayerView
+import com.google.android.exoplayer2.util.MimeTypes
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
@@ -23,6 +24,8 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
     private var currentStartPosition: Double = 0.0
     private var currentVolume: Float = 1.0f
     private var currentMuted: Boolean = false
+    // E3-native (UNTESTED in CI): selected subtitle VTT URL, or "" for off.
+    private var currentSubtitleUrl: String = ""
 
     // Event callbacks
     var onPlaybackEvent: ((WritableMap) -> Unit)? = null
@@ -143,9 +146,7 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
         // Initialize new player
         initializePlayer()
 
-        val uri = Uri.parse(src)
-        val mediaItem = MediaItem.fromUri(uri)
-        player?.setMediaItem(mediaItem)
+        player?.setMediaItem(buildMediaItem(src, currentSubtitleUrl))
         player?.prepare()
 
         if (currentAutoPlay) {
@@ -158,6 +159,40 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
 
         // Start progress updates
         handler.post(progressRunnable)
+    }
+
+    /**
+     * Build a MediaItem, side-loading the selected WebVTT subtitle when present.
+     * E3-native (UNTESTED in CI): subtitle side-loading via SubtitleConfiguration
+     * has not been exercised on a device/emulator in this environment.
+     */
+    private fun buildMediaItem(src: String, subtitleUrl: String): MediaItem {
+        val builder = MediaItem.Builder().setUri(Uri.parse(src))
+        if (subtitleUrl.isNotEmpty()) {
+            val subtitle = MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
+                .setMimeType(MimeTypes.TEXT_VTT)
+                .setSelectionFlags(com.google.android.exoplayer2.C.SELECTION_FLAG_DEFAULT)
+                .build()
+            builder.setSubtitleConfigurations(listOf(subtitle))
+        }
+        return builder.build()
+    }
+
+    /**
+     * E3-native (UNTESTED in CI): update the selected subtitle track. Re-prepares
+     * the current source so the new sidecar takes effect.
+     */
+    fun setSubtitleUrl(subtitleUrl: String) {
+        if (subtitleUrl == currentSubtitleUrl) return
+        currentSubtitleUrl = subtitleUrl
+        val src = currentSrc
+        if (src.isEmpty() || player == null) return
+        val position = player?.currentPosition ?: 0L
+        player?.setMediaItem(buildMediaItem(src, currentSubtitleUrl))
+        player?.prepare()
+        if (position > 0) {
+            player?.seekTo(position)
+        }
     }
 
     fun setAutoPlay(autoPlay: Boolean) {
