@@ -17,6 +17,8 @@ import {
   LoginScreen,
   ProfileSelectScreen,
   AdminDashboardScreen,
+  AdminUsersScreen,
+  AdminLibrariesScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -163,6 +165,26 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Dashboard',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminUsers"
+              component={AdminUsersScreen}
+              options={{
+                headerShown: true,
+                title: 'Users',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminLibraries"
+              component={AdminLibrariesScreen}
+              options={{
+                headerShown: true,
+                title: 'Libraries',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

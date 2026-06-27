@@ -9,3 +9,5 @@ export { default as LoginScreen } from './LoginScreen';
 export { default as DownloadsScreen } from './DownloadsScreen';
 export { default as ProfileSelectScreen } from './ProfileSelectScreen';
 export { default as AdminDashboardScreen } from './AdminDashboardScreen';
+export { default as AdminUsersScreen } from './AdminUsersScreen';
+export { default as AdminLibrariesScreen } from './AdminLibrariesScreen';

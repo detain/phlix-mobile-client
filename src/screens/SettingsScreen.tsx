@@ -182,6 +182,20 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.settingLabel}>Dashboard</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminUsers')}
+              >
+                <Text style={styles.settingLabel}>Users</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminLibraries')}
+              >
+                <Text style={styles.settingLabel}>Libraries</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : null}
