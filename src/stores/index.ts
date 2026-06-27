@@ -7,4 +7,5 @@ export { useProfileStore } from './useProfileStore';
 export { useAdminStore } from './useAdminStore';
 export { useCastStore } from './useCastStore';
 export { useLiveTvStore } from './useLiveTvStore';
+export { useMusicStore } from './useMusicStore';
 export { useSyncplayStore } from '../store/syncplayStore';

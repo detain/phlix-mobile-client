@@ -46,6 +46,10 @@ export {
   isNotConfiguredError,
 } from './LiveTvManager';
 export {
+  default as musicManager,
+  type TracksResponse,
+} from './MusicManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
