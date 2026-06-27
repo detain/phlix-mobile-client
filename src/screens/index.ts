@@ -11,3 +11,4 @@ export { default as ProfileSelectScreen } from './ProfileSelectScreen';
 export { default as AdminDashboardScreen } from './AdminDashboardScreen';
 export { default as AdminUsersScreen } from './AdminUsersScreen';
 export { default as AdminLibrariesScreen } from './AdminLibrariesScreen';
+export { default as CastScreen } from './CastScreen';

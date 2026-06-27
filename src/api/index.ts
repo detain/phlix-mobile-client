@@ -38,6 +38,10 @@ export {
   type MarkersResponse,
 } from './MarkerManager';
 export {
+  default as castManager,
+  type CastMediaInput,
+} from './CastManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
