@@ -20,7 +20,9 @@ class DownloadService {
     const existingTask = Object.values(store.tasks).find(
       (t) => t.itemId === item.id && t.status !== 'completed' && t.status !== 'cancelled' && t.status !== 'failed'
     );
-    if (existingTask) return existingTask.id;
+    if (existingTask) {
+      return existingTask.id;
+    }
 
     const taskId = await store.addDownload(item, quality);
     this.processQueue();
@@ -30,7 +32,9 @@ class DownloadService {
   pauseDownload(taskId: string): void {
     const store = useDownloadStore.getState();
     const task = store.tasks[taskId];
-    if (!task || task.status !== 'downloading') return;
+    if (!task || task.status !== 'downloading') {
+      return;
+    }
 
     const PhlixDownloader = NativeModules.PhlixDownloader;
     if (PhlixDownloader?.pauseDownload) {
@@ -45,7 +49,9 @@ class DownloadService {
   resumeDownload(taskId: string): void {
     const store = useDownloadStore.getState();
     const task = store.tasks[taskId];
-    if (!task || task.status !== 'paused') return;
+    if (!task || task.status !== 'paused') {
+      return;
+    }
     store.updateTaskStatus(taskId, 'queued');
     this.processQueue();
   }
@@ -95,7 +101,9 @@ class DownloadService {
   async deleteDownload(taskId: string): Promise<void> {
     const store = useDownloadStore.getState();
     const task = store.tasks[taskId];
-    if (!task || task.status !== 'completed') return;
+    if (!task || task.status !== 'completed') {
+      return;
+    }
 
     const PhlixDownloader = NativeModules.PhlixDownloader;
     if (PhlixDownloader?.deleteFile) {
@@ -107,10 +115,14 @@ class DownloadService {
   private processQueue(): void {
     const store = useDownloadStore.getState();
     const activeCount = Object.values(store.tasks).filter((t) => t.status === 'downloading').length;
-    if (activeCount >= MAX_CONCURRENT_DOWNLOADS) return;
+    if (activeCount >= MAX_CONCURRENT_DOWNLOADS) {
+      return;
+    }
 
     const queued = Object.values(store.tasks).filter((t) => t.status === 'queued');
-    if (queued.length === 0) return;
+    if (queued.length === 0) {
+      return;
+    }
     this.beginDownload(queued[0]);
   }
 
