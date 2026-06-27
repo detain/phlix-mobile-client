@@ -1,167 +1,169 @@
-// @ts-nocheck
 // src/services/NotificationService.ts
-import PushNotification, { Importance } from 'react-native-push-notification';
+/* eslint-disable no-void -- `void` marks intentional fire-and-forget notifee promises */
+import notifee, {
+  AndroidImportance,
+  EventType,
+  type Event,
+} from '@notifee/react-native';
 import { Platform } from 'react-native';
-import { apiClient } from '../api/client';
+
+const GENERAL_CHANNEL_ID = 'phlix-general';
+const PLAYBACK_CHANNEL_ID = 'phlix-playback';
+// notifee identifies notifications by id; reuse a stable id for the ongoing
+// playback notification so it can be updated / cancelled.
+const PLAYBACK_NOTIFICATION_ID = 'phlix-playback';
+
+// notifee's `data` field only accepts string | number | object values.
+type NotificationData = Record<string, string | number | object>;
+
+interface LocalNotificationInput {
+  title: string;
+  message: string;
+  type?: string;
+  data?: NotificationData;
+}
 
 class NotificationService {
+  private initialized = false;
+
   constructor() {
-    this.configure();
+    void this.configure();
   }
 
-  private configure() {
-    PushNotification.configure({
-      onRegister: function (token) {
-        console.log('Push Notification Token:', token);
-        // Send token to server
-        this.registerTokenWithServer(token.token);
-      }.bind(this),
-
-      onNotification: function (notification) {
-        console.log('Notification Received:', notification);
-
-        // Handle notification based on type
-        const { type, data } = notification.data;
-
-        switch (type) {
-          case 'library_update':
-            this.handleLibraryUpdate(data);
-            break;
-          case 'new_content':
-            this.handleNewContent(data);
-            break;
-          case 'sync_complete':
-            this.handleSyncComplete(data);
-            break;
-          default:
-            console.log('Unknown notification type:', type);
-        }
-      }.bind(this),
-
-      onAction: function (notification) {
-        console.log('Notification Action:', notification.action);
-        // Handle notification action
-      },
-
-      permissions: {
-        alert: true,
-        badge: true,
-        sound: true,
-      },
-
-      popInitialNotification: true,
-      requestPermissions: Platform.OS === 'ios',
-    });
-
-    // Create notification channel for Android
-    if (Platform.OS === 'android') {
-      PushNotification.createChannel(
-        {
-          channelId: 'phlix-general',
-          channelName: 'General',
-          channelDescription: 'General notifications',
-          importance: Importance.HIGH,
-          vibrate: true,
-        },
-        (created) => console.log(`Channel created: ${created}`)
-      );
-
-      PushNotification.createChannel(
-        {
-          channelId: 'phlix-playback',
-          channelName: 'Playback',
-          channelDescription: 'Media playback notifications',
-          importance: Importance.LOW,
-          playSound: false,
-          vibrate: false,
-        },
-        (created) => console.log(`Playback channel created: ${created}`)
-      );
+  /**
+   * Request permission, create the Android channels and wire the foreground
+   * event handler. Safe to call more than once (guarded).
+   */
+  private async configure(): Promise<void> {
+    if (this.initialized) {
+      return;
     }
-  }
+    this.initialized = true;
 
-  private async registerTokenWithServer(token: string): Promise<void> {
     try {
-      await apiClient.post('/users/push-token', { token });
+      await notifee.requestPermission();
+
+      if (Platform.OS === 'android') {
+        await notifee.createChannel({
+          id: GENERAL_CHANNEL_ID,
+          name: 'General',
+          description: 'General notifications',
+          importance: AndroidImportance.HIGH,
+          vibration: true,
+        });
+
+        await notifee.createChannel({
+          id: PLAYBACK_CHANNEL_ID,
+          name: 'Playback',
+          description: 'Media playback notifications',
+          importance: AndroidImportance.LOW,
+          vibration: false,
+        });
+      }
+
+      notifee.onForegroundEvent(this.handleForegroundEvent);
     } catch (error) {
-      console.error('Failed to register push token:', error);
+      console.error('Failed to configure notifications:', error);
     }
   }
+
+  private handleForegroundEvent = ({ type, detail }: Event): void => {
+    if (type !== EventType.PRESS) {
+      return;
+    }
+
+    const data: NotificationData = detail.notification?.data ?? {};
+    const notificationType =
+      typeof data.type === 'string' ? data.type : undefined;
+
+    switch (notificationType) {
+      case 'library_update':
+        this.handleLibraryUpdate(data);
+        break;
+      case 'new_content':
+        this.handleNewContent(data);
+        break;
+      case 'sync_complete':
+        this.handleSyncComplete(data);
+        break;
+      default:
+        console.log('Unknown notification type:', notificationType);
+    }
+  };
 
   // Request notification permissions
   async requestPermissions(): Promise<boolean> {
-    return new Promise((resolve) => {
-      PushNotification.requestPermissions().then((permissions) => {
-        resolve(permissions.alert);
-      });
-    });
+    try {
+      const settings = await notifee.requestPermission();
+      // authorizationStatus >= 1 (AUTHORIZED / PROVISIONAL) means granted.
+      return settings.authorizationStatus >= 1;
+    } catch (error) {
+      console.error('Failed to request notification permissions:', error);
+      return false;
+    }
   }
 
   // Local notification
-  showLocalNotification(notification: {
-    title: string;
-    message: string;
-    type?: string;
-    data?: any;
-  }) {
-    PushNotification.localNotification({
+  showLocalNotification(notification: LocalNotificationInput): void {
+    void notifee.displayNotification({
       title: notification.title,
-      message: notification.message,
-      userInfo: {
-        type: notification.type,
-        ...notification.data,
+      body: notification.message,
+      data: {
+        ...(notification.type ? { type: notification.type } : {}),
+        ...(notification.data ?? {}),
       },
-      channelId: 'phlix-general',
-      importance: 'high',
-      priority: 'high',
+      android: {
+        channelId: GENERAL_CHANNEL_ID,
+        importance: AndroidImportance.HIGH,
+      },
     });
   }
 
   // Playback notification (Android)
-  showPlaybackNotification(title: string, isPlaying: boolean) {
-    PushNotification.localNotification({
-      title: title,
-      message: isPlaying ? 'Now Playing' : 'Paused',
-      channelId: 'phlix-playback',
-      importance: 'low',
-      priority: 'low',
-      ongoing: true,
-      autoCancel: false,
-      playSound: false,
-      vibrate: false,
+  showPlaybackNotification(title: string, isPlaying: boolean): void {
+    void notifee.displayNotification({
+      id: PLAYBACK_NOTIFICATION_ID,
+      title,
+      body: isPlaying ? 'Now Playing' : 'Paused',
+      android: {
+        channelId: PLAYBACK_CHANNEL_ID,
+        importance: AndroidImportance.LOW,
+        ongoing: true,
+        autoCancel: false,
+      },
     });
   }
 
   // Cancel playback notification
-  cancelPlaybackNotification() {
-    PushNotification.cancelLocalNotification('phlix-playback');
+  cancelPlaybackNotification(): void {
+    void notifee.cancelNotification(PLAYBACK_NOTIFICATION_ID);
   }
 
   // Handle library update notification
-  private handleLibraryUpdate(data: any): void {
+  private handleLibraryUpdate(data: NotificationData): void {
     // Navigate to library or refresh content
     console.log('Library updated:', data);
   }
 
   // Handle new content notification
-  private handleNewContent(data: any): void {
+  private handleNewContent(data: NotificationData): void {
     // Navigate to new content
     console.log('New content available:', data);
   }
 
   // Handle sync complete notification
-  private handleSyncComplete(data: any): void {
+  private handleSyncComplete(data: NotificationData): void {
     console.log('Sync complete:', data);
   }
 
   // Badges
-  setBadgeCount(count: number) {
-    PushNotification.setApplicationIconBadgeNumber(count);
+  setBadgeCount(count: number): void {
+    void notifee.setBadgeCount(count);
   }
 
   // Cancel all notifications
-  cancelAll() {
-    PushNotification.cancelAllLocalNotifications();
+  cancelAll(): void {
+    void notifee.cancelAllNotifications();
   }
 }
 

@@ -2,6 +2,29 @@
 // Jest setup file
 import 'react-native-gesture-handler/jestSetup';
 
+// reanimated 4 ships a jest mock at the package root (`react-native-reanimated/mock`).
+jest.mock('react-native-reanimated', () =>
+  require('react-native-reanimated/mock')
+);
+
+// @notifee/react-native has no JS-only binding under jest — stub the full surface
+// used by NotificationService.
+jest.mock('@notifee/react-native', () => ({
+  __esModule: true,
+  default: {
+    createChannel: jest.fn().mockResolvedValue('id'),
+    displayNotification: jest.fn().mockResolvedValue(undefined),
+    cancelNotification: jest.fn(),
+    cancelAllNotifications: jest.fn(),
+    requestPermission: jest.fn().mockResolvedValue({}),
+    onForegroundEvent: jest.fn(() => () => {}),
+    onBackgroundEvent: jest.fn(),
+    setBadgeCount: jest.fn().mockResolvedValue(undefined),
+  },
+  AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
+  EventType: { PRESS: 1, DISMISSED: 0 },
+}));
+
 // Silence the warning: Animated: `useNativeDriver` is not supported
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
