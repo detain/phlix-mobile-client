@@ -28,9 +28,10 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
 }) => {
   const renderItem = ({ item }: { item: MediaItem }) => {
     const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
-    const progress = item.user_data?.resume_position_ticks
-      ? (item.user_data.resume_position_ticks / (item.run_time_ticks || 1)) * 100
-      : 0;
+    // Server `GET /users/me/continue-watching` provides `progress_percent`
+    // (0-100) directly. Do NOT fall back to `resume_position_ticks` — that's raw
+    // 100ns ticks, not a percentage.
+    const progress = item.progress_percent ?? 0;
 
     return (
       <TouchableOpacity

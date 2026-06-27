@@ -134,15 +134,22 @@ class DownloadService {
     store.updateTaskStatus(taskId, 'downloading');
 
     try {
-      const streamInfo = await playbackManager.getStreamUrl(task.itemId, { quality: task.quality });
+      // E2: getStreamUrl resolves the signed direct-play URL from media detail.
+      // The total size is not known up front (no transcode probe here) — pass 0
+      // and let the native downloader report the real size as it streams.
+      // TODO(E3): use the transcode probe / Content-Length for an accurate total.
+      const streamUrl = await playbackManager.getStreamUrl(task.itemId);
+      if (!streamUrl) {
+        throw new Error('No downloadable stream available for this item');
+      }
       const localPath = this.getLocalPath(task.item);
-      store.updateTaskProgress(taskId, task.resumeOffset ?? 0, streamInfo.size);
+      store.updateTaskProgress(taskId, task.resumeOffset ?? 0, 0);
 
       const PhlixDownloader = NativeModules.PhlixDownloader;
       if (PhlixDownloader?.startDownload) {
-        PhlixDownloader.startDownload(taskId, streamInfo.url, localPath, task.resumeOffset ?? 0, streamInfo.size);
+        PhlixDownloader.startDownload(taskId, streamUrl, localPath, task.resumeOffset ?? 0, 0);
       } else {
-        this.downloadSimulated(taskId, streamInfo.size);
+        this.downloadSimulated(taskId, 0);
       }
     } catch (err) {
       store.updateTaskStatus(taskId, 'failed', err instanceof Error ? err.message : 'Failed to start download');

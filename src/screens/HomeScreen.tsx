@@ -12,6 +12,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { libraryManager } from '../api/LibraryManager';
+import { userManager } from '../api/UserManager';
 import { MediaItem } from '../types/media';
 import { useAuthStore } from '../stores/useAuthStore';
 import { SafeContainer } from '../components/layout';
@@ -48,7 +49,7 @@ const HomeScreen: React.FC = () => {
       setError(null);
       const [recent, continueList, libs] = await Promise.all([
         libraryManager.getRecentlyAdded(20).catch(() => []),
-        user ? libraryManager.getContinueWatching(user.id).catch(() => []) : Promise.resolve([]),
+        user ? userManager.getContinueWatching().catch(() => []) : Promise.resolve([]),
         libraryManager.getLibraries().catch(() => []),
       ]);
 
@@ -91,11 +92,12 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleContinueWatchingPress = (item: MediaItem) => {
+    // position_ticks (continue-watching) and resume_position_ticks are 100ns
+    // ticks → divide by 10_000_000 for the player's start position (seconds).
+    const resumeTicks = item.position_ticks ?? item.user_data?.resume_position_ticks ?? 0;
     navigation.navigate('Player', {
       itemId: item.id,
-      startPosition: item.user_data?.resume_position_ticks
-        ? item.user_data.resume_position_ticks / 10000000
-        : 0,
+      startPosition: resumeTicks / 10000000,
     });
   };
 

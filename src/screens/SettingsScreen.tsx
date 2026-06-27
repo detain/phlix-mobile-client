@@ -19,7 +19,6 @@ import ServerSwitcher from '../components/ServerSwitcher';
 
 const SettingsScreen: React.FC = () => {
   const user = useAuthStore((state) => state.user);
-  const server = useAuthStore((state) => state.server);
   const logout = useAuthStore((state) => state.logout);
 
   const {
@@ -33,6 +32,8 @@ const SettingsScreen: React.FC = () => {
     setEnableNotifications,
     enableBiometricAuth,
     setEnableBiometricAuth,
+    serverUrl,
+    serverName,
   } = useSettingsStore();
 
   // Hub state
@@ -338,19 +339,18 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Server Section */}
-        {server && (
+        {/* Server Section — connection target (an input, persisted in settings) */}
+        {serverUrl ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Server</Text>
             <View style={styles.card}>
               <View style={styles.serverInfo}>
-                <Text style={styles.serverName}>{server.name}</Text>
-                <Text style={styles.serverUrl}>{server.url}</Text>
-                <Text style={styles.serverVersion}>Version {server.version}</Text>
+                <Text style={styles.serverName}>{serverName || 'Phlix Server'}</Text>
+                <Text style={styles.serverUrl}>{serverUrl}</Text>
               </View>
             </View>
           </View>
-        )}
+        ) : null}
 
         {/* Logout Button */}
         <View style={styles.section}>

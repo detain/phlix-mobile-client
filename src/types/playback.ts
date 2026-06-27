@@ -1,4 +1,9 @@
 // src/types/playback.ts
+//
+// NOTE on units: `position_ticks` / `duration_ticks` are 100ns TICKS (the server
+// session-progress contract). Media `runtime` (see `src/types/media.ts`) is in
+// SECONDS — do not conflate the two.
+
 export interface StreamInfo {
   url: string;
   /**
@@ -33,53 +38,12 @@ export interface AudioTrack {
   url?: string;
 }
 
-export interface DeviceProfile {
-  name: string;
-  platform: 'ios' | 'android';
-  version: string;
-  capabilities: {
-    video_codecs: string[];
-    audio_codecs: string[];
-    max_resolution: number;
-    max_bitrate: number;
-    supports_4k: boolean;
-    supports_hdr: boolean;
-    supports_dolby_vision: boolean;
-    supports_dolby_atmos: boolean;
-    supports_dts: boolean;
-  };
-}
-
-/** Skip marker boundaries returned from /api/v1/media/{id}/playback */
+/** Skip marker boundaries — TODO(E3): populated from /api/v1/media/{id}/playback-info. */
 export interface SkipMarkers {
   skip_intro_start: number | null;
   skip_intro_end: number | null;
   skip_outro_start: number | null;
   skip_outro_end: number | null;
-}
-
-export interface PlaybackInfo {
-  media_source: MediaSource;
-  play_session_id: string;
-  stream_info: StreamInfo;
-  subtitle_tracks: SubtitleTrack[];
-  audio_tracks: AudioTrack[];
-  markers?: SkipMarkers;
-}
-
-export interface MediaSource {
-  id: string;
-  protocol: 'hls' | 'http';
-  container: string;
-  size: number;
-  bitrate: number;
-}
-
-export interface PlaybackProgress {
-  position_ticks: number;
-  duration_ticks: number;
-  is_paused: boolean;
-  volume_level: number;
 }
 
 export interface PlaybackSession {

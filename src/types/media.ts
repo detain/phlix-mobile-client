@@ -1,24 +1,69 @@
 // src/types/media.ts
 //
-// DIVERGENCE (reconcile in E2): these local types are kept AS-IS in E1. mobile's
-// `MediaItem.type` / `Library.type` use `'music' | 'photo'`, while the shared
-// `@phlix/contracts` `MediaType` uses `'audio' | 'image'` (plus
-// `season | episode`). A blind `export * from '@phlix/contracts'` here would
-// break every `=== 'music'` / `=== 'photo'` comparison in the app, so the full
-// MediaType/MediaItem consolidation is deferred to E2 (done with the API rewrite
-// and verified against a live server). See `src/types/contracts.ts` for the
-// safe, non-divergent contracts surface adopted in E1.
+// Reconciled to the SERVER's ground-truth media shape in E2 (the API-correctness
+// slice). Field names + units come from `phlix-server` `GET /api/v1/media/{id}`:
+//   - `rating` is a STRING (was `official_rating`)
+//   - `runtime` is in MINUTES (TMDB metadata; was `run_time_ticks` — ticks).
+//     The precise media length in SECONDS is the separate `duration` field.
+//   - the server returns `type: movie | series | season | episode` for video;
+//     mobile keeps a permissive superset (adds music | photo | audio | image)
+//     so existing `=== 'music'` / `=== 'photo'` checks still compile.
+//
+// NOTE on units: media `runtime` is MINUTES and `duration` is SECONDS, but
+// PLAYBACK progress (`position_ticks` / `duration_ticks` in continue-watching +
+// session progress) is in 100ns TICKS. Do not conflate them — see
+// `src/types/playback.ts`.
+
+/** Server video types are movie|series|season|episode; music/photo are library kinds. */
+export type MediaType =
+  | 'movie'
+  | 'series'
+  | 'season'
+  | 'episode'
+  | 'music'
+  | 'photo'
+  | 'audio'
+  | 'image';
+
+export interface MediaStream {
+  stream_index: number;
+  stream_type: string;
+  codec: string;
+}
+
 export interface MediaItem {
   id: string;
   name: string;
-  type: 'movie' | 'series' | 'music' | 'photo';
+  type: MediaType;
   overview?: string;
   poster_url?: string;
   backdrop_url?: string;
   year?: number;
-  official_rating?: string;
-  run_time_ticks?: number;
+  /** Content rating label, e.g. "PG-13" (server `rating`, a string). */
+  rating?: string;
+  /** Runtime in MINUTES (server `runtime`, TMDB metadata). */
+  runtime?: number;
+  /** Precise media length in SECONDS (server `duration`); player scrubber length. */
+  duration?: number;
   genres?: string[];
+  director?: string;
+  actors?: string[];
+  // Hierarchy (series → season → episode). Episode.parent_id is the SEASON id.
+  parent_id?: string | null;
+  season_number?: number;
+  episode_number?: number;
+  episode_title?: string;
+  // Present on detail (`GET /media/{id}`) responses.
+  streams?: MediaStream[];
+  /** Signed direct-play URL minted by the server on the detail payload. */
+  stream_url?: string;
+  // Present on `GET /users/me/continue-watching` items (resume info).
+  /** 0–100 watched percentage (continue-watching). */
+  progress_percent?: number;
+  /** Resume position in 100ns TICKS (continue-watching). */
+  position_ticks?: number;
+  /** ISO timestamp from `GET /users/me/recently-watched`. */
+  watched_at?: string;
   user_data?: UserData;
 }
 
@@ -35,27 +80,24 @@ export interface Series extends MediaItem {
   series_name?: string;
 }
 
-export interface Season {
-  id: string;
-  series_id: string;
-  name: string;
-  overview?: string;
-  poster_url?: string;
-  season_number: number;
-  episode_count: number;
+/**
+ * A season is a media item with `parent_id = seriesId` and `season_number` set
+ * (server `GET /media?parentId={seriesId}`). Modeled as a MediaItem rather than
+ * a bespoke shape so the children endpoint can return it directly.
+ */
+export interface Season extends MediaItem {
+  type: 'season';
+  season_number?: number;
 }
 
-export interface Episode {
-  id: string;
-  season_id: string;
-  series_id: string;
-  name: string;
-  overview?: string;
-  poster_url?: string;
-  episode_number: number;
-  season_number: number;
-  run_time_ticks?: number;
-  user_data?: UserData;
+/**
+ * An episode is a media item with `parent_id = seasonId` (NOT seriesId) and
+ * `season_number` + `episode_number` set (`GET /media?parentId={seasonId}`).
+ */
+export interface Episode extends MediaItem {
+  type: 'episode';
+  episode_number?: number;
+  season_number?: number;
 }
 
 export interface Movie extends MediaItem {
@@ -65,10 +107,8 @@ export interface Movie extends MediaItem {
 export interface Library {
   id: string;
   name: string;
-  type: 'movie' | 'series' | 'music' | 'photo';
-  display_order: number;
-  artwork: {
-    poster: string;
-    backdrop: string;
-  };
+  /** Server library kind. */
+  type: 'video' | 'audio' | 'image' | 'movie' | 'series' | 'music' | 'photo';
+  item_count?: number;
+  paths?: string[];
 }
