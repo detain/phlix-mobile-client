@@ -27,17 +27,19 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 
 **Entry**: `index.js` → `src/App.tsx` (wraps `GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
 
-**`src/api/`** (axios + manager singletons): `client.ts` (`BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth interceptor, 401 refresh) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `index.ts` re-exports.
+**`src/api/`** (axios + manager singletons): `client.ts` (`BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth interceptor, 401 refresh) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `ProfileManager.ts` (multi-user profiles; **admin-gated** `/admin/users/{userId}/profiles` + `/admin/profiles/{id}` + `/admin/profiles/{id}/pin`, bare envelopes) · `index.ts` re-exports.
 
-**`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts` re-exports. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
+**`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `useProfileStore.ts` (profiles list + active profile; persists active id to `phlix_active_profile_id`) · `index.ts` re-exports. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
-**`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. All `default export`, wrapped in `<SafeContainer>`, use `useNavigation<NativeStackNavigationProp<any>>()`.
+**`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx` · `ProfileSelectScreen.tsx` (admin-only profile manager; reached via Settings → Profiles, registered in the root stack — NOT the tab bar). All `default export`, wrapped in `<SafeContainer>`, use `useNavigation<NativeStackNavigationProp<any>>()`.
+
+> **Profiles upstream gap:** server has no user-facing `/users/me/profiles` route — only the admin-gated routes above. Mobile profile management is admin-scoped (non-admins see an informational state). Add a user-facing route upstream for true multi-user mobile.
 
 **`src/components/`**: `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar}.tsx` · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has `index.ts` named re-exports.
 
 **`src/navigation/RootNavigator.tsx`**: `NavigationContainer` → root `Stack` (`Login` | `Main`+`Player`) → `Tab` (`Home` · `Library` · `Search` · `Downloads` · `Settings`). Player presented as `fullScreenModal`. Auth gate reads `useAuthStore`.
 
-**`src/types/`**: `media.ts` (`MediaItem`, `Library`, `Series`, `Season`, `Episode`, `UserData`) · `navigation.ts` (`RootStackParamList`, `TabParamList`, screen prop types) · `playback.ts` (`StreamInfo`, `DeviceProfile`, `SubtitleTrack`, `AudioTrack`, `PlaybackSession`).
+**`src/types/`**: `media.ts` (`MediaItem`, `Library`, `Series`, `Season`, `Episode`, `UserData`) · `navigation.ts` (`RootStackParamList` incl. `Profiles`, `TabParamList`, screen prop types) · `playback.ts` (`StreamInfo`, `DeviceProfile`, `SubtitleTrack`, `AudioTrack`, `PlaybackSession`) · `profile.ts` (`Profile`, `ProfileSettings`, `ContentRatingLabel`; `ratingToLabel`/`labelToRating` int↔label helpers — 0=G…6=UNRATED).
 
 **`src/services/`**: `SecureStorage.ts` (`react-native-keychain`, service `com.phlix.mobile`) · `DownloadService.ts` · `NotificationService.ts` · `index.ts`.
 

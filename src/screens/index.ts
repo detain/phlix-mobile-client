@@ -7,3 +7,4 @@ export { default as SearchScreen } from './SearchScreen';
 export { default as SettingsScreen } from './SettingsScreen';
 export { default as LoginScreen } from './LoginScreen';
 export { default as DownloadsScreen } from './DownloadsScreen';
+export { default as ProfileSelectScreen } from './ProfileSelectScreen';

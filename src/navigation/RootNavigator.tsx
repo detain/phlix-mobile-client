@@ -15,6 +15,7 @@ import {
   SettingsScreen,
   DownloadsScreen,
   LoginScreen,
+  ProfileSelectScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -145,6 +146,16 @@ const RootNavigator = () => {
         ) : (
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
+            <Stack.Screen
+              name="Profiles"
+              component={ProfileSelectScreen}
+              options={{
+                headerShown: true,
+                title: 'Profiles',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
             <Stack.Screen
               name="Player"
               component={PlayerScreen}
