@@ -11,6 +11,8 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeContainer } from '../components/layout';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -18,6 +20,7 @@ import { useHubStore } from '../store/hubStore';
 import ServerSwitcher from '../components/ServerSwitcher';
 
 const SettingsScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
@@ -150,6 +153,20 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.username}>@{user?.username || 'unknown'}</Text>
               </View>
             </View>
+          </View>
+        </View>
+
+        {/* Profiles Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Profiles</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('Profiles')}
+            >
+              <Text style={styles.settingLabel}>Switch Profile</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
