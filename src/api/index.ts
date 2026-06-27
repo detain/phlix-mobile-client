@@ -15,6 +15,13 @@ export {
 export { default as userManager, type UserSettings } from './UserManager';
 export { default as profileManager } from './ProfileManager';
 export {
+  default as adminManager,
+  type CreateUserResult,
+  type ResetPasswordResult,
+  type CreateLibraryResult,
+  type JobTriggerResult,
+} from './AdminManager';
+export {
   default as playbackManager,
   type CreateSessionParams,
   type ReportProgressParams,

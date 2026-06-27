@@ -170,6 +170,22 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Admin Section — only for server administrators */}
+        {user?.is_admin ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Admin</Text>
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminDashboard')}
+              >
+                <Text style={styles.settingLabel}>Dashboard</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
+
         {/* Hub Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Hub</Text>

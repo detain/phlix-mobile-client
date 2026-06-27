@@ -31,6 +31,7 @@ Phlix Mobile is a React Native application designed to interface with media serv
 - **Continue Watching**: Resume playback from where you left off
 - **Downloads**: Download media for offline playback
 - **Multi-user Profiles**: Manage per-user profiles (name, max content rating, optional PIN gate) and switch the active profile from Settings → Profiles
+- **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section). User and library management screens land in a follow-up slice.
 
 > **Upstream gap:** the server exposes profile management only on admin-gated routes (`/api/v1/admin/users/{userId}/profiles`, `/api/v1/admin/profiles/{id}`); there is no user-facing `/api/v1/users/me/profiles` route yet. Mobile profile management is therefore **admin-scoped** — non-admin accounts see an informational state. A user-facing route should be added upstream for true multi-user mobile profiles.
 
