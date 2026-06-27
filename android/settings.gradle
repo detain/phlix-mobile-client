@@ -4,7 +4,10 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    includeBuild("../node_modules/@react-native/gradle-plugin")
 }
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex -> ex.autolinkLibrariesFromCommand() }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
@@ -12,8 +15,17 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
+        // notifee ships its Android lib (app.notifee:core) in a local maven dir
+        // inside node_modules; it normally adds this repo at the project level,
+        // but PREFER_SETTINGS ignores project repos, so declare it here.
+        maven { url "$rootDir/../node_modules/@notifee/react-native/android/libs" }
     }
 }
 
 rootProject.name = 'PhlixMobile'
 include ':app'
+// Top-level includeBuild (in ADDITION to the pluginManagement one) — this is what
+// supplies the unversioned buildscript classpath deps (AGP, kotlin, RN gradle
+// plugin) in android/build.gradle via composite-build substitution. Matches the
+// RN 0.85.3 community template, which includeBuilds the plugin in both places.
+includeBuild('../node_modules/@react-native/gradle-plugin')

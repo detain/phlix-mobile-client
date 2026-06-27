@@ -50,7 +50,7 @@ interface NativePhlixPlayerProps {
 let PhlixPlayerView: React.ComponentType<NativePhlixPlayerProps> | null = null;
 try {
   PhlixPlayerView = requireNativeComponent('PhlixPlayerView');
-} catch (e) {
+} catch {
   console.warn('PhlixPlayerView native module not available, using placeholder');
 }
 

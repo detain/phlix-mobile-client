@@ -1,11 +1,19 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.facebook.react'
 
 // react-native-config: load .env file for build-time config variables
 apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
 
+react {
+    // Autolinking: link all React Native native modules into the app.
+    autolinkLibrariesWithApp()
+}
+
 android {
     namespace 'com.phlixmobile'
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
     buildFeatures {
@@ -70,8 +78,9 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 
-    // React Native
-    implementation 'com.facebook.react:react-android:0.85.3'
+    // React Native (versions injected by the React Native Gradle Plugin)
+    implementation("com.facebook.react:react-android")
+    implementation("com.facebook.react:hermes-android")
 
     // Navigation
     implementation 'androidx.navigation:navigation-fragment-ktx:2.7.7'
@@ -89,8 +98,4 @@ dependencies {
     // ExoPlayer2
     implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
     implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
-}
-
-def isNewArchitectureEnabled() {
-    return project.hasProperty("newArchEnabled") && project.newArchEnabled == "true"
 }

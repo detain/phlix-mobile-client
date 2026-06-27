@@ -35,7 +35,7 @@ jobs:
           xcodebuild -workspace ios/PhlixMobile.xcworkspace \
             -scheme PhlixMobile \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath ios/build \
             build CODE_SIGNING_ALLOWED=NO
 
@@ -83,7 +83,7 @@ jobs:
           xcodebuild -workspace ios/PhlixMobile.xcworkspace \
             -scheme PhlixMobile \
             -configuration Release \
-            -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath ios/build \
             build CODE_SIGNING_ALLOWED=NO
 

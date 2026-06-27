@@ -43,6 +43,7 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
 // Home Stack
 const HomeStackNavigator = () => (
   <HomeStack.Navigator
+    id={undefined}
     screenOptions={{
       headerStyle: { backgroundColor: '#1a1a2e' },
       headerTintColor: '#fff',
@@ -65,6 +66,7 @@ const HomeStackNavigator = () => (
 // Library Stack
 const LibraryStackNavigator = () => (
   <LibraryStack.Navigator
+    id={undefined}
     screenOptions={{
       headerStyle: { backgroundColor: '#1a1a2e' },
       headerTintColor: '#fff',
@@ -86,6 +88,7 @@ const LibraryStackNavigator = () => (
 // Tab Navigator
 const TabNavigator = () => (
   <Tab.Navigator
+    id={undefined}
     screenOptions={({ route }) => ({
       headerShown: false,
       tabBarStyle: {
@@ -136,7 +139,7 @@ const RootNavigator = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Login" component={LoginScreen} />
         ) : (
