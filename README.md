@@ -31,7 +31,9 @@ Phlix Mobile is a React Native application designed to interface with media serv
 - **Continue Watching**: Resume playback from where you left off
 - **Downloads**: Download media for offline playback
 - **Multi-user Profiles**: Manage per-user profiles (name, max content rating, optional PIN gate) and switch the active profile from Settings → Profiles
-- **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section). User and library management screens land in a follow-up slice.
+- **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section).
+- **Admin Users**: Settings → Admin → Users lets administrators list accounts (filter by all/pending/active/disabled), approve/reject pending sign-ups, disable accounts, grant/revoke admin, reset a password (the freshly generated password is shown once), create and edit users, and delete accounts (the server's self / last-admin guard message is surfaced).
+- **Admin Libraries**: Settings → Admin → Libraries lets administrators add/edit/delete libraries (name, type, paths, `series_per_directory` for series), trigger Scan / Rescan / Match-metadata jobs with live progress (polled status, current path, percent), and review per-library scan history.
 
 > **Upstream gap:** the server exposes profile management only on admin-gated routes (`/api/v1/admin/users/{userId}/profiles`, `/api/v1/admin/profiles/{id}`); there is no user-facing `/api/v1/users/me/profiles` route yet. Mobile profile management is therefore **admin-scoped** — non-admin accounts see an informational state. A user-facing route should be added upstream for true multi-user mobile profiles.
 

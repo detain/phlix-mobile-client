@@ -111,4 +111,7 @@ export interface Library {
   type: 'video' | 'audio' | 'image' | 'movie' | 'series' | 'music' | 'photo';
   item_count?: number;
   paths?: string[];
+  /** Series libraries: one directory per series. May arrive top-level or under options. */
+  series_per_directory?: boolean;
+  options?: { series_per_directory?: boolean } & Record<string, unknown>;
 }
