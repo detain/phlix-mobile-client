@@ -55,6 +55,11 @@ export {
   type SlideshowResponse,
 } from './PhotoManager';
 export {
+  default as collectionManager,
+  type CollectionWithItems,
+  type BulkAddResult,
+} from './CollectionManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
