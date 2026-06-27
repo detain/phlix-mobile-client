@@ -8,4 +8,5 @@ export { useAdminStore } from './useAdminStore';
 export { useCastStore } from './useCastStore';
 export { useLiveTvStore } from './useLiveTvStore';
 export { useMusicStore } from './useMusicStore';
+export { usePhotoStore } from './usePhotoStore';
 export { useSyncplayStore } from '../store/syncplayStore';

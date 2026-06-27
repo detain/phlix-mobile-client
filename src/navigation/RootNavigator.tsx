@@ -24,6 +24,9 @@ import {
   LiveTvRecordingsScreen,
   MusicScreen,
   MusicAlbumScreen,
+  PhotosScreen,
+  PhotoAlbumScreen,
+  PhotoViewerScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -232,6 +235,36 @@ const RootNavigator = () => {
                 title: 'Album',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="Photos"
+              component={PhotosScreen}
+              options={{
+                headerShown: true,
+                title: 'Photos',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="PhotoAlbum"
+              component={PhotoAlbumScreen}
+              options={({ route }) => ({
+                headerShown: true,
+                title: route.params?.title ?? 'Album',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              })}
+            />
+            <Stack.Screen
+              name="PhotoViewer"
+              component={PhotoViewerScreen}
+              options={{
+                headerShown: false,
+                presentation: 'fullScreenModal',
+                animation: 'fade',
+                contentStyle: { backgroundColor: '#000' },
               }}
             />
             <Stack.Screen
