@@ -42,6 +42,10 @@ export {
   type CastMediaInput,
 } from './CastManager';
 export {
+  default as liveTvManager,
+  isNotConfiguredError,
+} from './LiveTvManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,

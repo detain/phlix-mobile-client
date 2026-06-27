@@ -20,6 +20,8 @@ import {
   AdminUsersScreen,
   AdminLibrariesScreen,
   CastScreen,
+  LiveTvScreen,
+  LiveTvRecordingsScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -186,6 +188,26 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Libraries',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="LiveTv"
+              component={LiveTvScreen}
+              options={{
+                headerShown: true,
+                title: 'Live TV',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="LiveTvRecordings"
+              component={LiveTvRecordingsScreen}
+              options={{
+                headerShown: true,
+                title: 'Recordings',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

@@ -36,6 +36,32 @@ const getServerRoot = (): string => {
 /** Effective axios base URL including the `/api/v1` prefix. */
 const getBaseUrl = (): string => `${getServerRoot()}${API_PREFIX}`;
 
+/**
+ * Public helpers for callers that must issue a RAW (non-axios) request — e.g.
+ * the Live TV stream-redirect resolve in `LiveTvManager.getChannelStreamUrl`,
+ * which needs `fetch(absoluteUrl, { redirect: 'manual' })` to read the
+ * `location` header (axios silently follows redirects). These mirror the URL +
+ * header construction the axios interceptor performs on every request.
+ */
+
+/** Absolute API base URL (server root + `/api/v1`). */
+export const getApiBaseUrl = (): string => getBaseUrl();
+
+/**
+ * Build the same Phlix device + auth headers the axios interceptor attaches,
+ * for a manual `fetch`. Reads the access token from AsyncStorage.
+ */
+export const buildRequestHeaders = async (): Promise<Record<string, string>> => {
+  const token = await AsyncStorage.getItem('access_token');
+  return buildPhlixHeaders({
+    deviceId: getCachedDeviceId(),
+    deviceName: getDeviceName(),
+    deviceType: DEVICE_TYPE,
+    sessionId: activeSessionId,
+    token: token ?? undefined,
+  });
+};
+
 // `X-Phlix-Device-Type` value — server maps android|ios → mobile-high profile.
 const DEVICE_TYPE: DeviceType = Platform.OS === 'ios' ? 'ios' : 'android';
 

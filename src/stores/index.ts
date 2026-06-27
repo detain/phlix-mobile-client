@@ -6,4 +6,5 @@ export { useSettingsStore } from './useSettingsStore';
 export { useProfileStore } from './useProfileStore';
 export { useAdminStore } from './useAdminStore';
 export { useCastStore } from './useCastStore';
+export { useLiveTvStore } from './useLiveTvStore';
 export { useSyncplayStore } from '../store/syncplayStore';
