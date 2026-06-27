@@ -1,5 +1,11 @@
 # Phlix Mobile
 
+[![CI](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml/badge.svg)](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml)
+[![Version](https://img.shields.io/github/v/tag/detain/phlix-mobile-client?label=version&sort=semver)](https://github.com/detain/phlix-mobile-client/tags)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![React Native](https://img.shields.io/badge/React%20Native-0.76-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
+[![Node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+
 A cross-platform mobile application for media playback, built with React Native. Phlix connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
 
 ## Project Overview

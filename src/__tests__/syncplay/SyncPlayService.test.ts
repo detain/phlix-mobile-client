@@ -30,14 +30,16 @@ class MockWebSocket {
   onerror: ((event: unknown) => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
 
-  constructor(_url: string) {
+  constructor(url: string) {
     MockWebSocket.instance = this;
+    MockWebSocket.lastUrl = url;
   }
 
   send = jest.fn();
   close = jest.fn();
 
   static instance: MockWebSocket | null = null;
+  static lastUrl: string | null = null;
 
   static simulateOpen(): void {
     MockWebSocket.instance!.readyState = MockWebSocket.OPEN;
@@ -55,8 +57,18 @@ class MockWebSocket {
 
   static reset(): void {
     MockWebSocket.instance = null;
+    MockWebSocket.lastUrl = null;
   }
 }
+
+// Find the first sent WS message matching `type`. NOTE: handleOpen() calls
+// startSyncInterval() which fires a `syncplay_time_ping` immediately on open, so
+// callers MUST NOT assume the playback command is `send.mock.calls[0]` — search
+// by type instead.
+const findSentMessage = (type: string): Record<string, unknown> | undefined =>
+  MockWebSocket.instance?.send.mock.calls
+    .map((call) => JSON.parse(call[0] as string) as Record<string, unknown>)
+    .find((msg) => msg.type === type);
 
 // ---------------------------------------------------------------------------
 // Test setup
@@ -79,7 +91,7 @@ const setupMocks = () => {
     activeServerId: null,
     isLoading: false,
     error: null,
-  }));
+  })) as unknown as typeof mockHubStore.getState;
 
   mockSyncplayStore.getState = jest.fn(() => ({
     currentGroup: null,
@@ -102,20 +114,25 @@ const setupMocks = () => {
     addMember: jest.fn(),
     removeMember: jest.fn(),
     reset: jest.fn(),
-  }));
+  })) as unknown as typeof mockSyncplayStore.getState;
   mockSyncplayStore.setState = jest.fn();
 };
 
-// Mock global WebSocket before tests run
+// Mock global WebSocket before tests run.
+//
+// SyncPlayService.send() gates on `this.ws?.readyState === WebSocket.OPEN`, so
+// the global shim MUST carry the same readyState constants as MockWebSocket
+// (OPEN === 1). Without them `WebSocket.OPEN` is undefined and send() never
+// fires even after simulateOpen(). We point the global straight at MockWebSocket
+// (a real class with the static constants), and `new WebSocket(url)` then both
+// constructs the instance and assigns `MockWebSocket.instance`.
 beforeAll(() => {
-  (globalThis as any).WebSocket = function(url: string) {
-    return new MockWebSocket(url);
-  } as any;
+  (globalThis as unknown as { WebSocket: unknown }).WebSocket = MockWebSocket;
 });
 
 afterAll(() => {
   // Restore
-  delete (globalThis as any).WebSocket;
+  delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
 });
 
 // ---------------------------------------------------------------------------
@@ -176,7 +193,7 @@ describe('SyncPlayService - Connection', () => {
       activeServerId: null,
       isLoading: false,
       error: null,
-    }));
+    })) as unknown as typeof mockHubStore.getState;
 
     const stateChange = jest.fn();
     syncPlayService.on('onConnectionStateChange', stateChange as any);
@@ -198,13 +215,16 @@ describe('SyncPlayService - Connection', () => {
       activeServerId: null,
       isLoading: false,
       error: null,
-    }));
+    })) as unknown as typeof mockHubStore.getState;
 
     syncPlayService.connect('member-123');
 
-    // WebSocket constructor should have been called with wss://
-    expect(jest.spyOn(global, 'WebSocket')).toHaveBeenCalled();
-    expect(MockWebSocket.instance).toBeDefined();
+    // WebSocket constructor should have been called with a wss:// URL.
+    // NOTE: do NOT jest.spyOn(global, 'WebSocket') here — it replaces the global
+    // with a leaked spy that breaks `new WebSocket()` (and thus
+    // MockWebSocket.instance capture) for every subsequent test in the file.
+    expect(MockWebSocket.instance).not.toBeNull();
+    expect(MockWebSocket.lastUrl).toMatch(/^wss:\/\//);
   });
 });
 
@@ -295,7 +315,7 @@ describe('SyncPlayService - Group management', () => {
       addMember: jest.fn(),
       removeMember: jest.fn(),
       reset: jest.fn(),
-    }));
+    })) as unknown as typeof mockSyncplayStore.getState;
 
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
@@ -351,19 +371,18 @@ describe('SyncPlayService - Playback commands', () => {
       addMember: jest.fn(),
       removeMember: jest.fn(),
       reset: jest.fn(),
-    }));
+    })) as unknown as typeof mockSyncplayStore.getState;
 
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
 
     syncPlayService.sendPlay(15000);
 
-    const sent = MockWebSocket.instance?.send.mock.calls[0]?.[0] as string;
-    const msg = JSON.parse(sent);
+    const msg = findSentMessage('syncplay_playback_play');
 
-    expect(msg.type).toBe('syncplay_playback_play');
-    expect(msg.position).toBe(15000);
-    expect(msg.group_id).toBe('sp_abc123');
+    expect(msg).toBeDefined();
+    expect(msg?.position).toBe(15000);
+    expect(msg?.group_id).toBe('sp_abc123');
   });
 
   it('should not send play command when not host', () => {
@@ -397,14 +416,16 @@ describe('SyncPlayService - Playback commands', () => {
       addMember: jest.fn(),
       removeMember: jest.fn(),
       reset: jest.fn(),
-    }));
+    })) as unknown as typeof mockSyncplayStore.getState;
 
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
 
     syncPlayService.sendPlay(15000);
 
-    expect(MockWebSocket.instance?.send).not.toHaveBeenCalled();
+    // A time_ping fires on open, so send() IS called — assert specifically that
+    // no PLAY command was emitted (non-host must not drive playback).
+    expect(findSentMessage('syncplay_playback_play')).toBeUndefined();
   });
 
   it('should send pause command when host', () => {
@@ -438,18 +459,17 @@ describe('SyncPlayService - Playback commands', () => {
       addMember: jest.fn(),
       removeMember: jest.fn(),
       reset: jest.fn(),
-    }));
+    })) as unknown as typeof mockSyncplayStore.getState;
 
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
 
     syncPlayService.sendPause(20000);
 
-    const sent = MockWebSocket.instance?.send.mock.calls[0]?.[0] as string;
-    const msg = JSON.parse(sent);
+    const msg = findSentMessage('syncplay_playback_pause');
 
-    expect(msg.type).toBe('syncplay_playback_pause');
-    expect(msg.position).toBe(20000);
+    expect(msg).toBeDefined();
+    expect(msg?.position).toBe(20000);
   });
 
   it('should send seek command when host', () => {
@@ -483,19 +503,18 @@ describe('SyncPlayService - Playback commands', () => {
       addMember: jest.fn(),
       removeMember: jest.fn(),
       reset: jest.fn(),
-    }));
+    })) as unknown as typeof mockSyncplayStore.getState;
 
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
 
     syncPlayService.sendSeek(10000, 30000);
 
-    const sent = MockWebSocket.instance?.send.mock.calls[0]?.[0] as string;
-    const msg = JSON.parse(sent);
+    const msg = findSentMessage('syncplay_playback_seek');
 
-    expect(msg.type).toBe('syncplay_playback_seek');
-    expect(msg.from_position).toBe(10000);
-    expect(msg.to_position).toBe(30000);
+    expect(msg).toBeDefined();
+    expect(msg?.from_position).toBe(10000);
+    expect(msg?.to_position).toBe(30000);
   });
 });
 
@@ -644,7 +663,7 @@ describe('SyncPlayService - Error handling', () => {
       activeServerId: null,
       isLoading: false,
       error: null,
-    }));
+    })) as unknown as typeof mockHubStore.getState;
 
     const stateCallback = jest.fn();
     syncPlayService.on('onConnectionStateChange', stateCallback as any);

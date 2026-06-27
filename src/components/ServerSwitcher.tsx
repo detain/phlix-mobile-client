@@ -9,7 +9,7 @@
  * - Online/offline status indicator
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import {
   StyleSheet,
   FlatList,
 } from 'react-native';
-import { useHubStore, ConnectionMode } from '../store/hubStore';
+import { useHubStore } from '../store/hubStore';
 
 interface ServerSwitcherProps {
   visible: boolean;

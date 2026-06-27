@@ -1,4 +1,13 @@
 // src/types/media.ts
+//
+// DIVERGENCE (reconcile in E2): these local types are kept AS-IS in E1. mobile's
+// `MediaItem.type` / `Library.type` use `'music' | 'photo'`, while the shared
+// `@phlix/contracts` `MediaType` uses `'audio' | 'image'` (plus
+// `season | episode`). A blind `export * from '@phlix/contracts'` here would
+// break every `=== 'music'` / `=== 'photo'` comparison in the app, so the full
+// MediaType/MediaItem consolidation is deferred to E2 (done with the API rewrite
+// and verified against a live server). See `src/types/contracts.ts` for the
+// safe, non-divergent contracts surface adopted in E1.
 export interface MediaItem {
   id: string;
   name: string;

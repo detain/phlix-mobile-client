@@ -68,7 +68,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
     const existing = Object.values(tasks).find(
       (t) => t.itemId === item.id && t.status !== 'completed' && t.status !== 'cancelled'
     );
-    if (existing) return existing.id;
+    if (existing) {
+      return existing.id;
+    }
 
     const taskId = `dl_${item.id}_${Date.now()}`;
     const task: DownloadTask = {
@@ -91,7 +93,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   removeDownload: async (taskId: string) => {
     const { tasks } = get();
-    if (!tasks[taskId]) return;
+    if (!tasks[taskId]) {
+      return;
+    }
     set((state) => {
       const next = { ...state.tasks };
       delete next[taskId];
@@ -117,7 +121,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   cancelDownload: (taskId: string) => {
     const task = get().tasks[taskId];
-    if (task) get().updateTaskStatus(taskId, 'cancelled');
+    if (task) {
+      get().updateTaskStatus(taskId, 'cancelled');
+    }
   },
 
   retryDownload: (taskId: string) => {
@@ -158,7 +164,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   updateTaskProgress: (taskId: string, downloadedBytes: number, totalBytes: number) => {
     set((state) => {
       const task = state.tasks[taskId];
-      if (!task) return state;
+      if (!task) {
+        return state;
+      }
       const progress = totalBytes > 0 ? downloadedBytes / totalBytes : 0;
       return {
         tasks: {
@@ -172,10 +180,17 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   updateTaskStatus: (taskId: string, status: DownloadStatus, error?: string) => {
     set((state) => {
       const task = state.tasks[taskId];
-      if (!task) return state;
+      if (!task) {
+        return state;
+      }
       const updates: Partial<DownloadTask> = { status };
-      if (error !== undefined) updates.error = error;
-      if (status === 'completed') { updates.completedAt = Date.now(); updates.progress = 1; }
+      if (error !== undefined) {
+        updates.error = error;
+      }
+      if (status === 'completed') {
+        updates.completedAt = Date.now();
+        updates.progress = 1;
+      }
       return { tasks: { ...state.tasks, [taskId]: { ...task, ...updates } } };
     });
     get().persistTasks();
@@ -185,7 +200,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
   updateTaskLocalPath: (taskId: string, localPath: string) => {
     set((state) => {
       const task = state.tasks[taskId];
-      if (!task) return state;
+      if (!task) {
+        return state;
+      }
       return { tasks: { ...state.tasks, [taskId]: { ...task, localPath } } };
     });
     get().persistTasks();
@@ -197,7 +214,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         AsyncStorage.getItem(DOWNLOADS_KEY),
         AsyncStorage.getItem(STORAGE_KEY),
       ]);
-      if (data) set({ tasks: JSON.parse(data) });
+      if (data) {
+        set({ tasks: JSON.parse(data) });
+      }
       if (storageData) {
         const { totalStorageUsed = 0, availableStorage = 0 } = JSON.parse(storageData);
         set({ totalStorageUsed, availableStorage });

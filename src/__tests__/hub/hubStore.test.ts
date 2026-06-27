@@ -5,7 +5,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 jest.mock('@react-native-async-storage/async-storage');
 jest.mock('../../hub/HubAuthService');
-const mockedHubAuthService = HubAuthService as jest.Mocked<typeof HubAuthService>;
+
+// The auto-mocked singleton: its async methods are jest.fn() at runtime, but the
+// static type still describes them as plain methods. Re-type the instance so the
+// mock helpers (mockResolvedValue/mockRejectedValue) are visible to the compiler.
+const mockedHubAuthService = {
+  hubAuthService: HubAuthService.hubAuthService as jest.Mocked<
+    typeof HubAuthService.hubAuthService
+  >,
+};
 
 describe('hubStore', () => {
   const mockSession = {
