@@ -16,3 +16,6 @@ export { default as LiveTvScreen } from './LiveTvScreen';
 export { default as LiveTvRecordingsScreen } from './LiveTvRecordingsScreen';
 export { default as MusicScreen } from './MusicScreen';
 export { default as MusicAlbumScreen } from './MusicAlbumScreen';
+export { default as PhotosScreen } from './PhotosScreen';
+export { default as PhotoAlbumScreen } from './PhotoAlbumScreen';
+export { default as PhotoViewerScreen } from './PhotoViewerScreen';

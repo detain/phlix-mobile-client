@@ -52,10 +52,12 @@ const LibraryScreen: React.FC = () => {
       setError(null);
       const libs = await libraryManager.getLibraries().catch(() => []);
       setLibraries(libs);
-      // Auto-select the first BROWSABLE (non-music) library — music libs route
-      // to the dedicated Music screen on tap and have no items grid (E9a).
+      // Auto-select the first BROWSABLE library — music + photo libs route to
+      // their dedicated screens on tap and have no items grid (E9a/E9b).
       if (libs.length > 0 && !selectedLibrary) {
-        const firstBrowsable = libs.find((lib) => lib.type !== 'music');
+        const firstBrowsable = libs.find(
+          (lib) => lib.type !== 'music' && lib.type !== 'photo'
+        );
         if (firstBrowsable) {
           setSelectedLibrary(firstBrowsable);
         }
@@ -119,14 +121,19 @@ const LibraryScreen: React.FC = () => {
   };
 
   /**
-   * Library tab tap. Music libraries are NOT browsed as the items grid —
-   * they have a dedicated artists/albums/tracks experience, so route to the
-   * Music screen instead of selecting the library (E9a). All other library
-   * kinds keep the existing grid behavior unchanged.
+   * Library tab tap. Music and photo libraries are NOT browsed as the items
+   * grid — they have dedicated experiences (artists/albums/tracks for music
+   * [E9a]; date albums → viewer for photos [E9b]), so route to those screens
+   * instead of selecting the library. All other library kinds keep the existing
+   * grid behavior unchanged.
    */
   const handleLibraryTabPress = (item: Library) => {
     if (item.type === 'music') {
       navigation.navigate('Music', { libraryId: item.id });
+      return;
+    }
+    if (item.type === 'photo') {
+      navigation.navigate('Photos', { libraryId: item.id });
       return;
     }
     setSelectedLibrary(item);
@@ -189,14 +196,14 @@ const LibraryScreen: React.FC = () => {
         />
       </View>
 
-      {/* No browsable (non-music) library is selected — e.g. a server whose
-          only libraries are music. The grid would misleadingly read "No Items",
-          so point the user at the music tabs instead. */}
+      {/* No browsable (non-music, non-photo) library is selected — e.g. a
+          server whose only libraries are music/photos. The grid would
+          misleadingly read "No Items", so point the user at the tabs instead. */}
       {!selectedLibrary ? (
         <EmptyState
-          icon="🎵"
-          title="Music Library"
-          message="Tap a library above to browse artists, albums, and tracks."
+          icon="🗂️"
+          title="Select a Library"
+          message="Tap a library above to browse its contents."
         />
       ) : (
       <FlatList

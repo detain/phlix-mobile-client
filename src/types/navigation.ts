@@ -26,6 +26,12 @@ export type RootStackParamList = {
   // `libraryId` is informational only.
   Music: { libraryId?: string };
   MusicAlbum: { albumName: string };
+  // E9b (Photos). `library_id` is REQUIRED on the album/photo/slideshow routes.
+  // PhotoViewer re-fetches the album by (albumId, libraryId) and uses
+  // startIndex — photo arrays are NEVER passed through nav params.
+  Photos: { libraryId?: string };
+  PhotoAlbum: { albumId: string; libraryId: string; title?: string };
+  PhotoViewer: { libraryId: string; albumId: string; startIndex?: number };
   Cast: {
     mediaItemId: string;
     streamUrl: string;
