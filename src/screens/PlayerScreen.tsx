@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   requireNativeComponent,
   NativeSyntheticEvent,
-  Platform,
   findNodeHandle,
   Modal,
   ScrollView,
@@ -19,7 +18,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { playbackManager } from '../api/PlaybackManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
-import { StreamInfo, DeviceProfile, SkipMarkers } from '../types/playback';
+import { StreamInfo } from '../types/playback';
 import { SeekBar } from '../components/player/SeekBar';
 import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
@@ -80,7 +79,6 @@ const PlayerScreen: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(startPosition);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [skipMarkers, setSkipMarkers] = useState<SkipMarkers | null>(null);
   // Offline-mode flag: the setter records whether playback is from a local file;
   // the value itself is not read in the UI yet (TODO(E3): offline indicator).
   const [, setIsOfflineMode] = useState(false);
@@ -198,45 +196,37 @@ const PlayerScreen: React.FC = () => {
 
       setIsOfflineMode(false);
 
-      // ── Online: fetch stream info from server ─────────────────────────────
-      const deviceProfile = getDeviceProfile();
-      const info = await playbackManager.getPlaybackInfo(itemId, deviceProfile);
-
-      setStreamInfo(info.stream_info);
-      setSubtitleTracks(info.subtitle_tracks);
-      setAudioTracks(info.audio_tracks);
-      setDuration(info.stream_info.duration_seconds);
-      if (info.markers) {
-        setSkipMarkers(info.markers);
+      // ── Online: resolve the signed direct-play URL from media detail ───────
+      // (`stream_url` on GET /api/v1/media/{id}). The native player consumes it
+      // directly. The server selects the transcode profile from the
+      // X-Phlix-Device-Type header (sent on every request by the API client).
+      // TODO(E3): transcode lifecycle (POST /media/{id}/transcode → poll status
+      //   → HLS playlist), subtitle/audio track lists, and skip markers from
+      //   GET /media/{id}/playback-info. Tracks/markers are left empty here.
+      const streamUrl = await playbackManager.getStreamUrl(itemId);
+      if (!streamUrl) {
+        throw new Error('No playable stream available for this item');
       }
 
-      setPlayerStreamInfo(info.stream_info);
-      playerSetDuration(info.stream_info.duration_seconds);
+      const onlineStreamInfo: StreamInfo = {
+        url: streamUrl,
+        stream_url: streamUrl,
+        protocol: 'http',
+        container: '',
+        size: 0,
+        bitrate: 0,
+        duration_seconds: 0,
+      };
+
+      setStreamInfo(onlineStreamInfo);
+      setSubtitleTracks([]);
+      setAudioTracks([]);
+      setPlayerStreamInfo(onlineStreamInfo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load video');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getDeviceProfile = (): DeviceProfile => {
-    const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-    return {
-      name: Platform.OS === 'ios' ? 'iPhone' : 'Android',
-      platform,
-      version: Platform.Version.toString(),
-      capabilities: {
-        video_codecs: ['h264', 'h265', 'vp9'],
-        audio_codecs: ['aac', 'ac3', 'eac3', 'flac', 'mp3'],
-        max_resolution: 2160,
-        max_bitrate: 50000000,
-        supports_4k: true,
-        supports_hdr: true,
-        supports_dolby_vision: true,
-        supports_dolby_atmos: true,
-        supports_dts: true,
-      },
-    };
   };
 
   const showControlsTemporarily = () => {
@@ -370,18 +360,8 @@ const PlayerScreen: React.FC = () => {
     handleSeek(newPosition);
   };
 
-  // TODO(E3): wire SkipButton (skip intro/outro) using these markers + handler.
-  const _handleSkip = (endPosition: number) => {
-    handleSeek(endPosition);
-  };
-
-  const _introMarker = skipMarkers?.skip_intro_start != null && skipMarkers?.skip_intro_end != null
-    ? { start: skipMarkers.skip_intro_start, end: skipMarkers.skip_intro_end }
-    : null;
-
-  const _outroMarker = skipMarkers?.skip_outro_start != null && skipMarkers?.skip_outro_end != null
-    ? { start: skipMarkers.skip_outro_start, end: skipMarkers.skip_outro_end }
-    : null;
+  // TODO(E3): fetch intro/outro markers (GET /api/v1/media/{id}/markers) and
+  // wire SkipButton to seek past them.
 
   if (isLoading) {
     return (

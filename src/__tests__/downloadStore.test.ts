@@ -10,7 +10,7 @@ function makeItem(overrides: Partial<MediaItem> = {}): MediaItem {
     overview: 'A test movie',
     poster_url: 'https://example.com/poster.jpg',
     year: 2024,
-    run_time_ticks: 720000000000,
+    runtime: 7200,
     genres: ['Action'],
     ...overrides,
   };

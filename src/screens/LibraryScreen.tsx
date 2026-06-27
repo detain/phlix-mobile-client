@@ -87,7 +87,8 @@ const LibraryScreen: React.FC = () => {
         setItems((prev) => [...prev, ...response.items]);
       }
 
-      setHasMore(response.has_more);
+      // The items endpoint returns no has_more/total; infer from page fullness.
+      setHasMore(response.items.length === LIMIT);
       setOffset(newOffset + response.items.length);
     } catch (err) {
       console.error('Failed to load library items:', err);

@@ -2,41 +2,49 @@
 import apiClient from './client';
 import { MediaItem, Season, Episode, Library } from '../types/media';
 
+/**
+ * Paginated `/media` envelope. `total` is only returned by `GET /media`
+ * (search / browse / children). `GET /libraries/{id}/items` returns
+ * `{items, limit, offset}` with NO `total` — hence `total` is optional.
+ */
 export interface PaginatedResponse<T> {
   items: T[];
-  total: number;
+  total?: number;
   limit: number;
   offset: number;
-  has_more: boolean;
 }
 
-export interface MediaMetadata {
-  poster_url: string;
-  backdrop_url: string;
-  banner_url?: string;
-  logo_url?: string;
-  genres: string[];
-  tags: string[];
-  rating?: number;
-  critic_rating?: number;
-  year?: number;
-  runtime_ticks: number;
-  community_rating?: number;
+/** Full filter set accepted by `GET /api/v1/media`. */
+export interface BrowseMediaParams {
+  search?: string;
+  genres?: string[];
+  ratings?: string[];
+  actors?: string[];
+  companies?: string[];
+  yearFrom?: number;
+  yearTo?: number;
+  match?: string;
+  sort?: 'name' | 'year' | 'rating' | 'date_added' | 'runtime';
+  order?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  libraryId?: string;
+  parentId?: string;
+  topLevel?: boolean | 1;
 }
 
 class LibraryManager {
-  // Get all libraries
+  // Get all libraries → GET /api/v1/libraries → { libraries }
   async getLibraries(): Promise<Library[]> {
-    return apiClient.get<Library[]>('/libraries');
+    const res = await apiClient.get<{ libraries: Library[] }>('/libraries');
+    return res.libraries;
   }
 
-  // Get library items
+  // Get library items → GET /api/v1/libraries/{id}/items → { items, limit, offset }
   async getLibraryItems(
     libraryId: string,
     options: {
-      type?: 'movie' | 'series' | 'all';
-      sortBy?: string;
-      sortOrder?: 'asc' | 'desc';
+      type?: string;
       limit?: number;
       offset?: number;
     } = {}
@@ -47,39 +55,46 @@ class LibraryManager {
     );
   }
 
-  // Get recently added
+  /**
+   * General media browse/filter → GET /api/v1/media → { items, total, limit, offset }.
+   * This single route backs search, children (parentId), and recently-added
+   * (sort=date_added&order=desc).
+   */
+  async browseMedia(params: BrowseMediaParams = {}): Promise<PaginatedResponse<MediaItem>> {
+    return apiClient.get<PaginatedResponse<MediaItem>>('/media', params);
+  }
+
+  // Recently added → GET /api/v1/media?sort=date_added&order=desc&limit=N
   async getRecentlyAdded(limit: number = 20): Promise<MediaItem[]> {
-    return apiClient.get<MediaItem[]>('/libraries/recently-added', { limit });
+    const res = await this.browseMedia({ sort: 'date_added', order: 'desc', limit });
+    return res.items;
   }
 
-  // Get continue watching
-  async getContinueWatching(userId: string): Promise<MediaItem[]> {
-    return apiClient.get<MediaItem[]>(`/users/${userId}/continue-watching`);
-  }
-
-  // Get media item details
+  // Media item details → GET /api/v1/media/{id} → { item }
   async getMediaItem(itemId: string): Promise<MediaItem> {
-    return apiClient.get<MediaItem>(`/media/${itemId}`);
+    const res = await apiClient.get<{ item: MediaItem }>(`/media/${itemId}`);
+    return res.item;
   }
 
-  // Get series seasons
+  // Seasons of a series → GET /api/v1/media?parentId={seriesId} → { items }
   async getSeasons(seriesId: string): Promise<Season[]> {
-    return apiClient.get<Season[]>(`/series/${seriesId}/seasons`);
+    const res = await this.browseMedia({ parentId: seriesId });
+    return res.items as Season[];
   }
 
-  // Get season episodes
+  // Episodes of a season → GET /api/v1/media?parentId={seasonId} → { items }
   async getEpisodes(seasonId: string): Promise<Episode[]> {
-    return apiClient.get<Episode[]>(`/seasons/${seasonId}/episodes`);
+    const res = await this.browseMedia({ parentId: seasonId });
+    return res.items as Episode[];
   }
 
-  // Search media
-  async search(query: string, type?: 'movie' | 'series' | 'all'): Promise<MediaItem[]> {
-    return apiClient.get<MediaItem[]>('/search', { query, type });
-  }
-
-  // Get metadata (posters, backdrop, etc.)
-  async getMetadata(itemId: string): Promise<MediaMetadata> {
-    return apiClient.get<MediaMetadata>(`/media/${itemId}/metadata`);
+  // Search → GET /api/v1/media?search={query} → { items, total, limit, offset }
+  async search(
+    query: string,
+    options: Omit<BrowseMediaParams, 'search'> = {}
+  ): Promise<MediaItem[]> {
+    const res = await this.browseMedia({ search: query, ...options });
+    return res.items;
   }
 }
 
