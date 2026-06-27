@@ -39,6 +39,12 @@ class PhlixPlayerViewManager : SimpleViewManager<PhlixPlayerView>() {
         view.setMuted(muted)
     }
 
+    // E3-native (UNTESTED in CI): selected subtitle VTT URL, "" = off.
+    @ReactProp(name = "subtitleUrl")
+    fun setSubtitleUrl(view: PhlixPlayerView, subtitleUrl: String?) {
+        view.setSubtitleUrl(subtitleUrl ?: "")
+    }
+
     override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any>? {
         return MapBuilder.builder<String, Any>()
             .put("onPlaybackEvent", MapBuilder.of("phasedRegistrationNames", MapBuilder.of("bubbled", "onPlaybackEvent")))

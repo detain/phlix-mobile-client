@@ -38,12 +38,82 @@ export interface AudioTrack {
   url?: string;
 }
 
-/** Skip marker boundaries — TODO(E3): populated from /api/v1/media/{id}/playback-info. */
+/** Skip marker boundaries — populated from /api/v1/media/{id}/playback-info. */
 export interface SkipMarkers {
   skip_intro_start: number | null;
   skip_intro_end: number | null;
   skip_outro_start: number | null;
   skip_outro_end: number | null;
+}
+
+// ── Markers / playback-info (server contract; all positions are SECONDS) ──────
+
+/** A single marker window. `start_seconds`/`end_seconds` are SECONDS. */
+export interface Marker {
+  start_seconds: number;
+  end_seconds: number;
+}
+
+/** A chapter — a marker with a display title. Positions in SECONDS. */
+export interface Chapter {
+  start_seconds: number;
+  end_seconds: number;
+  title: string;
+}
+
+/**
+ * One-call markers/chapters source:
+ * `GET /api/v1/media/{id}/playback-info`.
+ * Reconciled to the server shape. `intro_marker`/`outro_marker` are null when
+ * the item has no detected intro/outro. All positions are SECONDS.
+ */
+export interface PlaybackInfo {
+  item_id: string;
+  intro_marker: Marker | null;
+  outro_marker: Marker | null;
+  chapters: Chapter[];
+  /** Free-form server hint for skip-button presentation (shape not fixed). */
+  skip_button_spec?: unknown;
+}
+
+// ── Transcode lifecycle (server contract) ────────────────────────────────────
+
+/** Status values reported by the transcode pipeline. */
+export type TranscodeStatusValue = 'encoding' | 'ready' | 'failed' | string;
+
+/**
+ * A signed subtitle track returned alongside a transcode job. `url` is an
+ * ABSOLUTE signed VTT URL — use it directly (do NOT join onto axios baseURL).
+ */
+export interface TranscodeSubtitle {
+  language: string;
+  url: string;
+}
+
+/**
+ * `POST /api/v1/media/{id}/transcode` response. `master_url`/`hls_url`/`dash_url`
+ * are ABSOLUTE signed URLs.
+ */
+export interface TranscodeJob {
+  job_id: string;
+  master_url: string;
+  hls_url: string;
+  dash_url: string;
+  status: TranscodeStatusValue;
+  reused: boolean;
+  subtitles: TranscodeSubtitle[];
+}
+
+/** `GET /api/v1/transcode/{jobId}/status` response. `progress` is 0-100. */
+export interface TranscodeStatus {
+  job_id: string;
+  status: TranscodeStatusValue;
+  segments: number;
+  playlist_ready: boolean;
+  progress: number;
+  master_url: string;
+  dash_url: string;
+  subtitles: TranscodeSubtitle[];
 }
 
 export interface PlaybackSession {
