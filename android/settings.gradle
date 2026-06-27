@@ -15,6 +15,10 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
+        // notifee ships its Android lib (app.notifee:core) in a local maven dir
+        // inside node_modules; it normally adds this repo at the project level,
+        // but PREFER_SETTINGS ignores project repos, so declare it here.
+        maven { url "$rootDir/../node_modules/@notifee/react-native/android/libs" }
     }
 }
 
