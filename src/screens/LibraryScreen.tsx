@@ -52,8 +52,13 @@ const LibraryScreen: React.FC = () => {
       setError(null);
       const libs = await libraryManager.getLibraries().catch(() => []);
       setLibraries(libs);
+      // Auto-select the first BROWSABLE (non-music) library — music libs route
+      // to the dedicated Music screen on tap and have no items grid (E9a).
       if (libs.length > 0 && !selectedLibrary) {
-        setSelectedLibrary(libs[0]);
+        const firstBrowsable = libs.find((lib) => lib.type !== 'music');
+        if (firstBrowsable) {
+          setSelectedLibrary(firstBrowsable);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load libraries');
@@ -113,13 +118,27 @@ const LibraryScreen: React.FC = () => {
     navigation.navigate('MediaDetail', { itemId: item.id });
   };
 
+  /**
+   * Library tab tap. Music libraries are NOT browsed as the items grid —
+   * they have a dedicated artists/albums/tracks experience, so route to the
+   * Music screen instead of selecting the library (E9a). All other library
+   * kinds keep the existing grid behavior unchanged.
+   */
+  const handleLibraryTabPress = (item: Library) => {
+    if (item.type === 'music') {
+      navigation.navigate('Music', { libraryId: item.id });
+      return;
+    }
+    setSelectedLibrary(item);
+  };
+
   const renderLibraryTab = ({ item }: { item: Library }) => (
     <TouchableOpacity
       style={[
         styles.libraryTab,
         selectedLibrary?.id === item.id && styles.libraryTabActive,
       ]}
-      onPress={() => setSelectedLibrary(item)}
+      onPress={() => handleLibraryTabPress(item)}
     >
       <Text
         style={[
@@ -170,7 +189,16 @@ const LibraryScreen: React.FC = () => {
         />
       </View>
 
-      {/* Items Grid */}
+      {/* No browsable (non-music) library is selected — e.g. a server whose
+          only libraries are music. The grid would misleadingly read "No Items",
+          so point the user at the music tabs instead. */}
+      {!selectedLibrary ? (
+        <EmptyState
+          icon="🎵"
+          title="Music Library"
+          message="Tap a library above to browse artists, albums, and tracks."
+        />
+      ) : (
       <FlatList
         data={items}
         renderItem={renderItem}
@@ -200,6 +228,7 @@ const LibraryScreen: React.FC = () => {
           ) : null
         }
       />
+      )}
     </SafeContainer>
   );
 };
