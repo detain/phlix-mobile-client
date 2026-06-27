@@ -1,8 +1,21 @@
 // src/__tests__/components/player/SkipButton.test.tsx
-import React from 'react';
-import { Text } from 'react-native';
-import renderer from 'react-test-renderer';
+//
+// SkipButton is a pure, hook-less presentational component: its only logic is the
+// marker range check + label + onPress wiring. We test it by invoking it as a
+// function and inspecting the returned element, which exercises that logic
+// directly without a React renderer. (RNTL v14 + React 19 + test-renderer@1 is
+// not yet a stable combo under the @react-native/jest-preset; the rest of the
+// suite is renderer-free too.)
+import type { ReactElement } from 'react';
 import { SkipButton } from '../../../components/player/SkipButton';
+
+type SkipButtonProps = Parameters<typeof SkipButton>[0];
+type SkipElement = ReactElement<{ accessibilityLabel: string; onPress: () => void }>;
+
+// Invoke the function component directly (no hooks) → element tree or null.
+// React 19 types ReactElement.props as `unknown`, so annotate the props we read.
+const renderSkip = (props: SkipButtonProps): SkipElement | null =>
+  SkipButton(props) as SkipElement | null;
 
 describe('SkipButton', () => {
   const onSkip = jest.fn();
@@ -15,82 +28,36 @@ describe('SkipButton', () => {
     const introMarker = { start: 10, end: 90 };
 
     it('shows button when position is within intro marker range', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={50}
-          onSkip={onSkip}
-        />
-      );
-      const text = tree.root.findByType(Text);
-      expect(text.props.children).toBe('Skip Intro');
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 50, onSkip });
+      expect(el).not.toBeNull();
+      expect(el?.props.accessibilityLabel).toBe('Skip Intro');
     });
 
     it('hides button when position is before intro marker start', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={5}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 5, onSkip });
+      expect(el).toBeNull();
     });
 
     it('hides button when position is after intro marker end', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={100}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 100, onSkip });
+      expect(el).toBeNull();
     });
 
     it('shows button at exactly the intro start position', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={10}
-          onSkip={onSkip}
-        />
-      );
-      const text = tree.root.findByType(Text);
-      expect(text.props.children).toBe('Skip Intro');
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 10, onSkip });
+      expect(el?.props.accessibilityLabel).toBe('Skip Intro');
     });
 
     it('shows button at exactly the intro end position', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={90}
-          onSkip={onSkip}
-        />
-      );
-      const text = tree.root.findByType(Text);
-      expect(text.props.children).toBe('Skip Intro');
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 90, onSkip });
+      expect(el?.props.accessibilityLabel).toBe('Skip Intro');
     });
 
-    it('calls onSkip with correct end position when pressed', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={introMarker}
-          currentTime={50}
-          onSkip={onSkip}
-        />
-      );
-      // Simulate press via JSON output - the button renders with onPress
-      const json = tree.toJSON();
-      expect(json).not.toBeNull();
-      // onSkip callback fires correctly via the component logic
-      // (verified by other tests that the button renders with correct accessibilityLabel)
+    it('calls onSkip with the marker end position when pressed', () => {
+      const el = renderSkip({ type: 'intro', marker: introMarker, currentTime: 50, onSkip });
+      el?.props.onPress();
+      expect(onSkip).toHaveBeenCalledTimes(1);
+      expect(onSkip).toHaveBeenCalledWith(introMarker.end);
     });
   });
 
@@ -98,92 +65,31 @@ describe('SkipButton', () => {
     const outroMarker = { start: 2340, end: 2520 };
 
     it('shows button when position is within outro marker range', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="outro"
-          marker={outroMarker}
-          currentTime={2400}
-          onSkip={onSkip}
-        />
-      );
-      const text = tree.root.findByType(Text);
-      expect(text.props.children).toBe('Skip Outro');
+      const el = renderSkip({ type: 'outro', marker: outroMarker, currentTime: 2400, onSkip });
+      expect(el).not.toBeNull();
+      expect(el?.props.accessibilityLabel).toBe('Skip Outro');
     });
 
     it('hides button when position is outside outro marker range', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="outro"
-          marker={outroMarker}
-          currentTime={2300}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
+      const el = renderSkip({ type: 'outro', marker: outroMarker, currentTime: 2300, onSkip });
+      expect(el).toBeNull();
+    });
+
+    it('calls onSkip with the marker end position when pressed', () => {
+      const el = renderSkip({ type: 'outro', marker: outroMarker, currentTime: 2400, onSkip });
+      el?.props.onPress();
+      expect(onSkip).toHaveBeenCalledTimes(1);
+      expect(onSkip).toHaveBeenCalledWith(outroMarker.end);
     });
   });
 
   describe('null markers', () => {
     it('renders nothing when intro marker is null', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={null}
-          currentTime={50}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
+      expect(renderSkip({ type: 'intro', marker: null, currentTime: 50, onSkip })).toBeNull();
     });
 
     it('renders nothing when outro marker is null', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="outro"
-          marker={null}
-          currentTime={2400}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
-    });
-  });
-
-  describe('snapshots', () => {
-    it('intro button matches snapshot when in range', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={{ start: 10, end: 90 }}
-          currentTime={50}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toMatchSnapshot();
-    });
-
-    it('outro button matches snapshot when in range', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="outro"
-          marker={{ start: 2340, end: 2520 }}
-          currentTime={2400}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toMatchSnapshot();
-    });
-
-    it('renders null when marker is null', () => {
-      const tree = renderer.create(
-        <SkipButton
-          type="intro"
-          marker={null}
-          currentTime={50}
-          onSkip={onSkip}
-        />
-      );
-      expect(tree.toJSON()).toBeNull();
+      expect(renderSkip({ type: 'outro', marker: null, currentTime: 2400, onSkip })).toBeNull();
     });
   });
 });
