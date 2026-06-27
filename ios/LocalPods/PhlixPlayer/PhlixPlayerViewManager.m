@@ -8,6 +8,8 @@ RCT_EXPORT_VIEW_PROPERTY(autoPlay, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(startPosition, double)
 RCT_EXPORT_VIEW_PROPERTY(volume, float)
 RCT_EXPORT_VIEW_PROPERTY(muted, BOOL)
+// E3-native (UNTESTED in CI): selected subtitle VTT URL, "" = off.
+RCT_EXPORT_VIEW_PROPERTY(subtitleUrl, NSString)
 RCT_EXPORT_VIEW_PROPERTY(onPlaybackEvent, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onProgress, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock)

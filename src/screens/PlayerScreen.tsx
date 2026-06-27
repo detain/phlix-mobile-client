@@ -17,9 +17,13 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { playbackManager } from '../api/PlaybackManager';
+import { transcodeManager } from '../api/TranscodeManager';
+import { markerManager } from '../api/MarkerManager';
+import type { PrepareHandle } from '../api/TranscodeManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
-import { StreamInfo } from '../types/playback';
+import { StreamInfo, SubtitleTrack, Marker } from '../types/playback';
 import { SeekBar } from '../components/player/SeekBar';
+import { SkipButton } from '../components/player/SkipButton';
 import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import type { PlaybackEvent } from '../native/types';
@@ -33,6 +37,8 @@ interface NativePhlixPlayerProps {
   startPosition?: number;
   volume?: number;
   muted?: boolean;
+  // E3: selected subtitle VTT URL ('' = off). Native rendering UNTESTED in CI.
+  subtitleUrl?: string;
   style?: any;
   ref?: React.RefObject<any>;
   onPlaybackEvent?: (event: any) => void;
@@ -82,6 +88,24 @@ const PlayerScreen: React.FC = () => {
   // Offline-mode flag: the setter records whether playback is from a local file;
   // the value itself is not read in the UI yet (TODO(E3): offline indicator).
   const [, setIsOfflineMode] = useState(false);
+
+  // ── E3: transcode lifecycle ──────────────────────────────────────────────
+  const [preparingTranscode, setPreparingTranscode] = useState(false);
+  const [transcodeProgress, setTranscodeProgress] = useState(0);
+  // Guards against falling back to transcode more than once per load.
+  const transcodeAttempted = useRef(false);
+  // Active prepare handle so we can cancel polling on unmount / re-load.
+  const prepareHandleRef = useRef<PrepareHandle | null>(null);
+
+  // ── E3: markers (SECONDS) ────────────────────────────────────────────────
+  const [introMarker, setIntroMarker] = useState<Marker | null>(null);
+  const [outroMarker, setOutroMarker] = useState<Marker | null>(null);
+
+  // ── E3: subtitles ────────────────────────────────────────────────────────
+  const subtitleTracksState = usePlayerStore((state) => state.subtitleTracks);
+  const selectedSubtitleId = usePlayerStore((state) => state.currentSubtitleTrackId);
+  const setSelectedSubtitleId = usePlayerStore((state) => state.setCurrentSubtitleTrackId);
+  const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,7 +178,16 @@ const PlayerScreen: React.FC = () => {
 
   useEffect(() => {
     loadPlaybackInfo();
+    loadMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
+
+  // Stop transcode polling when the screen unmounts or the item changes.
+  useEffect(() => {
+    return () => {
+      prepareHandleRef.current?.cancel();
+      prepareHandleRef.current = null;
+    };
   }, [itemId]);
 
   useEffect(() => {
@@ -175,6 +208,12 @@ const PlayerScreen: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      // Cancel any in-flight transcode prepare from a prior load.
+      prepareHandleRef.current?.cancel();
+      prepareHandleRef.current = null;
+      transcodeAttempted.current = false;
+      setPreparingTranscode(false);
+      setTranscodeProgress(0);
 
       // ── Offline-first: check if item has a local download ──────────────────
       const localPath = downloadService.getItemLocalPath(itemId);
@@ -200,9 +239,8 @@ const PlayerScreen: React.FC = () => {
       // (`stream_url` on GET /api/v1/media/{id}). The native player consumes it
       // directly. The server selects the transcode profile from the
       // X-Phlix-Device-Type header (sent on every request by the API client).
-      // TODO(E3): transcode lifecycle (POST /media/{id}/transcode → poll status
-      //   → HLS playlist), subtitle/audio track lists, and skip markers from
-      //   GET /media/{id}/playback-info. Tracks/markers are left empty here.
+      // If direct play fails to load (onError → handlePlayerError), we fall back
+      // to the transcode lifecycle (POST /media/{id}/transcode → poll status).
       const streamUrl = await playbackManager.getStreamUrl(itemId);
       if (!streamUrl) {
         throw new Error('No playable stream available for this item');
@@ -219,8 +257,11 @@ const PlayerScreen: React.FC = () => {
       };
 
       setStreamInfo(onlineStreamInfo);
+      // Direct-play subtitle/audio track lists are not exposed by the stream_url
+      // path; subtitles come from the transcode response when transcoding.
       setSubtitleTracks([]);
       setAudioTracks([]);
+      setSelectedSubtitleId(null);
       setPlayerStreamInfo(onlineStreamInfo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load video');
@@ -228,6 +269,76 @@ const PlayerScreen: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  /**
+   * Fetch intro/outro markers (SECONDS) for the SkipButton overlay via the
+   * one-call playback-info route. Non-fatal: a failure just means no skip UI.
+   */
+  const loadMarkers = async () => {
+    try {
+      const info = await markerManager.getPlaybackInfo(itemId);
+      setIntroMarker(info.intro_marker);
+      setOutroMarker(info.outro_marker);
+    } catch {
+      setIntroMarker(null);
+      setOutroMarker(null);
+    }
+  };
+
+  /**
+   * Transcode fallback: start the HLS transcode and poll until the playlist is
+   * ready, then swap the player `src` to the signed master URL. Triggered when
+   * direct play errors out (once per load). Polling is cancelled on unmount.
+   */
+  const startTranscodeFallback = useCallback(async () => {
+    if (transcodeAttempted.current) {
+      return;
+    }
+    transcodeAttempted.current = true;
+    setError(null);
+    setPreparingTranscode(true);
+    setTranscodeProgress(0);
+
+    const handle = transcodeManager.prepare(itemId, {
+      onProgress: (p) => setTranscodeProgress(p),
+    });
+    prepareHandleRef.current = handle;
+
+    try {
+      const { masterUrl, subtitles } = await handle.promise;
+      const hlsStreamInfo: StreamInfo = {
+        url: masterUrl,
+        stream_url: masterUrl,
+        protocol: 'hls',
+        container: 'hls',
+        size: 0,
+        bitrate: 0,
+        duration_seconds: 0,
+      };
+      setStreamInfo(hlsStreamInfo);
+      setPlayerStreamInfo(hlsStreamInfo);
+
+      // Expose the signed VTT tracks from the transcode response as a picker.
+      const tracks: SubtitleTrack[] = subtitles.map((s, i) => ({
+        id: `tx-${i}`,
+        codec: 'vtt',
+        language: s.language,
+        display_title: s.language,
+        url: s.url,
+      }));
+      setSubtitleTracks(tracks);
+      setSelectedSubtitleId(null);
+    } catch (err) {
+      // A cancel (unmount) should not surface an error to the user.
+      const message = err instanceof Error ? err.message : 'Transcode failed';
+      if (message !== 'Transcode preparation cancelled') {
+        setError(message);
+      }
+    } finally {
+      prepareHandleRef.current = null;
+      setPreparingTranscode(false);
+    }
+  }, [itemId, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo]);
 
   const showControlsTemporarily = () => {
     setShowControls(true);
@@ -293,8 +404,16 @@ const PlayerScreen: React.FC = () => {
 
   const handlePlayerError = useCallback((event: NativeSyntheticEvent<{ error: string }>) => {
     const { error: errorMessage } = event.nativeEvent;
+    // First direct-play failure → fall back to a server-side transcode rather
+    // than surfacing the error. Subsequent failures (or transcode failures)
+    // bubble up via startTranscodeFallback's own error handling.
+    if (!transcodeAttempted.current && streamInfo?.protocol === 'http') {
+      // eslint-disable-next-line no-void -- intentional fire-and-forget; the fn owns its errors
+      void startTranscodeFallback();
+      return;
+    }
     setError(errorMessage || 'Playback error');
-  }, []);
+  }, [startTranscodeFallback, streamInfo?.protocol]);
 
   const handlePlayPause = () => {
     if (isHost) {
@@ -360,8 +479,9 @@ const PlayerScreen: React.FC = () => {
     handleSeek(newPosition);
   };
 
-  // TODO(E3): fetch intro/outro markers (GET /api/v1/media/{id}/markers) and
-  // wire SkipButton to seek past them.
+  // Resolve the absolute signed VTT URL for the selected subtitle track ('' = off).
+  const selectedSubtitleUrl =
+    subtitleTracksState.find((t) => t.id === selectedSubtitleId)?.url ?? '';
 
   if (isLoading) {
     return (
@@ -401,6 +521,9 @@ const PlayerScreen: React.FC = () => {
             startPosition={startPosition}
             volume={1.0}
             muted={false}
+            // E3: selected subtitle VTT URL ('' = off). Native rendering is
+            // UNTESTED in CI (no device/sim build) — see src/native/types.ts.
+            subtitleUrl={selectedSubtitleUrl}
             onPlaybackEvent={handlePlaybackEvent}
             onProgress={handleProgress}
             onError={handlePlayerError}
@@ -417,6 +540,43 @@ const PlayerScreen: React.FC = () => {
         )}
       </TouchableOpacity>
 
+      {/* Transcode "Preparing…" overlay */}
+      {preparingTranscode && (
+        <View style={styles.preparingOverlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.preparingText}>Preparing…</Text>
+          {transcodeProgress > 0 && (
+            <Text style={styles.preparingProgressText}>
+              {Math.round(transcodeProgress)}%
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Skip Intro / Skip Outro overlay (positions in SECONDS) */}
+      <SafeAreaView style={styles.skipButtonsContainer} pointerEvents="box-none">
+        <SkipButton
+          type="intro"
+          marker={
+            introMarker
+              ? { start: introMarker.start_seconds, end: introMarker.end_seconds }
+              : null
+          }
+          currentTime={currentTime}
+          onSkip={handleSeek}
+        />
+        <SkipButton
+          type="outro"
+          marker={
+            outroMarker
+              ? { start: outroMarker.start_seconds, end: outroMarker.end_seconds }
+              : null
+          }
+          currentTime={currentTime}
+          onSkip={handleSeek}
+        />
+      </SafeAreaView>
+
       {/* Overlay Controls */}
       {showControls && (
         <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]}>
@@ -426,6 +586,20 @@ const PlayerScreen: React.FC = () => {
             </TouchableOpacity>
 
             <View style={styles.topBarRight}>
+              {/* Subtitle (CC) picker — only when tracks are available */}
+              {subtitleTracksState.length > 0 && (
+                <TouchableOpacity
+                  style={[
+                    styles.syncPlayButton,
+                    selectedSubtitleId && styles.syncPlayButtonActive,
+                  ]}
+                  onPress={() => setShowSubtitlePicker(true)}
+                  accessibilityLabel="Subtitles"
+                >
+                  <Text style={styles.syncPlayButtonText}>CC</Text>
+                </TouchableOpacity>
+              )}
+
               {/* SyncPlay indicator / button */}
               <TouchableOpacity
                 style={[
@@ -550,6 +724,55 @@ const PlayerScreen: React.FC = () => {
                 {timeSyncStable ? 'Stable' : 'Syncing...'}
               </Text>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Subtitle track picker */}
+      <Modal
+        visible={showSubtitlePicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowSubtitlePicker(false)}
+      >
+        <View style={styles.syncPlayModalOverlay}>
+          <View style={styles.syncPlayModalContent}>
+            <View style={styles.syncPlayModalHeader}>
+              <Text style={styles.syncPlayModalTitle}>Subtitles</Text>
+              <TouchableOpacity onPress={() => setShowSubtitlePicker(false)}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.memberList}>
+              <TouchableOpacity
+                style={styles.memberRow}
+                onPress={() => {
+                  setSelectedSubtitleId(null);
+                  setShowSubtitlePicker(false);
+                }}
+              >
+                <Text style={styles.memberName}>
+                  Off {selectedSubtitleId === null ? '✓' : ''}
+                </Text>
+              </TouchableOpacity>
+
+              {subtitleTracksState.map((track) => (
+                <TouchableOpacity
+                  key={track.id}
+                  style={styles.memberRow}
+                  onPress={() => {
+                    setSelectedSubtitleId(track.id);
+                    setShowSubtitlePicker(false);
+                  }}
+                >
+                  <Text style={styles.memberName}>
+                    {track.display_title || track.language}{' '}
+                    {selectedSubtitleId === track.id ? '✓' : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -806,6 +1029,27 @@ const styles = StyleSheet.create({
     right: 20,
     flexDirection: 'row',
     gap: 10,
+  },
+  preparingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  preparingText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  preparingProgressText: {
+    color: '#888',
+    fontSize: 14,
+    marginTop: 4,
   },
 });
 

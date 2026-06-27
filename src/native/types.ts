@@ -23,6 +23,15 @@ export interface PhlixPlayerViewProps {
   startPosition?: number;
   volume?: number;
   muted?: boolean;
+  /**
+   * Absolute signed URL of the selected subtitle track (WebVTT), or empty/undefined
+   * for "off". The native players side-load this VTT alongside `src`.
+   * NOTE(E3-native): the native rendering side (iOS AVMediaSelection sidecar +
+   * Android ExoPlayer SubtitleConfiguration) is UNTESTED in CI — there is no
+   * device/simulator build that runs in this environment. The JS seam (selection
+   * + this prop) is fully wired; verify on-device before relying on it.
+   */
+  subtitleUrl?: string;
   onPlaybackEvent?: (event: NativeSyntheticEvent<PlaybackEvent>) => void;
   onProgress?: (event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => void;
   onError?: (event: NativeSyntheticEvent<{ error: string }>) => void;

@@ -37,12 +37,11 @@ export const SkipButton: React.FC<SkipButtonProps> = ({
   }
 
   const label = type === 'intro' ? 'Skip Intro' : 'Skip Outro';
-  const endPosition = type === 'intro' ? marker.end : marker.end;
 
   return (
     <TouchableOpacity
       style={styles.button}
-      onPress={() => onSkip(endPosition)}
+      onPress={() => onSkip(marker.end)}
       accessibilityLabel={label}
       accessibilityHint={`Tap to skip ${type}`}
     >

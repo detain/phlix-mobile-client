@@ -19,6 +19,17 @@ export {
   type ReportProgressParams,
 } from './PlaybackManager';
 export {
+  default as transcodeManager,
+  type PrepareOptions,
+  type PrepareResult,
+  type PrepareHandle,
+} from './TranscodeManager';
+export {
+  default as markerManager,
+  isWithinMarker,
+  type MarkersResponse,
+} from './MarkerManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
