@@ -1,26 +1,51 @@
 // src/api/client.ts
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from 'react-native-config';
+import { Platform } from 'react-native';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import {
+  buildPhlixHeaders,
+  type DeviceType,
+} from '../types/contracts';
+import { getCachedDeviceId, getDeviceName } from './deviceIdentity';
 
 // Build-time default from react-native-config env var
 // Self-hosted users can set PHLIX_BASE_URL in their .env file
 const BUILD_TIME_BASE_URL = Config.PHLIX_BASE_URL || 'https://api.phlix.app';
 
+// Every API route lives under `/api/v1` on the server. We append it to the
+// resolved root so managers call bare paths (`/libraries`, `/media`, ...). The
+// signed `stream_url` is an ABSOLUTE URL and bypasses axios `baseURL` entirely.
+const API_PREFIX = '/api/v1';
+
 /**
- * Gets the effective base URL for API requests.
+ * Gets the effective server ROOT (no `/api/v1` suffix).
  * Priority:
  * 1. Runtime override from settings store (serverUrl)
  * 2. Build-time env var (PHLIX_BASE_URL from .env via react-native-config)
  * 3. Hardcoded default
  */
-const getBaseUrl = (): string => {
+const getServerRoot = (): string => {
   const settingsUrl = useSettingsStore.getState().serverUrl;
-  if (settingsUrl && settingsUrl.trim() !== '') {
-    return settingsUrl.trim();
-  }
-  return BUILD_TIME_BASE_URL;
+  const root = settingsUrl && settingsUrl.trim() !== '' ? settingsUrl.trim() : BUILD_TIME_BASE_URL;
+  // Normalize: strip trailing slash so prefix joins cleanly.
+  return root.replace(/\/+$/, '');
+};
+
+/** Effective axios base URL including the `/api/v1` prefix. */
+const getBaseUrl = (): string => `${getServerRoot()}${API_PREFIX}`;
+
+// `X-Phlix-Device-Type` value — server maps android|ios → mobile-high profile.
+const DEVICE_TYPE: DeviceType = Platform.OS === 'ios' ? 'ios' : 'android';
+
+// Active session id (set after the player opens a session). Sent as
+// `X-Phlix-Session-ID` for forward-compat; absence is fine.
+let activeSessionId: string | undefined;
+
+/** Set (or clear) the active session id used for the `X-Phlix-Session-ID` header. */
+export const setActiveSessionId = (id: string | null | undefined): void => {
+  activeSessionId = id ?? undefined;
 };
 
 class ApiClient {
@@ -40,13 +65,25 @@ class ApiClient {
   }
 
   private setupInterceptors() {
-    // Request interceptor - add auth token
+    // Request interceptor - keep baseURL in sync with settings + attach the
+    // Phlix device headers and the bearer token on every request.
     this.client.interceptors.request.use(
       async (config) => {
+        // Re-resolve base URL so a runtime server change takes effect.
+        config.baseURL = getBaseUrl();
+
         const token = await AsyncStorage.getItem('access_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+        const deviceHeaders = buildPhlixHeaders({
+          deviceId: getCachedDeviceId(),
+          deviceName: getDeviceName(),
+          deviceType: DEVICE_TYPE,
+          sessionId: activeSessionId,
+          token: token ?? undefined,
+        });
+        // Merge device + auth headers without clobbering per-call headers
+        // (e.g. Content-Type). buildPhlixHeaders sets Authorization when a token
+        // is present, so we do not set it separately.
+        config.headers.set(deviceHeaders);
         return config;
       },
       (error) => Promise.reject(error)
@@ -56,9 +93,14 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        const originalRequest = error.config;
+        const originalRequest = error.config as
+          | (InternalAxiosRequestConfig & { _retry?: boolean })
+          | undefined;
 
-        if (error.response?.status === 401 && originalRequest) {
+        // Refresh + replay ONCE per request: a persistent 401 on the replay must
+        // not re-enter the interceptor and loop refreshing forever.
+        if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+          originalRequest._retry = true;
           try {
             const newToken = await this.refreshToken();
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -87,6 +129,7 @@ class ApiClient {
         throw new Error('No refresh token available');
       }
 
+      // Hit the real `/api/v1/auth/refresh` route (getBaseUrl includes /api/v1).
       const response = await axios.post(`${getBaseUrl()}/auth/refresh`, {
         refresh_token: refreshToken,
       });
@@ -114,8 +157,8 @@ class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: object): Promise<T> {
-    const response = await this.client.post(url, data);
+  async post<T>(url: string, data?: object, config?: { headers?: Record<string, string> }): Promise<T> {
+    const response = await this.client.post(url, data, config);
     return response.data;
   }
 

@@ -33,6 +33,9 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+// Mock react-native-config (build-time env shim — no native binding under jest)
+jest.mock('react-native-config', () => ({}));
+
 // Mock axios
 jest.mock('axios', () => {
   const mockInstance = {

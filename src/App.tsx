@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './navigation';
 import { useAuthStore } from './stores/useAuthStore';
 import { useSettingsStore } from './stores/useSettingsStore';
+import { initDeviceIdentity } from './api/deviceIdentity';
 
 // Ignore specific warnings in development
 LogBox.ignoreLogs([
@@ -21,7 +22,9 @@ const App: React.FC = () => {
     // Initialize app
     const initialize = async () => {
       try {
-        await Promise.all([checkAuth(), loadSettings()]);
+        // Resolve the stable device id early so the per-request header builder
+        // (sync) reads the real persisted value.
+        await Promise.all([initDeviceIdentity(), checkAuth(), loadSettings()]);
       } catch (error) {
         console.error('Failed to initialize app:', error);
       }

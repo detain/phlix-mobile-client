@@ -1,5 +1,26 @@
 // src/api/index.ts
-export { default as apiClient } from './client';
-export { default as authManager, type LoginResponse, type User, type Server } from './AuthManager';
-export { default as libraryManager, type PaginatedResponse, type MediaMetadata } from './LibraryManager';
-export { default as playbackManager } from './PlaybackManager';
+export { default as apiClient, setActiveSessionId } from './client';
+export {
+  default as authManager,
+  type LoginResponse,
+  type RegisterResponse,
+  type RegisterPending,
+  type User,
+} from './AuthManager';
+export {
+  default as libraryManager,
+  type PaginatedResponse,
+  type BrowseMediaParams,
+} from './LibraryManager';
+export { default as userManager, type UserSettings } from './UserManager';
+export {
+  default as playbackManager,
+  type CreateSessionParams,
+  type ReportProgressParams,
+} from './PlaybackManager';
+export {
+  getDeviceId,
+  getDeviceName,
+  getCachedDeviceId,
+  initDeviceIdentity,
+} from './deviceIdentity';

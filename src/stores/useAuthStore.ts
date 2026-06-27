@@ -1,26 +1,24 @@
 // src/stores/useAuthStore.ts
 import { create } from 'zustand';
-import { authManager, User, Server } from '../api/AuthManager';
+import { authManager, User } from '../api/AuthManager';
+import { useSettingsStore } from './useSettingsStore';
 
 interface AuthState {
   user: User | null;
-  server: Server | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   login: (serverUrl: string, username: string, password: string) => Promise<void>;
-  loginWithToken: (serverUrl: string, token: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  refreshMe: () => Promise<void>;
   setUser: (user: User) => void;
-  setServer: (server: Server) => void;
 }
 
-export const useAuthStore = create<AuthState>((set, _get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  server: null,
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -28,31 +26,17 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
   login: async (serverUrl: string, username: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
+      // The connection target is an INPUT, not part of the auth response —
+      // persist it in settings before authenticating so the API client targets
+      // the right server.
+      if (serverUrl && serverUrl.trim() !== '') {
+        useSettingsStore.getState().setServerUrl(serverUrl.trim());
+      }
+
       const response = await authManager.login(serverUrl, username, password);
 
       set({
         user: response.user,
-        server: response.server,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (error) {
-      set({
-        error: error instanceof Error ? error.message : 'Login failed',
-        isLoading: false,
-      });
-      throw error;
-    }
-  },
-
-  loginWithToken: async (serverUrl: string, token: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await authManager.loginWithToken(serverUrl, token);
-
-      set({
-        user: response.user,
-        server: response.server,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -69,17 +53,9 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     set({ isLoading: true });
     try {
       await authManager.logout();
+    } finally {
       set({
         user: null,
-        server: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    } catch (error) {
-      // Clear state even on error
-      set({
-        user: null,
-        server: null,
         isAuthenticated: false,
         isLoading: false,
       });
@@ -92,10 +68,8 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
       const isAuth = await authManager.isAuthenticated();
       if (isAuth) {
         const user = await authManager.getCurrentUser();
-        const server = await authManager.getCurrentServer();
         set({
           user,
-          server,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -107,6 +81,14 @@ export const useAuthStore = create<AuthState>((set, _get) => ({
     }
   },
 
+  refreshMe: async () => {
+    try {
+      const user = await authManager.getMe();
+      set({ user });
+    } catch {
+      // Non-fatal: keep the cached user.
+    }
+  },
+
   setUser: (user) => set({ user }),
-  setServer: (server) => set({ server }),
 }));

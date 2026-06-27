@@ -104,9 +104,12 @@ const MediaDetailScreen: React.FC = () => {
     });
   };
 
-  const formatRuntime = (ticks: number): string => {
-    const minutes = Math.floor(ticks / 600000000);
-    return `${minutes} min`;
+  // Server `runtime` is in MINUTES (TMDB metadata). The precise media length in
+  // seconds is the separate `duration` field (used by the player scrubber).
+  const formatRuntime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
   };
 
   if (isLoading) {
@@ -152,16 +155,16 @@ const MediaDetailScreen: React.FC = () => {
 
             <View style={styles.metaRow}>
               {item.year && <Text style={styles.year}>{item.year}</Text>}
-              {item.official_rating && (
+              {item.rating && (
                 <>
                   <Text style={styles.dot}>•</Text>
-                  <Text style={styles.rating}>{item.official_rating}</Text>
+                  <Text style={styles.rating}>{item.rating}</Text>
                 </>
               )}
-              {item.run_time_ticks && (
+              {item.runtime && (
                 <>
                   <Text style={styles.dot}>•</Text>
-                  <Text style={styles.runtime}>{formatRuntime(item.run_time_ticks)}</Text>
+                  <Text style={styles.runtime}>{formatRuntime(item.runtime)}</Text>
                 </>
               )}
             </View>
@@ -243,9 +246,9 @@ const MediaDetailScreen: React.FC = () => {
                     <Text style={styles.episodeName} numberOfLines={1}>
                       {episode.name}
                     </Text>
-                    {episode.run_time_ticks && (
+                    {episode.runtime && (
                       <Text style={styles.episodeRuntime}>
-                        {formatRuntime(episode.run_time_ticks)}
+                        {formatRuntime(episode.runtime)}
                       </Text>
                     )}
                     {episode.overview && (
