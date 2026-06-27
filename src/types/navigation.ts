@@ -12,6 +12,13 @@ export type RootStackParamList = {
   AdminDashboard: undefined;
   AdminUsers: undefined;
   AdminLibraries: undefined;
+  Cast: {
+    mediaItemId: string;
+    streamUrl: string;
+    title?: string;
+    thumbnail?: string;
+    durationSecs?: number;
+  };
 };
 
 // Tab Navigator

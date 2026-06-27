@@ -19,6 +19,7 @@ import {
   AdminDashboardScreen,
   AdminUsersScreen,
   AdminLibrariesScreen,
+  CastScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -185,6 +186,16 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Libraries',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="Cast"
+              component={CastScreen}
+              options={{
+                headerShown: true,
+                title: 'Cast',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

@@ -18,6 +18,7 @@ import { MediaItem, Season, Episode } from '../types/media';
 import { PosterCard } from '../components/media/PosterCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
+import { CastButton } from '../components/cast';
 import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
 
@@ -265,6 +266,17 @@ const MediaDetailScreen: React.FC = () => {
                 {hasResumePosition ? 'Resume' : 'Play'}
               </Text>
             </TouchableOpacity>
+
+            {/* E7: Cast — server-mediated; needs the signed stream URL + id. */}
+            {!isSeries && item.stream_url ? (
+              <CastButton
+                mediaItemId={item.id}
+                streamUrl={item.stream_url}
+                title={item.name}
+                thumbnail={item.poster_url}
+                durationSecs={item.duration}
+              />
+            ) : null}
 
             {/* E4: Download action — playable leaf types only (not series containers) */}
             {!isSeries && (

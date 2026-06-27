@@ -5,4 +5,5 @@ export { useLibraryStore } from './useLibraryStore';
 export { useSettingsStore } from './useSettingsStore';
 export { useProfileStore } from './useProfileStore';
 export { useAdminStore } from './useAdminStore';
+export { useCastStore } from './useCastStore';
 export { useSyncplayStore } from '../store/syncplayStore';
