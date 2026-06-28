@@ -20,6 +20,10 @@ export type RootStackParamList = {
   AdminDashboard: undefined;
   AdminUsers: undefined;
   AdminLibraries: undefined;
+  // E10c (Remaining admin part 1).
+  AdminPlugins: undefined;
+  AdminAuthProviders: undefined;
+  AdminServerSettings: undefined;
   LiveTv: undefined;
   LiveTvRecordings: undefined;
   // E9a (Music). Music aggregates across all music libs server-side, so

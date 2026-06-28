@@ -28,6 +28,7 @@ export {
   type ResetPasswordResult,
   type CreateLibraryResult,
   type JobTriggerResult,
+  type AuthProviderToggleResult,
 } from './AdminManager';
 export {
   default as playbackManager,

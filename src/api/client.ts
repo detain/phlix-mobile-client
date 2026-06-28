@@ -197,8 +197,14 @@ class ApiClient {
     return response.data;
   }
 
-  async delete<T>(url: string): Promise<T> {
-    const response = await this.client.delete(url);
+  // `config` lets a caller send a request BODY on a DELETE (the documented axios
+  // form: `client.delete(url, { data })`). Used by AdminManager.removeCatalogSource
+  // where the server expects `DELETE /admin/plugins/catalog/sources` body `{url}`.
+  async delete<T>(
+    url: string,
+    config?: { data?: object; params?: object; headers?: Record<string, string> },
+  ): Promise<T> {
+    const response = await this.client.delete(url, config);
     return response.data;
   }
 }

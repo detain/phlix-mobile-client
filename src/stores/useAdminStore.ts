@@ -15,12 +15,19 @@ import type {
   TopMedia,
   StorageStat,
   ActivityEntry,
+  Plugin,
+  PluginDetail,
+  CatalogResponse,
+  AuthProvider,
+  AuthProviderConfigSchema,
+  ServerSettings,
 } from '../types/admin';
 import type {
   CreateUserResult,
   ResetPasswordResult,
   CreateLibraryResult,
   JobTriggerResult,
+  AuthProviderToggleResult,
 } from '../api/AdminManager';
 
 /**
@@ -51,6 +58,24 @@ interface AdminState {
   librariesLoading: boolean;
   librariesError: string | null;
 
+  // Plugins (E10c)
+  plugins: Plugin[];
+  pluginsLoading: boolean;
+  pluginsError: string | null;
+  catalog: CatalogResponse | null;
+  catalogLoading: boolean;
+  catalogError: string | null;
+
+  // Auth providers (E10c)
+  authProviders: AuthProvider[];
+  authProvidersLoading: boolean;
+  authProvidersError: string | null;
+
+  // Server settings (E10c)
+  serverSettings: ServerSettings | null;
+  serverSettingsLoading: boolean;
+  serverSettingsError: string | null;
+
   // Dashboard actions
   loadDashboard: () => Promise<void>;
 
@@ -75,6 +100,35 @@ interface AdminState {
   matchMetadata: (id: string) => Promise<JobTriggerResult>;
   getScanStatus: (id: string) => Promise<ScanJob | null>;
   getScanHistory: (id: string, limit?: number) => Promise<ScanJob[]>;
+
+  // Plugin actions (E10c)
+  loadPlugins: () => Promise<void>;
+  getPlugin: (name: string) => Promise<PluginDetail>;
+  installPlugin: (url: string) => Promise<PluginDetail>;
+  updatePluginSettings: (
+    name: string,
+    settings: Record<string, unknown>
+  ) => Promise<PluginDetail>;
+  enablePlugin: (name: string) => Promise<void>;
+  disablePlugin: (name: string) => Promise<void>;
+  uninstallPlugin: (name: string) => Promise<void>;
+  loadCatalog: () => Promise<void>;
+  addCatalogSource: (url: string) => Promise<void>;
+  removeCatalogSource: (url: string) => Promise<void>;
+
+  // Auth provider actions (E10c)
+  loadAuthProviders: () => Promise<void>;
+  enableAuthProvider: (name: string) => Promise<AuthProviderToggleResult>;
+  disableAuthProvider: (name: string) => Promise<AuthProviderToggleResult>;
+  getAuthProviderConfigSchema: (
+    name: string
+  ) => Promise<AuthProviderConfigSchema>;
+
+  // Server settings actions (E10c)
+  loadServerSettings: () => Promise<void>;
+  updateServerSettings: (
+    settings: Record<string, unknown>
+  ) => Promise<ServerSettings>;
 }
 
 const errMessage = (error: unknown, fallback: string): string =>
@@ -96,6 +150,21 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   libraries: [],
   librariesLoading: false,
   librariesError: null,
+
+  plugins: [],
+  pluginsLoading: false,
+  pluginsError: null,
+  catalog: null,
+  catalogLoading: false,
+  catalogError: null,
+
+  authProviders: [],
+  authProvidersLoading: false,
+  authProvidersError: null,
+
+  serverSettings: null,
+  serverSettingsLoading: false,
+  serverSettingsError: null,
 
   // ── Dashboard ──
   loadDashboard: async () => {
@@ -338,6 +407,220 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       return await adminManager.getScanHistory(id, limit);
     } catch (error) {
       set({ librariesError: errMessage(error, 'Failed to load scan history') });
+      throw error;
+    }
+  },
+
+  // ── Plugins (E10c) ──
+  loadPlugins: async () => {
+    set({ pluginsLoading: true, pluginsError: null });
+    try {
+      const plugins = await adminManager.getPlugins();
+      set({ plugins, pluginsLoading: false });
+    } catch (error) {
+      set({
+        pluginsError: errMessage(error, 'Failed to load plugins'),
+        pluginsLoading: false,
+      });
+    }
+  },
+
+  getPlugin: async (name: string) => {
+    set({ pluginsError: null });
+    try {
+      return await adminManager.getPlugin(name);
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to load plugin') });
+      throw error;
+    }
+  },
+
+  installPlugin: async (url: string) => {
+    set({ pluginsError: null });
+    try {
+      const plugin = await adminManager.installPlugin(url);
+      await get().loadPlugins();
+      return plugin;
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to install plugin') });
+      throw error;
+    }
+  },
+
+  updatePluginSettings: async (
+    name: string,
+    settings: Record<string, unknown>
+  ) => {
+    set({ pluginsError: null });
+    try {
+      const updated = await adminManager.updatePluginSettings(name, settings);
+      // Reflect the refreshed enabled/settings in the list row.
+      set((state) => ({
+        plugins: state.plugins.map((p) =>
+          p.name === name ? { ...p, ...updated } : p
+        ),
+      }));
+      return updated;
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to save plugin settings') });
+      throw error;
+    }
+  },
+
+  enablePlugin: async (name: string) => {
+    set({ pluginsError: null });
+    try {
+      await adminManager.enablePlugin(name);
+      set((state) => ({
+        plugins: state.plugins.map((p) =>
+          p.name === name ? { ...p, enabled: true } : p
+        ),
+      }));
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to enable plugin') });
+      throw error;
+    }
+  },
+
+  disablePlugin: async (name: string) => {
+    set({ pluginsError: null });
+    try {
+      await adminManager.disablePlugin(name);
+      set((state) => ({
+        plugins: state.plugins.map((p) =>
+          p.name === name ? { ...p, enabled: false } : p
+        ),
+      }));
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to disable plugin') });
+      throw error;
+    }
+  },
+
+  uninstallPlugin: async (name: string) => {
+    set({ pluginsError: null });
+    try {
+      await adminManager.uninstallPlugin(name);
+      set((state) => ({
+        plugins: state.plugins.filter((p) => p.name !== name),
+      }));
+    } catch (error) {
+      set({ pluginsError: errMessage(error, 'Failed to uninstall plugin') });
+      throw error;
+    }
+  },
+
+  loadCatalog: async () => {
+    set({ catalogLoading: true, catalogError: null });
+    try {
+      const catalog = await adminManager.getPluginCatalog();
+      set({ catalog, catalogLoading: false });
+    } catch (error) {
+      set({
+        catalogError: errMessage(error, 'Failed to load catalog'),
+        catalogLoading: false,
+      });
+    }
+  },
+
+  addCatalogSource: async (url: string) => {
+    set({ catalogError: null });
+    try {
+      await adminManager.addCatalogSource(url);
+      await get().loadCatalog();
+    } catch (error) {
+      set({ catalogError: errMessage(error, 'Failed to add source') });
+      throw error;
+    }
+  },
+
+  removeCatalogSource: async (url: string) => {
+    set({ catalogError: null });
+    try {
+      await adminManager.removeCatalogSource(url);
+      await get().loadCatalog();
+    } catch (error) {
+      set({ catalogError: errMessage(error, 'Failed to remove source') });
+      throw error;
+    }
+  },
+
+  // ── Auth providers (E10c) ──
+  loadAuthProviders: async () => {
+    set({ authProvidersLoading: true, authProvidersError: null });
+    try {
+      const authProviders = await adminManager.getAuthProviders();
+      set({ authProviders, authProvidersLoading: false });
+    } catch (error) {
+      set({
+        authProvidersError: errMessage(error, 'Failed to load auth providers'),
+        authProvidersLoading: false,
+      });
+    }
+  },
+
+  enableAuthProvider: async (name: string) => {
+    set({ authProvidersError: null });
+    try {
+      const result = await adminManager.enableAuthProvider(name);
+      await get().loadAuthProviders();
+      return result;
+    } catch (error) {
+      set({
+        authProvidersError: errMessage(error, 'Failed to enable provider'),
+      });
+      throw error;
+    }
+  },
+
+  disableAuthProvider: async (name: string) => {
+    set({ authProvidersError: null });
+    try {
+      const result = await adminManager.disableAuthProvider(name);
+      await get().loadAuthProviders();
+      return result;
+    } catch (error) {
+      set({
+        authProvidersError: errMessage(error, 'Failed to disable provider'),
+      });
+      throw error;
+    }
+  },
+
+  getAuthProviderConfigSchema: async (name: string) => {
+    set({ authProvidersError: null });
+    try {
+      return await adminManager.getAuthProviderConfigSchema(name);
+    } catch (error) {
+      set({
+        authProvidersError: errMessage(error, 'Failed to load config schema'),
+      });
+      throw error;
+    }
+  },
+
+  // ── Server settings (E10c) ──
+  loadServerSettings: async () => {
+    set({ serverSettingsLoading: true, serverSettingsError: null });
+    try {
+      const serverSettings = await adminManager.getServerSettings();
+      set({ serverSettings, serverSettingsLoading: false });
+    } catch (error) {
+      set({
+        serverSettingsError: errMessage(error, 'Failed to load settings'),
+        serverSettingsLoading: false,
+      });
+    }
+  },
+
+  updateServerSettings: async (settings: Record<string, unknown>) => {
+    set({ serverSettingsError: null });
+    try {
+      const updated = await adminManager.updateServerSettings(settings);
+      set({ serverSettings: updated });
+      return updated;
+    } catch (error) {
+      set({ serverSettingsError: errMessage(error, 'Failed to save settings') });
       throw error;
     }
   },
