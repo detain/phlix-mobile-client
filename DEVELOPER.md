@@ -121,6 +121,34 @@ android/.../player/
 - Subtitle track selection
 - Quality selection
 
+### Passkeys / WebAuthn - PhlixWebAuthn (E10e)
+
+A second native module implements platform passkeys (WebAuthn) on both platforms. The bridge is intentionally thin: the server's WebAuthn options go in as a JSON string and the authenticator's attestation/assertion comes back as a JSON string — **all base64url <-> binary conversion happens natively** (in Swift on iOS; not at all on Android, where Credential Manager works directly in WebAuthn JSON).
+
+**iOS** — `ios/LocalPods/PhlixPlayer/PhlixWebAuthn.swift` + `PhlixWebAuthn.m`:
+
+```
+ios/LocalPods/PhlixPlayer/
+├── PhlixWebAuthn.swift   # @objc(PhlixWebAuthn) : NSObject — ASAuthorization passkeys (iOS 15+)
+└── PhlixWebAuthn.m       # RCT_EXTERN_MODULE bridge (isSupported/register/authenticate)
+```
+
+Built via the existing `PhlixPlayer` podspec (its `*.{h,m,swift}` source glob already picks up the files; the only podspec change is adding the `AuthenticationServices` framework). Uses `ASAuthorizationPlatformPublicKeyCredentialProvider`, fully `if #available(iOS 15.0, *)` guarded.
+
+**Android** — `android/app/src/main/java/com/phlixmobile/webauthn/`:
+
+```
+android/.../webauthn/
+├── PhlixWebAuthnModule.kt   # ReactContextBaseJavaModule — AndroidX Credential Manager
+└── PhlixWebAuthnPackage.kt  # ReactPackage (registered in MainApplication.kt)
+```
+
+Requires the `androidx.credentials:credentials` and `:credentials-play-services-auth` dependencies (added to `android/app/build.gradle`) and `compileSdk` 34+.
+
+**JS surface** — `src/native/types.ts` (`PhlixWebAuthnInterface`: `isSupported`/`register`/`authenticate`) wrapped by `src/native/PhlixWebAuthn.ts`, which guards every native access so Jest and non-native runs work without the module (`isSupported()` resolves `false`, ceremony calls reject with a clear "passkeys unavailable" error). Orchestration lives in `src/services/WebAuthnService.ts` (options → native ceremony → verify; passwordless login feeds the returned token envelope into `AuthManager.savePasskeyLogin` and sets `useAuthStore`).
+
+> **Device-only at runtime.** The passkey ceremony shows the system biometric/PIN sheet, which only runs on a real device — CI compiles the native code but cannot run a ceremony, and the JS layer is fully covered by Jest with the native module mocked. Cross-device portability additionally requires the **server** to publish relying-party association files (`apple-app-site-association` `webcredentials` for iOS, `assetlinks.json` for Android) for the `rpId` it returns.
+
 ### TypeScript Interfaces
 
 **Location**: `src/native/types.ts`
@@ -327,16 +355,18 @@ npm run lint -- --fix
 
 #### iOS Native Module Updates
 
-1. Modify files in `ios/LocalPods/PhlixPlayer/`
+1. Modify files in `ios/LocalPods/PhlixPlayer/` (this pod holds both `PhlixPlayer*` and `PhlixWebAuthn*` — the source glob auto-includes new files)
 2. Run `pod install` in `ios/` directory
 3. Clean and rebuild: `xcodebuild clean`
 4. Verify in Xcode that changes compile
 
 #### Android Native Module Updates
 
-1. Modify files in `android/app/src/main/java/com/phlixmobile/player/`
+1. Modify files in `android/app/src/main/java/com/phlixmobile/` (`player/` for the video player, `webauthn/` for passkeys); register new packages in `MainApplication.kt`
 2. Clean Gradle: `./gradlew clean`
 3. Rebuild: `./gradlew assembleDebug`
+
+> Passkey ceremonies cannot be exercised in a simulator/emulator or CI — they need a real device. Verify a passkey register/login flow on hardware after touching the WebAuthn modules.
 
 ### Debugging
 

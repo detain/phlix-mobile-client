@@ -119,3 +119,53 @@ export interface DownloadPausedPayload {
   taskId: string;
   downloadedBytes: number;
 }
+
+/**
+ * Native WebAuthn / passkey authenticator surface (slice E10e).
+ *
+ * Method signatures MUST stay byte-for-byte aligned across this TS interface,
+ * the iOS module (`ios/LocalPods/PhlixPlayer/PhlixWebAuthn.swift` + `.m`,
+ * `ASAuthorizationPlatformPublicKeyCredentialProvider`, iOS 15+) and the Android
+ * module (`android/.../webauthn/PhlixWebAuthnModule.kt`, AndroidX Credential
+ * Manager).
+ *
+ * The bridge is intentionally THIN: it takes the server's WebAuthn options as a
+ * JSON STRING and returns the authenticator's attestation/assertion as a JSON
+ * STRING the server's verify endpoint expects. All base64url <-> binary encoding
+ * happens natively, so JS never decodes anything.
+ *
+ * NOTE(E10e-native): the native iOS/Android implementations are UNTESTED in CI —
+ * there is no device/simulator build that runs in this environment, and the
+ * passkey ceremony itself can ONLY run on a real device (the platform shows the
+ * system biometric/PIN sheet). The JS wrapper (`src/native/PhlixWebAuthn.ts`)
+ * throws a clear "passkeys unavailable" error when this module is absent, so
+ * Jest + non-native runs stay functional.
+ */
+export interface PhlixWebAuthnInterface extends NativeModule {
+  /**
+   * Whether platform passkeys are available (iOS 15+ / Android with Credential
+   * Manager + a configured screen lock). Resolves false rather than rejecting on
+   * unsupported platforms.
+   */
+  isSupported(): Promise<boolean>;
+  /**
+   * Run the registration (attestation) ceremony.
+   * @param optionsJson The raw `PublicKeyCredentialCreationOptions` JSON string
+   *                    from `POST /auth/webauthn/register/options`.
+   * @returns A JSON string of the attestation credential:
+   *          `{ id, rawId, type:'public-key', response:{ clientDataJSON,
+   *          attestationObject } }` with base64url-encoded binary fields.
+   *          Rejects on user cancel / error.
+   */
+  register(optionsJson: string): Promise<string>;
+  /**
+   * Run the authentication (assertion) ceremony.
+   * @param optionsJson The raw `PublicKeyCredentialRequestOptions` JSON string
+   *                    from `POST /auth/webauthn/login/options`.
+   * @returns A JSON string of the assertion:
+   *          `{ id, rawId, type, response:{ clientDataJSON, authenticatorData,
+   *          signature, userHandle } }` with base64url-encoded binary fields.
+   *          Rejects on user cancel / error.
+   */
+  authenticate(optionsJson: string): Promise<string>;
+}

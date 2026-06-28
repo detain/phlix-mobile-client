@@ -191,6 +191,20 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Security Section — passkeys (E10e) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Security</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('Passkeys')}
+            >
+              <Text style={styles.settingLabel}>Passkeys</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Admin Section — only for server administrators */}
         {user?.is_admin ? (
           <View style={styles.section}>

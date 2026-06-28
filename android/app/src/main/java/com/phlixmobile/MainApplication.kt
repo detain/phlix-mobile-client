@@ -13,6 +13,7 @@ import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 import com.phlixmobile.player.PhlixPlayerPackage
 import com.phlixmobile.download.PhlixDownloaderPackage
+import com.phlixmobile.webauthn.PhlixWebAuthnPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -23,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
               // Packages that cannot be autolinked yet can be added manually here:
               add(PhlixPlayerPackage())  // Native video player
               add(PhlixDownloaderPackage())  // Native background downloader (E4)
+              add(PhlixWebAuthnPackage())  // Native WebAuthn / passkeys (E10e)
             }
 
         override fun getJSMainModuleName(): String = "index"
