@@ -11,4 +11,5 @@ export { useMusicStore } from './useMusicStore';
 export { usePhotoStore } from './usePhotoStore';
 export { useCollectionStore } from './useCollectionStore';
 export { useSearchStore } from './useSearchStore';
+export { useFavoritesStore } from './useFavoritesStore';
 export { useSyncplayStore } from '../store/syncplayStore';

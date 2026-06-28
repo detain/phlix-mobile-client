@@ -176,6 +176,13 @@ const SettingsScreen: React.FC = () => {
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.settingRow}
+              onPress={() => navigation.navigate('Favorites')}
+            >
+              <Text style={styles.settingLabel}>Favorites</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingRow}
               onPress={() => navigation.navigate('Collections')}
             >
               <Text style={styles.settingLabel}>Collections</Text>
