@@ -31,6 +31,22 @@ jest.mock('../../api/AdminManager', () => ({
     matchMetadata: jest.fn(),
     getScanStatus: jest.fn(),
     getScanHistory: jest.fn(),
+    getPlugins: jest.fn(),
+    getPlugin: jest.fn(),
+    installPlugin: jest.fn(),
+    updatePluginSettings: jest.fn(),
+    enablePlugin: jest.fn(),
+    disablePlugin: jest.fn(),
+    uninstallPlugin: jest.fn(),
+    getPluginCatalog: jest.fn(),
+    addCatalogSource: jest.fn(),
+    removeCatalogSource: jest.fn(),
+    getAuthProviders: jest.fn(),
+    enableAuthProvider: jest.fn(),
+    disableAuthProvider: jest.fn(),
+    getAuthProviderConfigSchema: jest.fn(),
+    getServerSettings: jest.fn(),
+    updateServerSettings: jest.fn(),
   },
 }));
 
@@ -71,8 +87,29 @@ const resetStore = () => {
     libraries: [],
     librariesLoading: false,
     librariesError: null,
+    plugins: [],
+    pluginsLoading: false,
+    pluginsError: null,
+    catalog: null,
+    catalogLoading: false,
+    catalogError: null,
+    authProviders: [],
+    authProvidersLoading: false,
+    authProvidersError: null,
+    serverSettings: null,
+    serverSettingsLoading: false,
+    serverSettingsError: null,
   });
 };
+
+const makePlugin = (overrides = {}) => ({
+  id: 'p1',
+  name: 'trakt',
+  version: '1.0',
+  type: 'metadata',
+  enabled: true,
+  ...overrides,
+});
 
 describe('useAdminStore', () => {
   beforeEach(() => {
@@ -329,5 +366,234 @@ describe('useAdminStore', () => {
     await useAdminStore.getState().getScanHistory('lib1', 5);
 
     expect(mocked.getScanHistory).toHaveBeenCalledWith('lib1', 5);
+  });
+
+  // ── Plugins (E10c) ──
+
+  it('loadPlugins populates plugins and clears loading', async () => {
+    mocked.getPlugins.mockResolvedValue([makePlugin(), makePlugin({ name: 'lastfm' })]);
+
+    await useAdminStore.getState().loadPlugins();
+
+    expect(useAdminStore.getState().plugins).toHaveLength(2);
+    expect(useAdminStore.getState().pluginsLoading).toBe(false);
+  });
+
+  it('loadPlugins sets pluginsError on failure without throwing', async () => {
+    mocked.getPlugins.mockRejectedValue(new Error('nope'));
+
+    await useAdminStore.getState().loadPlugins();
+
+    expect(useAdminStore.getState().pluginsError).toBe('nope');
+  });
+
+  it('installPlugin delegates, reloads, and returns the detail', async () => {
+    mocked.installPlugin.mockResolvedValue(makePlugin({ name: 'new' }));
+    mocked.getPlugins.mockResolvedValue([makePlugin({ name: 'new' })]);
+
+    const result = await useAdminStore.getState().installPlugin('https://x');
+
+    expect(mocked.installPlugin).toHaveBeenCalledWith('https://x');
+    expect(mocked.getPlugins).toHaveBeenCalled();
+    expect(result.name).toBe('new');
+  });
+
+  it('installPlugin rethrows and sets pluginsError on failure', async () => {
+    mocked.installPlugin.mockRejectedValue(new Error('bad scheme'));
+
+    await expect(
+      useAdminStore.getState().installPlugin('ftp://x')
+    ).rejects.toThrow('bad scheme');
+    expect(useAdminStore.getState().pluginsError).toBe('bad scheme');
+  });
+
+  it('enablePlugin flips enabled true on the matching row', async () => {
+    useAdminStore.setState({ plugins: [makePlugin({ name: 'trakt', enabled: false })] });
+    mocked.enablePlugin.mockResolvedValue(makePlugin({ enabled: true }));
+
+    await useAdminStore.getState().enablePlugin('trakt');
+
+    expect(useAdminStore.getState().plugins[0].enabled).toBe(true);
+  });
+
+  it('disablePlugin flips enabled false on the matching row', async () => {
+    useAdminStore.setState({ plugins: [makePlugin({ name: 'trakt', enabled: true })] });
+    mocked.disablePlugin.mockResolvedValue(makePlugin({ enabled: false }));
+
+    await useAdminStore.getState().disablePlugin('trakt');
+
+    expect(useAdminStore.getState().plugins[0].enabled).toBe(false);
+  });
+
+  it('uninstallPlugin removes the plugin from the list', async () => {
+    useAdminStore.setState({
+      plugins: [makePlugin({ name: 'a' }), makePlugin({ name: 'b' })],
+    });
+    mocked.uninstallPlugin.mockResolvedValue(undefined);
+
+    await useAdminStore.getState().uninstallPlugin('a');
+
+    expect(useAdminStore.getState().plugins.map((p) => p.name)).toEqual(['b']);
+  });
+
+  it('uninstallPlugin rethrows and sets pluginsError on failure', async () => {
+    mocked.uninstallPlugin.mockRejectedValue(new Error('locked'));
+
+    await expect(
+      useAdminStore.getState().uninstallPlugin('a')
+    ).rejects.toThrow('locked');
+    expect(useAdminStore.getState().pluginsError).toBe('locked');
+  });
+
+  it('updatePluginSettings merges the refreshed detail into the row', async () => {
+    useAdminStore.setState({ plugins: [makePlugin({ name: 'trakt', enabled: false })] });
+    mocked.updatePluginSettings.mockResolvedValue(makePlugin({ name: 'trakt', enabled: true }));
+
+    const result = await useAdminStore
+      .getState()
+      .updatePluginSettings('trakt', { apiKey: 'x' });
+
+    expect(mocked.updatePluginSettings).toHaveBeenCalledWith('trakt', { apiKey: 'x' });
+    expect(useAdminStore.getState().plugins[0].enabled).toBe(true);
+    expect(result.name).toBe('trakt');
+  });
+
+  it('loadCatalog populates the catalog and clears loading', async () => {
+    const catalog = {
+      default_source: 'https://c',
+      sources: ['https://c'],
+      catalogs: [],
+      errors: [],
+    };
+    mocked.getPluginCatalog.mockResolvedValue(catalog);
+
+    await useAdminStore.getState().loadCatalog();
+
+    expect(useAdminStore.getState().catalog).toEqual(catalog);
+    expect(useAdminStore.getState().catalogLoading).toBe(false);
+  });
+
+  it('loadCatalog sets catalogError on failure without throwing', async () => {
+    mocked.getPluginCatalog.mockRejectedValue(new Error('offline'));
+
+    await useAdminStore.getState().loadCatalog();
+
+    expect(useAdminStore.getState().catalogError).toBe('offline');
+  });
+
+  it('addCatalogSource delegates and reloads the catalog', async () => {
+    mocked.addCatalogSource.mockResolvedValue(['https://a', 'https://b']);
+    mocked.getPluginCatalog.mockResolvedValue({
+      default_source: 'https://a',
+      sources: ['https://a', 'https://b'],
+      catalogs: [],
+      errors: [],
+    });
+
+    await useAdminStore.getState().addCatalogSource('https://b');
+
+    expect(mocked.addCatalogSource).toHaveBeenCalledWith('https://b');
+    expect(mocked.getPluginCatalog).toHaveBeenCalled();
+  });
+
+  it('removeCatalogSource rethrows and sets catalogError on failure', async () => {
+    mocked.removeCatalogSource.mockRejectedValue(new Error('protected'));
+
+    await expect(
+      useAdminStore.getState().removeCatalogSource('https://b')
+    ).rejects.toThrow('protected');
+    expect(useAdminStore.getState().catalogError).toBe('protected');
+  });
+
+  // ── Auth providers (E10c) ──
+
+  it('loadAuthProviders populates providers and clears loading', async () => {
+    mocked.getAuthProviders.mockResolvedValue([
+      { name: 'local', supports_authentication: true },
+    ]);
+
+    await useAdminStore.getState().loadAuthProviders();
+
+    expect(useAdminStore.getState().authProviders).toHaveLength(1);
+    expect(useAdminStore.getState().authProvidersLoading).toBe(false);
+  });
+
+  it('loadAuthProviders sets authProvidersError on failure without throwing', async () => {
+    mocked.getAuthProviders.mockRejectedValue(new Error('denied'));
+
+    await useAdminStore.getState().loadAuthProviders();
+
+    expect(useAdminStore.getState().authProvidersError).toBe('denied');
+  });
+
+  it('enableAuthProvider delegates, reloads, and returns the result', async () => {
+    mocked.enableAuthProvider.mockResolvedValue({ name: 'oidc', enabled: true, message: 'on' });
+    mocked.getAuthProviders.mockResolvedValue([]);
+
+    const result = await useAdminStore.getState().enableAuthProvider('oidc');
+
+    expect(mocked.enableAuthProvider).toHaveBeenCalledWith('oidc');
+    expect(mocked.getAuthProviders).toHaveBeenCalled();
+    expect(result.enabled).toBe(true);
+  });
+
+  it('disableAuthProvider rethrows and sets authProvidersError on failure', async () => {
+    mocked.disableAuthProvider.mockRejectedValue(new Error('busy'));
+
+    await expect(
+      useAdminStore.getState().disableAuthProvider('oidc')
+    ).rejects.toThrow('busy');
+    expect(useAdminStore.getState().authProvidersError).toBe('busy');
+  });
+
+  it('getAuthProviderConfigSchema delegates to the manager', async () => {
+    mocked.getAuthProviderConfigSchema.mockResolvedValue({ type: 'object' });
+
+    const schema = await useAdminStore
+      .getState()
+      .getAuthProviderConfigSchema('oidc');
+
+    expect(mocked.getAuthProviderConfigSchema).toHaveBeenCalledWith('oidc');
+    expect(schema).toEqual({ type: 'object' });
+  });
+
+  // ── Server settings (E10c) ──
+
+  it('loadServerSettings populates settings and clears loading', async () => {
+    const data = { settings: { a: 1 }, overridden: [], types: { a: 'number' } };
+    mocked.getServerSettings.mockResolvedValue(data);
+
+    await useAdminStore.getState().loadServerSettings();
+
+    expect(useAdminStore.getState().serverSettings).toEqual(data);
+    expect(useAdminStore.getState().serverSettingsLoading).toBe(false);
+  });
+
+  it('loadServerSettings sets serverSettingsError on failure without throwing', async () => {
+    mocked.getServerSettings.mockRejectedValue(new Error('forbidden'));
+
+    await useAdminStore.getState().loadServerSettings();
+
+    expect(useAdminStore.getState().serverSettingsError).toBe('forbidden');
+  });
+
+  it('updateServerSettings stores the refreshed settings and returns them', async () => {
+    const data = { settings: { a: 2 }, overridden: [], types: { a: 'number' } };
+    mocked.updateServerSettings.mockResolvedValue(data);
+
+    const result = await useAdminStore.getState().updateServerSettings({ a: 2 });
+
+    expect(mocked.updateServerSettings).toHaveBeenCalledWith({ a: 2 });
+    expect(useAdminStore.getState().serverSettings).toEqual(data);
+    expect(result.settings.a).toBe(2);
+  });
+
+  it('updateServerSettings rethrows and sets serverSettingsError on failure', async () => {
+    mocked.updateServerSettings.mockRejectedValue(new Error('unknown key'));
+
+    await expect(
+      useAdminStore.getState().updateServerSettings({ bogus: 1 })
+    ).rejects.toThrow('unknown key');
+    expect(useAdminStore.getState().serverSettingsError).toBe('unknown key');
   });
 });
