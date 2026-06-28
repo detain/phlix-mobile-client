@@ -9,4 +9,5 @@ export { useCastStore } from './useCastStore';
 export { useLiveTvStore } from './useLiveTvStore';
 export { useMusicStore } from './useMusicStore';
 export { usePhotoStore } from './usePhotoStore';
+export { useCollectionStore } from './useCollectionStore';
 export { useSyncplayStore } from '../store/syncplayStore';

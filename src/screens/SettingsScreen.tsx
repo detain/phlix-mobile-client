@@ -170,6 +170,20 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Library Section — user-facing browse extras (E10a) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Library</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('Collections')}
+            >
+              <Text style={styles.settingLabel}>Collections</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Admin Section — only for server administrators */}
         {user?.is_admin ? (
           <View style={styles.section}>

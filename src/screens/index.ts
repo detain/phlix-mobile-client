@@ -19,3 +19,5 @@ export { default as MusicAlbumScreen } from './MusicAlbumScreen';
 export { default as PhotosScreen } from './PhotosScreen';
 export { default as PhotoAlbumScreen } from './PhotoAlbumScreen';
 export { default as PhotoViewerScreen } from './PhotoViewerScreen';
+export { default as CollectionsScreen } from './CollectionsScreen';
+export { default as CollectionDetailScreen } from './CollectionDetailScreen';
