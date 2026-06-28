@@ -15,6 +15,12 @@ import type {
   StorageStat,
   ActivityEntry,
   PlaybackStat,
+  Plugin,
+  PluginDetail,
+  CatalogResponse,
+  AuthProvider,
+  AuthProviderConfigSchema,
+  ServerSettings,
 } from '../types/admin';
 
 /**
@@ -68,6 +74,13 @@ export interface CreateLibraryResult {
 export interface JobTriggerResult {
   job_id: string;
   status: string;
+  message: string;
+}
+
+/** Result of enabling/disabling an auth provider (E10c). */
+export interface AuthProviderToggleResult {
+  name: string;
+  enabled: boolean;
   message: string;
 }
 
@@ -274,6 +287,143 @@ class AdminManager {
       { limit }
     );
     return res.history;
+  }
+
+  // ── Plugins (E10c — BARE { plugins } / { plugin } / { sources } …) ──
+
+  // GET /api/v1/admin/plugins → { plugins }
+  async getPlugins(): Promise<Plugin[]> {
+    const res = await apiClient.get<{ plugins: Plugin[] }>('/admin/plugins');
+    return res.plugins;
+  }
+
+  // GET /api/v1/admin/plugins/{name} → { plugin }
+  async getPlugin(name: string): Promise<PluginDetail> {
+    const res = await apiClient.get<{ plugin: PluginDetail }>(
+      `/admin/plugins/${encodeURIComponent(name)}`
+    );
+    return res.plugin;
+  }
+
+  // POST /api/v1/admin/plugins/install body { url } → 201 { plugin }
+  async installPlugin(url: string): Promise<PluginDetail> {
+    const res = await apiClient.post<{ plugin: PluginDetail }>(
+      '/admin/plugins/install',
+      { url }
+    );
+    return res.plugin;
+  }
+
+  // PUT /api/v1/admin/plugins/{name}/settings body { settings } → { plugin }
+  async updatePluginSettings(
+    name: string,
+    settings: Record<string, unknown>
+  ): Promise<PluginDetail> {
+    const res = await apiClient.put<{ plugin: PluginDetail }>(
+      `/admin/plugins/${encodeURIComponent(name)}/settings`,
+      { settings }
+    );
+    return res.plugin;
+  }
+
+  // POST /api/v1/admin/plugins/{name}/enable → { plugin }
+  async enablePlugin(name: string): Promise<PluginDetail> {
+    const res = await apiClient.post<{ plugin: PluginDetail }>(
+      `/admin/plugins/${encodeURIComponent(name)}/enable`
+    );
+    return res.plugin;
+  }
+
+  // POST /api/v1/admin/plugins/{name}/disable → { plugin }
+  async disablePlugin(name: string): Promise<PluginDetail> {
+    const res = await apiClient.post<{ plugin: PluginDetail }>(
+      `/admin/plugins/${encodeURIComponent(name)}/disable`
+    );
+    return res.plugin;
+  }
+
+  // DELETE /api/v1/admin/plugins/{name} → 204 (empty)
+  async uninstallPlugin(name: string): Promise<void> {
+    await apiClient.delete<void>(`/admin/plugins/${encodeURIComponent(name)}`);
+  }
+
+  // GET /api/v1/admin/plugins/catalog → whole { default_source, sources, catalogs, errors }
+  async getPluginCatalog(): Promise<CatalogResponse> {
+    return apiClient.get<CatalogResponse>('/admin/plugins/catalog');
+  }
+
+  // POST /api/v1/admin/plugins/catalog/sources body { url } → { sources }
+  async addCatalogSource(url: string): Promise<string[]> {
+    const res = await apiClient.post<{ sources: string[] }>(
+      '/admin/plugins/catalog/sources',
+      { url }
+    );
+    return res.sources;
+  }
+
+  // DELETE /api/v1/admin/plugins/catalog/sources body { url } → { sources }
+  // DELETE-with-body: the documented axios form `delete(url, { data })`.
+  async removeCatalogSource(url: string): Promise<string[]> {
+    const res = await apiClient.delete<{ sources: string[] }>(
+      '/admin/plugins/catalog/sources',
+      { data: { url } }
+    );
+    return res.sources;
+  }
+
+  // ── Auth providers (E10c — BARE { providers } / { name,enabled,message } / { schema }) ──
+
+  // GET /api/v1/admin/auth-providers → { providers }
+  async getAuthProviders(): Promise<AuthProvider[]> {
+    const res = await apiClient.get<{ providers: AuthProvider[] }>(
+      '/admin/auth-providers'
+    );
+    return res.providers;
+  }
+
+  // POST /api/v1/admin/auth-providers/{name}/enable → { name, enabled, message }
+  async enableAuthProvider(name: string): Promise<AuthProviderToggleResult> {
+    return apiClient.post<AuthProviderToggleResult>(
+      `/admin/auth-providers/${encodeURIComponent(name)}/enable`
+    );
+  }
+
+  // POST /api/v1/admin/auth-providers/{name}/disable → { name, enabled, message }
+  async disableAuthProvider(name: string): Promise<AuthProviderToggleResult> {
+    return apiClient.post<AuthProviderToggleResult>(
+      `/admin/auth-providers/${encodeURIComponent(name)}/disable`
+    );
+  }
+
+  // GET /api/v1/admin/auth-providers/{name}/config-schema → { schema }
+  async getAuthProviderConfigSchema(
+    name: string
+  ): Promise<AuthProviderConfigSchema> {
+    const res = await apiClient.get<{ schema: AuthProviderConfigSchema }>(
+      `/admin/auth-providers/${encodeURIComponent(name)}/config-schema`
+    );
+    return res.schema;
+  }
+
+  // ── Server settings (E10c — ENVELOPED { success, data } → unwrap .data) ──
+
+  // GET /api/v1/admin/settings → { success, data:ServerSettings }
+  async getServerSettings(): Promise<ServerSettings> {
+    const res = await apiClient.get<{ success: boolean; data: ServerSettings }>(
+      '/admin/settings'
+    );
+    return res.data;
+  }
+
+  // PUT /api/v1/admin/settings body { settings } → { success, data:ServerSettings }
+  async updateServerSettings(
+    settings: Record<string, unknown>
+  ): Promise<ServerSettings> {
+    const res = await apiClient.put<{ success: boolean; data: ServerSettings }>(
+      '/admin/settings',
+      { settings }
+    );
+    return res.data;
   }
 }
 

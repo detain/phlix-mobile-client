@@ -19,6 +19,9 @@ import {
   AdminDashboardScreen,
   AdminUsersScreen,
   AdminLibrariesScreen,
+  AdminPluginsScreen,
+  AdminAuthProvidersScreen,
+  AdminServerSettingsScreen,
   CastScreen,
   LiveTvScreen,
   LiveTvRecordingsScreen,
@@ -195,6 +198,36 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Libraries',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminPlugins"
+              component={AdminPluginsScreen}
+              options={{
+                headerShown: true,
+                title: 'Plugins',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminAuthProviders"
+              component={AdminAuthProvidersScreen}
+              options={{
+                headerShown: true,
+                title: 'Auth Providers',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminServerSettings"
+              component={AdminServerSettingsScreen}
+              options={{
+                headerShown: true,
+                title: 'Server Settings',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

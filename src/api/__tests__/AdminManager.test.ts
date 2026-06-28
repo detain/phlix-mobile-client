@@ -397,4 +397,188 @@ describe('AdminManager', () => {
       limit: 20,
     });
   });
+
+  // ── Plugins (E10c — BARE { plugins } / { plugin } / { sources }) ──
+
+  it('getPlugins GETs /admin/plugins and unwraps { plugins }', async () => {
+    mockedClient.get.mockResolvedValue({
+      plugins: [{ id: 'p1', name: 'trakt', version: '1.0', type: 'metadata', enabled: true }],
+    });
+
+    const plugins = await adminManager.getPlugins();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/plugins');
+    expect(plugins[0].name).toBe('trakt');
+  });
+
+  it('getPlugin GETs /admin/plugins/{name} (encoded) and unwraps { plugin }', async () => {
+    mockedClient.get.mockResolvedValue({
+      plugin: { name: 'last.fm', version: '2.0', type: 'scrobbler', enabled: false },
+    });
+
+    const plugin = await adminManager.getPlugin('last.fm');
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/plugins/last.fm');
+    expect(plugin.version).toBe('2.0');
+  });
+
+  it('installPlugin POSTs /admin/plugins/install with { url } and unwraps { plugin }', async () => {
+    mockedClient.post.mockResolvedValue({
+      plugin: { name: 'new', version: '0.1', type: 'x', enabled: true },
+    });
+
+    const plugin = await adminManager.installPlugin('https://example.com/p.zip');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/plugins/install', {
+      url: 'https://example.com/p.zip',
+    });
+    expect(plugin.name).toBe('new');
+  });
+
+  it('updatePluginSettings PUTs /admin/plugins/{name}/settings with { settings } and unwraps { plugin }', async () => {
+    mockedClient.put.mockResolvedValue({
+      plugin: { name: 'trakt', version: '1.0', type: 'metadata', enabled: true },
+    });
+
+    const plugin = await adminManager.updatePluginSettings('trakt', { apiKey: 'abc' });
+
+    expect(mockedClient.put).toHaveBeenCalledWith('/admin/plugins/trakt/settings', {
+      settings: { apiKey: 'abc' },
+    });
+    expect(plugin.name).toBe('trakt');
+  });
+
+  it('enablePlugin POSTs /admin/plugins/{name}/enable and unwraps { plugin }', async () => {
+    mockedClient.post.mockResolvedValue({
+      plugin: { name: 'trakt', version: '1.0', type: 'metadata', enabled: true },
+    });
+
+    const plugin = await adminManager.enablePlugin('trakt');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/plugins/trakt/enable');
+    expect(plugin.enabled).toBe(true);
+  });
+
+  it('disablePlugin POSTs /admin/plugins/{name}/disable and unwraps { plugin }', async () => {
+    mockedClient.post.mockResolvedValue({
+      plugin: { name: 'trakt', version: '1.0', type: 'metadata', enabled: false },
+    });
+
+    const plugin = await adminManager.disablePlugin('trakt');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/plugins/trakt/disable');
+    expect(plugin.enabled).toBe(false);
+  });
+
+  it('uninstallPlugin DELETEs /admin/plugins/{name} and resolves void (204)', async () => {
+    mockedClient.delete.mockResolvedValue(undefined);
+
+    const result = await adminManager.uninstallPlugin('trakt');
+
+    expect(mockedClient.delete).toHaveBeenCalledWith('/admin/plugins/trakt');
+    expect(result).toBeUndefined();
+  });
+
+  it('getPluginCatalog GETs /admin/plugins/catalog and returns the WHOLE object', async () => {
+    const catalog = {
+      default_source: 'https://catalog',
+      sources: ['https://catalog'],
+      catalogs: [{ source: 'https://catalog', name: 'Main', plugins: [] }],
+      errors: [],
+    };
+    mockedClient.get.mockResolvedValue(catalog);
+
+    const result = await adminManager.getPluginCatalog();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/plugins/catalog');
+    expect(result).toEqual(catalog);
+  });
+
+  it('addCatalogSource POSTs /admin/plugins/catalog/sources with { url } and unwraps { sources }', async () => {
+    mockedClient.post.mockResolvedValue({ sources: ['https://a', 'https://b'] });
+
+    const sources = await adminManager.addCatalogSource('https://b');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/plugins/catalog/sources', {
+      url: 'https://b',
+    });
+    expect(sources).toEqual(['https://a', 'https://b']);
+  });
+
+  it('removeCatalogSource DELETEs /admin/plugins/catalog/sources with a BODY { url } and unwraps { sources }', async () => {
+    mockedClient.delete.mockResolvedValue({ sources: ['https://a'] });
+
+    const sources = await adminManager.removeCatalogSource('https://b');
+
+    expect(mockedClient.delete).toHaveBeenCalledWith('/admin/plugins/catalog/sources', {
+      data: { url: 'https://b' },
+    });
+    expect(sources).toEqual(['https://a']);
+  });
+
+  // ── Auth providers (E10c — BARE) ──
+
+  it('getAuthProviders GETs /admin/auth-providers and unwraps { providers }', async () => {
+    mockedClient.get.mockResolvedValue({
+      providers: [{ name: 'local', supports_authentication: true }],
+    });
+
+    const providers = await adminManager.getAuthProviders();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/auth-providers');
+    expect(providers[0].name).toBe('local');
+  });
+
+  it('enableAuthProvider POSTs /admin/auth-providers/{name}/enable and returns { name, enabled, message }', async () => {
+    mockedClient.post.mockResolvedValue({ name: 'oidc', enabled: true, message: 'on' });
+
+    const result = await adminManager.enableAuthProvider('oidc');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/auth-providers/oidc/enable');
+    expect(result.enabled).toBe(true);
+  });
+
+  it('disableAuthProvider POSTs /admin/auth-providers/{name}/disable and returns the result', async () => {
+    mockedClient.post.mockResolvedValue({ name: 'oidc', enabled: false, message: 'off' });
+
+    const result = await adminManager.disableAuthProvider('oidc');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/auth-providers/oidc/disable');
+    expect(result.enabled).toBe(false);
+  });
+
+  it('getAuthProviderConfigSchema GETs the schema route and unwraps { schema }', async () => {
+    mockedClient.get.mockResolvedValue({ schema: { type: 'object', properties: {} } });
+
+    const schema = await adminManager.getAuthProviderConfigSchema('oidc');
+
+    expect(mockedClient.get).toHaveBeenCalledWith(
+      '/admin/auth-providers/oidc/config-schema'
+    );
+    expect(schema).toEqual({ type: 'object', properties: {} });
+  });
+
+  // ── Server settings (E10c — ENVELOPED { success, data } → unwrap .data) ──
+
+  it('getServerSettings GETs /admin/settings and unwraps .data', async () => {
+    const data = { settings: { a: 1 }, overridden: ['a'], types: { a: 'number' } };
+    mockedClient.get.mockResolvedValue({ success: true, data });
+
+    const result = await adminManager.getServerSettings();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/settings');
+    expect(result).toEqual(data);
+  });
+
+  it('updateServerSettings PUTs /admin/settings with { settings } and unwraps .data', async () => {
+    const data = { settings: { a: 2 }, overridden: [], types: { a: 'number' } };
+    mockedClient.put.mockResolvedValue({ success: true, data });
+
+    const result = await adminManager.updateServerSettings({ a: 2 });
+
+    expect(mockedClient.put).toHaveBeenCalledWith('/admin/settings', {
+      settings: { a: 2 },
+    });
+    expect(result.settings.a).toBe(2);
+  });
 });

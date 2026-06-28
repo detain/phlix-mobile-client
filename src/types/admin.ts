@@ -149,3 +149,106 @@ export interface PlaybackStat {
   total_duration?: number;
   [key: string]: unknown;
 }
+
+// ── Plugins (E10c) — `PluginAdminController` + `PluginCatalogController` ──
+//
+// Envelopes are BARE `{plugins}` / `{plugin}` / `{sources}` etc (NOT the
+// `{success,data}` shape). Settings VALUES are free-form per-plugin → typed
+// `unknown` (callers coerce by the declared schema `type`).
+
+/** An installed-plugin row from `GET /admin/plugins`. */
+export interface Plugin {
+  id: string;
+  name: string;
+  version: string;
+  type: string;
+  entry?: string;
+  enabled: boolean;
+  installed_at?: string | null;
+  signed?: boolean;
+  settings?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
+ * One field's declaration in a plugin's `settings_schema`. `type` is the field
+ * kind the form renders (string/number/bool/…); `secret` masks the input.
+ */
+export interface PluginSettingSchema {
+  type: string;
+  required?: boolean;
+  secret?: boolean;
+  label?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+/** Full plugin detail from `GET /admin/plugins/{name}` (adds the settings schema). */
+export interface PluginDetail {
+  name: string;
+  version: string;
+  type: string;
+  enabled: boolean;
+  installed_at?: string | null;
+  settings_schema?: Record<string, PluginSettingSchema>;
+  settings?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** A plugin entry inside a catalog (`catalogs[].plugins[]`). */
+export interface CatalogPlugin {
+  name: string;
+  version: string;
+  installed: boolean;
+  enabled: boolean;
+  [key: string]: unknown;
+}
+
+/** One catalog source's resolved listing. */
+export interface PluginCatalog {
+  source: string;
+  name: string;
+  plugins: CatalogPlugin[];
+}
+
+/** A per-source fetch error from `GET /admin/plugins/catalog`. */
+export interface CatalogError {
+  source: string;
+  error: string;
+}
+
+/** Whole `GET /admin/plugins/catalog` payload. */
+export interface CatalogResponse {
+  default_source: string;
+  sources: string[];
+  catalogs: PluginCatalog[];
+  errors: CatalogError[];
+}
+
+// ── Auth providers (E10c) — `AuthProviderController` ──
+
+/** A provider row from `GET /admin/auth-providers`. */
+export interface AuthProvider {
+  name: string;
+  supports_authentication: boolean;
+  [key: string]: unknown;
+}
+
+/**
+ * The JSON-schema describing a provider's config, from
+ * `GET /admin/auth-providers/{name}/config-schema`. Free-form JSON-schema →
+ * `unknown`-valued map (there is NO config WRITE route — schema is read-only).
+ */
+export type AuthProviderConfigSchema = Record<string, unknown>;
+
+// ── Server settings (E10c) — `AdminSettingsController` ──
+//
+// ENVELOPED `{success, data:{...}}` on the wire → the manager unwraps `.data`
+// into this shape. Setting VALUES are free-form → `unknown`.
+
+/** Unwrapped `GET|PUT /admin/settings` payload. */
+export interface ServerSettings {
+  settings: Record<string, unknown>;
+  overridden: string[];
+  types: Record<string, string>;
+}

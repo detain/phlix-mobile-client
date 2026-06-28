@@ -217,6 +217,27 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.settingLabel}>Live TV</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminPlugins')}
+              >
+                <Text style={styles.settingLabel}>Plugins</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminAuthProviders')}
+              >
+                <Text style={styles.settingLabel}>Auth Providers</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminServerSettings')}
+              >
+                <Text style={styles.settingLabel}>Server Settings</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : null}
