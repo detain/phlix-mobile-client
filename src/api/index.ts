@@ -12,6 +12,14 @@ export {
   type PaginatedResponse,
   type BrowseMediaParams,
 } from './LibraryManager';
+export type {
+  LetterIndex,
+  LetterIndexEntry,
+  MediaFilters,
+  RatingOption,
+  SortOption,
+  SortOrder,
+} from '../types/search';
 export { default as userManager, type UserSettings } from './UserManager';
 export { default as profileManager } from './ProfileManager';
 export {

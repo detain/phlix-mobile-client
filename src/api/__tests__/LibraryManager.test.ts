@@ -92,4 +92,35 @@ describe('LibraryManager', () => {
     expect(mockedClient.get).toHaveBeenCalledWith('/media', { search: 'alien', limit: 50 });
     expect(items).toHaveLength(1);
   });
+
+  it('getLetterIndex hits /media/letter-index and returns { letters, total }', async () => {
+    mockedClient.get.mockResolvedValue({
+      letters: [
+        { letter: '#', offset: 0, count: 2 },
+        { letter: 'A', offset: 2, count: 5 },
+      ],
+      total: 7,
+    });
+
+    const index = await libraryManager.getLetterIndex({
+      genres: ['Action'],
+      libraryId: 'lib-1',
+    });
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/media/letter-index', {
+      genres: ['Action'],
+      libraryId: 'lib-1',
+    });
+    expect(index.total).toBe(7);
+    expect(index.letters).toHaveLength(2);
+    expect(index.letters[1]).toEqual({ letter: 'A', offset: 2, count: 5 });
+  });
+
+  it('getLetterIndex defaults to no params', async () => {
+    mockedClient.get.mockResolvedValue({ letters: [], total: 0 });
+
+    await libraryManager.getLetterIndex();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/media/letter-index', {});
+  });
 });

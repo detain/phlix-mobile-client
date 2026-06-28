@@ -26,7 +26,7 @@ Phlix Mobile is a React Native application designed to interface with media serv
 - **Media Library**: Browse movies, series, music, and photos organized by library
 - **Media Playback**: Full-featured video player with seek, volume, playback speed controls
 - **Subtitle Support**: Multiple subtitle tracks and audio tracks
-- **Search**: Global search across all media types
+- **Search**: Global text search across all media types, plus an **advanced filter sheet** (filter by genre, content rating, and year range, and choose the sort field — name, year, rating, date added, or runtime — with an ascending/descending toggle). When browsing (no text query) with name sorting, an **A–Z jump rail** appears down the right edge so you can leap straight to titles starting with any letter (letters with no matches are greyed out); results page in as you scroll.
 - **User Preferences**: Customizable playback settings and app preferences
 - **Continue Watching**: Resume playback from where you left off
 - **Downloads**: Download media for offline playback
