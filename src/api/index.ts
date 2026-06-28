@@ -69,6 +69,10 @@ export {
   type BulkAddResult,
 } from './CollectionManager';
 export {
+  default as favoritesManager,
+  type FavoritesResponse,
+} from './FavoritesManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,

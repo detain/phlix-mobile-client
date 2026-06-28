@@ -35,6 +35,7 @@ import {
   PhotoViewerScreen,
   CollectionsScreen,
   CollectionDetailScreen,
+  FavoritesScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -354,6 +355,16 @@ const RootNavigator = () => {
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               })}
+            />
+            <Stack.Screen
+              name="Favorites"
+              component={FavoritesScreen}
+              options={{
+                headerShown: true,
+                title: 'Favorites',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
             />
             <Stack.Screen
               name="Cast"
