@@ -46,6 +46,9 @@ export type RootStackParamList = {
   // serializable scalars are passed through nav params.
   Collections: undefined;
   CollectionDetail: { collectionId: string; title?: string };
+  // E10 (Favorites). Account-level favorited items; the list re-fetches from
+  // the server, so no params are passed.
+  Favorites: undefined;
   Cast: {
     mediaItemId: string;
     streamUrl: string;

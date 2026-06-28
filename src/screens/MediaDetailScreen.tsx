@@ -9,12 +9,21 @@ import {
   Text,
   Image,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import { libraryManager } from '../api/LibraryManager';
+import { favoritesManager } from '../api/FavoritesManager';
 import { MediaItem, Season, Episode } from '../types/media';
+import {
+  starsFromRating,
+  ratingForStar,
+  isClearTap,
+  nextFavoriteState,
+  STAR_COUNT,
+} from './favorites/favoritesHelpers';
 import { PosterCard } from '../components/media/PosterCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
@@ -43,6 +52,15 @@ const MediaDetailScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // E4: live download state for this item (undefined = not downloading/downloaded).
   const [downloadTask, setDownloadTask] = useState<DownloadTask | undefined>(undefined);
+  // E10 favorites: optimistic local state for THIS item's favorite/rating,
+  // seeded from `item.user_data` once loaded. `userDataPresent` gates the whole
+  // control — `user_data` is null when unauthenticated (no favorites for guests).
+  const [userDataPresent, setUserDataPresent] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
+  // Guards against firing a second mutation while one is in flight.
+  const [favBusy, setFavBusy] = useState(false);
+  const [rateBusy, setRateBusy] = useState(false);
 
   useEffect(() => {
     loadMediaDetails();
@@ -76,6 +94,13 @@ const MediaDetailScreen: React.FC = () => {
       setError(null);
       const mediaItem = await libraryManager.getMediaItem(itemId);
       setItem(mediaItem);
+
+      // E10 favorites: seed optimistic local state from the server's user_data
+      // (null when unauthenticated → controls hidden).
+      const ud = mediaItem.user_data;
+      setUserDataPresent(Boolean(ud));
+      setIsFavorite(Boolean(ud?.favorite));
+      setRating(ud?.rating ?? null);
 
       if (mediaItem.type === 'series') {
         try {
@@ -166,6 +191,60 @@ const MediaDetailScreen: React.FC = () => {
     }
   };
 
+  // E10 favorites: optimistic toggle with revert-on-error.
+  const handleToggleFavorite = async () => {
+    if (favBusy) {
+      return;
+    }
+    const previous = isFavorite;
+    const next = nextFavoriteState(previous);
+    setIsFavorite(next);
+    setFavBusy(true);
+    try {
+      if (next) {
+        await favoritesManager.setFavorite(itemId);
+      } else {
+        await favoritesManager.removeFavorite(itemId);
+      }
+    } catch (err) {
+      setIsFavorite(previous); // revert
+      Alert.alert(
+        'Favorite Failed',
+        err instanceof Error ? err.message : 'Could not update favorite'
+      );
+    } finally {
+      setFavBusy(false);
+    }
+  };
+
+  // E10 favorites: tapping star N sets rating to N×2 (1–10); re-tapping the
+  // current rating clears it. Optimistic with revert-on-error.
+  const handleStarPress = async (starIndex: number) => {
+    if (rateBusy) {
+      return;
+    }
+    const value = ratingForStar(starIndex);
+    const clearing = isClearTap(value, rating);
+    const previous = rating;
+    setRating(clearing ? null : value);
+    setRateBusy(true);
+    try {
+      if (clearing) {
+        await favoritesManager.clearRating(itemId);
+      } else {
+        await favoritesManager.setRating(itemId, value);
+      }
+    } catch (err) {
+      setRating(previous); // revert
+      Alert.alert(
+        'Rating Failed',
+        err instanceof Error ? err.message : 'Could not update rating'
+      );
+    } finally {
+      setRateBusy(false);
+    }
+  };
+
   const downloadButtonLabel = (): string => {
     if (!downloadTask) {
       return 'Download';
@@ -204,7 +283,7 @@ const MediaDetailScreen: React.FC = () => {
 
   const isSeries = item.type === 'series';
   const hasResumePosition = Boolean(item.user_data?.resume_position_ticks && item.user_data.resume_position_ticks > 0);
-  const userRating = item.user_data?.rating;
+  const stars = starsFromRating(rating);
   const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
 
   return (
@@ -251,9 +330,50 @@ const MediaDetailScreen: React.FC = () => {
               )}
             </View>
 
-            {userRating && (
-              <View style={styles.userRating}>
-                <Text style={styles.userRatingText}>★ {userRating}</Text>
+            {/* E10 favorites: favorite toggle + 1–10 star rating. Shown only
+                when authenticated (server sends user_data; null for guests). */}
+            {userDataPresent && (
+              <View style={styles.favoriteRow}>
+                <TouchableOpacity
+                  style={styles.favoriteButton}
+                  onPress={handleToggleFavorite}
+                  disabled={favBusy}
+                  accessibilityLabel={isFavorite ? 'Remove favorite' : 'Add favorite'}
+                  accessibilityState={{ selected: isFavorite }}
+                >
+                  <Text
+                    style={[
+                      styles.favoriteIcon,
+                      isFavorite && styles.favoriteIconActive,
+                    ]}
+                  >
+                    {isFavorite ? '♥' : '♡'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.starsRow}>
+                  {stars.map((fill, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.starButton}
+                      onPress={() => handleStarPress(idx + 1)}
+                      disabled={rateBusy}
+                      accessibilityLabel={`Rate ${ratingForStar(idx + 1)} out of ${STAR_COUNT * 2}`}
+                    >
+                      <Text
+                        style={[
+                          styles.star,
+                          fill !== 'empty' && styles.starActive,
+                        ]}
+                      >
+                        {fill === 'full' ? '★' : fill === 'half' ? '⯨' : '☆'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {rating != null && (
+                    <Text style={styles.ratingValue}>{rating}/10</Text>
+                  )}
+                </View>
               </View>
             )}
 
@@ -451,18 +571,43 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 14,
   },
-  userRating: {
-    backgroundColor: '#2d2d44',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
+  favoriteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 15,
+    flexWrap: 'wrap',
   },
-  userRatingText: {
+  favoriteButton: {
+    paddingVertical: 4,
+    paddingRight: 12,
+  },
+  favoriteIcon: {
+    fontSize: 26,
+    color: '#888',
+  },
+  favoriteIconActive: {
+    color: '#e0245e',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  starButton: {
+    paddingHorizontal: 2,
+    paddingVertical: 4,
+  },
+  star: {
+    fontSize: 22,
+    color: '#555',
+  },
+  starActive: {
     color: '#ffc107',
-    fontSize: 14,
+  },
+  ratingValue: {
+    color: '#ffc107',
+    fontSize: 13,
     fontWeight: '600',
+    marginLeft: 8,
   },
   playButton: {
     flexDirection: 'row',

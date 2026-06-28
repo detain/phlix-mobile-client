@@ -64,14 +64,36 @@ export interface MediaItem {
   position_ticks?: number;
   /** ISO timestamp from `GET /users/me/recently-watched`. */
   watched_at?: string;
-  user_data?: UserData;
+  /**
+   * Per-user data. On `GET /media/{id}` (favorites E10) this is
+   * `{favorite, rating}` when authenticated and `null` when not — so the field
+   * is `UserData | null`. Absent on most list payloads.
+   */
+  user_data?: UserData | null;
 }
 
+/**
+ * Per-user data attached to a media item.
+ *
+ * Two overlapping shapes share this interface:
+ *  - Continue-watching / resume info (`playback_position_ticks` /
+ *    `resume_position_ticks` / `is_watched`).
+ *  - The FAVORITES/RATINGS block the server now sends on `GET /media/{id}` and
+ *    on each `GET /users/me/favorites` item (E10 favorites). On detail the
+ *    server sends `user_data: { favorite: boolean, rating: number | null }`
+ *    when authenticated, and `user_data: null` when unauthenticated — hence
+ *    `favorite`/`rating` are typed below to match the server payload exactly.
+ *
+ * `rating` is the USER's 1–10 score and is `null` (not absent) when unset; it is
+ * distinct from `MediaItem.rating`, which is the content-rating label string.
+ */
 export interface UserData {
   playback_position_ticks?: number;
   resume_position_ticks?: number;
   is_watched?: boolean;
-  rating?: number;
+  /** User's 1–10 rating; `null`/absent when unrated (server `user_data.rating`). */
+  rating?: number | null;
+  /** Whether the user favorited this item (server `user_data.favorite`). */
   favorite?: boolean;
 }
 
