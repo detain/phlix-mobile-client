@@ -18,6 +18,12 @@ import {
   coerceSettingValue,
   settingValueToInput,
   isOverridden,
+  formatBackupSize,
+  validateScheduleInput,
+  parentPath,
+  breadcrumbs,
+  LOG_LINE_OPTIONS,
+  clampLogLines,
 } from '../adminScreenHelpers';
 import type {
   AdminUser,
@@ -323,5 +329,102 @@ describe('isOverridden', () => {
     expect(isOverridden(['a', 'b'], 'c')).toBe(false);
     expect(isOverridden([], 'a')).toBe(false);
     expect(isOverridden(undefined, 'a')).toBe(false);
+  });
+});
+
+// ── E10d helpers ──
+
+describe('formatBackupSize', () => {
+  it('formats finite non-negative sizes via formatFileSize', () => {
+    expect(formatBackupSize(0)).toBe('0 B');
+    expect(formatBackupSize(1024)).toBe('1 KB');
+  });
+
+  it('returns an em-dash for missing / invalid sizes', () => {
+    expect(formatBackupSize(undefined)).toBe('—');
+    expect(formatBackupSize(null)).toBe('—');
+    expect(formatBackupSize(NaN)).toBe('—');
+    expect(formatBackupSize(-5)).toBe('—');
+  });
+});
+
+describe('validateScheduleInput', () => {
+  it('accepts empty fields (treated as unchanged)', () => {
+    expect(validateScheduleInput('', '')).toBeNull();
+    expect(validateScheduleInput('  ', '  ')).toBeNull();
+  });
+
+  it('accepts valid whole numbers (days ≥ 0, count ≥ 1)', () => {
+    expect(validateScheduleInput('0', '1')).toBeNull();
+    expect(validateScheduleInput('7', '5')).toBeNull();
+  });
+
+  it('rejects a negative or non-integer interval', () => {
+    expect(validateScheduleInput('-1', '5')).toMatch(/Interval/);
+    expect(validateScheduleInput('1.5', '5')).toMatch(/Interval/);
+    expect(validateScheduleInput('abc', '5')).toMatch(/Interval/);
+  });
+
+  it('rejects a retention count below 1 or non-integer', () => {
+    expect(validateScheduleInput('7', '0')).toMatch(/Retention/);
+    expect(validateScheduleInput('7', '-2')).toMatch(/Retention/);
+    expect(validateScheduleInput('7', '2.5')).toMatch(/Retention/);
+  });
+});
+
+describe('parentPath', () => {
+  it('returns null for root / empty / null / bare segment', () => {
+    expect(parentPath('/')).toBeNull();
+    expect(parentPath('')).toBeNull();
+    expect(parentPath(null)).toBeNull();
+    expect(parentPath(undefined)).toBeNull();
+    expect(parentPath('movies')).toBeNull();
+  });
+
+  it('returns "/" for a one-level absolute path', () => {
+    expect(parentPath('/movies')).toBe('/');
+  });
+
+  it('returns the parent directory for deeper paths', () => {
+    expect(parentPath('/a/b/c')).toBe('/a/b');
+    expect(parentPath('/a/b')).toBe('/a');
+  });
+
+  it('ignores a trailing slash', () => {
+    expect(parentPath('/a/b/')).toBe('/a');
+    expect(parentPath('/a/b/c/')).toBe('/a/b');
+  });
+});
+
+describe('breadcrumbs', () => {
+  it('returns just the root crumb for null / empty / root', () => {
+    expect(breadcrumbs(null)).toEqual([{ label: '/', path: '/' }]);
+    expect(breadcrumbs('')).toEqual([{ label: '/', path: '/' }]);
+    expect(breadcrumbs('/')).toEqual([{ label: '/', path: '/' }]);
+  });
+
+  it('accumulates segments for an absolute path with a leading root', () => {
+    expect(breadcrumbs('/a/b/c')).toEqual([
+      { label: '/', path: '/' },
+      { label: 'a', path: '/a' },
+      { label: 'b', path: '/a/b' },
+      { label: 'c', path: '/a/b/c' },
+    ]);
+  });
+});
+
+describe('clampLogLines / LOG_LINE_OPTIONS', () => {
+  it('exposes the 200/500/1000 picker options', () => {
+    expect(LOG_LINE_OPTIONS).toEqual([200, 500, 1000]);
+  });
+
+  it('clamps into 1–2000 and defaults invalid input to 200', () => {
+    expect(clampLogLines(500)).toBe(500);
+    expect(clampLogLines(5000)).toBe(2000);
+    expect(clampLogLines(0)).toBe(200);
+    expect(clampLogLines(-10)).toBe(200);
+    expect(clampLogLines(undefined)).toBe(200);
+    expect(clampLogLines(NaN)).toBe(200);
+    expect(clampLogLines(12.9)).toBe(12);
   });
 });

@@ -11,6 +11,7 @@ import type {
   JobStatus,
   PluginSettingSchema,
 } from '../../types/admin';
+import { formatFileSize } from '../../utils/formatters';
 
 /** The user-status filter the AdminUsers screen exposes ("all" = no filter). */
 export type UserStatusFilter = 'all' | UserStatus;
@@ -279,3 +280,115 @@ export const isOverridden = (
   overridden: string[] | undefined,
   key: string
 ): boolean => !!overridden?.includes(key);
+
+// ── Backup / Logs / FS-browse helpers (E10d) ──
+
+/**
+ * Human-readable backup size. Reuses `formatFileSize` for finite, non-negative
+ * numbers; anything else (undefined/NaN/negative) renders as an em-dash so a
+ * malformed `size` never throws or shows "NaN B".
+ */
+export const formatBackupSize = (bytes: number | undefined | null): string => {
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes < 0) {
+    return '—';
+  }
+  return formatFileSize(bytes);
+};
+
+/**
+ * Validate the backup-schedule form inputs. `days` is the auto-backup interval
+ * (whole days, ≥ 0 — 0 disables); `count` is how many backups to retain (≥ 1).
+ * Both come from text inputs, so empty strings are treated as "unchanged" and
+ * pass (the screen omits unchanged fields from the PUT). Returns null when
+ * valid, else a human error string.
+ */
+export const validateScheduleInput = (
+  days: string,
+  count: string
+): string | null => {
+  const d = days.trim();
+  if (d !== '') {
+    const n = Number(d);
+    if (!Number.isInteger(n) || n < 0) {
+      return 'Interval must be a whole number of days (0 or more).';
+    }
+  }
+  const c = count.trim();
+  if (c !== '') {
+    const n = Number(c);
+    if (!Number.isInteger(n) || n < 1) {
+      return 'Retention count must be a whole number of 1 or more.';
+    }
+  }
+  return null;
+};
+
+/**
+ * The parent directory path one level up from `path`, or null when there is no
+ * parent (root, empty, or a single top-level segment). Normalizes by stripping
+ * a trailing slash first; preserves the leading slash on absolute paths and
+ * always returns at least "/" for a one-level-deep absolute path.
+ */
+export const parentPath = (path: string | null | undefined): string | null => {
+  if (!path) {
+    return null;
+  }
+  // Strip a single trailing slash (but keep a lone "/" as-is).
+  const trimmed = path.length > 1 ? path.replace(/\/+$/, '') : path;
+  if (trimmed === '' || trimmed === '/') {
+    return null;
+  }
+  const idx = trimmed.lastIndexOf('/');
+  if (idx < 0) {
+    // No slash at all (a bare segment) → no parent.
+    return null;
+  }
+  if (idx === 0) {
+    // e.g. "/movies" → root "/".
+    return '/';
+  }
+  return trimmed.slice(0, idx);
+};
+
+/** One crumb in the FS-browser breadcrumb trail. */
+export interface Breadcrumb {
+  label: string;
+  path: string;
+}
+
+/**
+ * Build a breadcrumb trail for an absolute path, e.g.
+ * `/a/b/c` → [{root "/"}, {a "/a"}, {b "/a/b"}, {c "/a/b/c"}]. A null/empty
+ * path yields just the root crumb. Relative paths (no leading slash) get NO
+ * synthetic root — each segment accumulates verbatim.
+ */
+export const breadcrumbs = (path: string | null | undefined): Breadcrumb[] => {
+  if (!path || path === '/') {
+    return [{ label: '/', path: '/' }];
+  }
+  const absolute = path.startsWith('/');
+  const segments = path.split('/').filter((s) => s.length > 0);
+  const crumbs: Breadcrumb[] = absolute ? [{ label: '/', path: '/' }] : [];
+  let acc = absolute ? '' : '';
+  for (const seg of segments) {
+    acc = absolute ? `${acc}/${seg}` : acc === '' ? seg : `${acc}/${seg}`;
+    crumbs.push({ label: seg, path: acc });
+  }
+  return crumbs;
+};
+
+/** The line-count options the log tail picker exposes. */
+export const LOG_LINE_OPTIONS = [200, 500, 1000] as const;
+
+export type LogLineCount = (typeof LOG_LINE_OPTIONS)[number];
+
+/**
+ * Clamp a requested log-tail line count into the server-accepted range
+ * (1–2000). Non-finite/≤0 inputs fall back to the default 200.
+ */
+export const clampLogLines = (lines: number | undefined): number => {
+  if (typeof lines !== 'number' || !Number.isFinite(lines) || lines < 1) {
+    return 200;
+  }
+  return Math.min(2000, Math.floor(lines));
+};
