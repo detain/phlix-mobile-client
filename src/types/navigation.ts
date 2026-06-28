@@ -24,6 +24,12 @@ export type RootStackParamList = {
   AdminPlugins: undefined;
   AdminAuthProviders: undefined;
   AdminServerSettings: undefined;
+  // E10d (Remaining admin part 2). AdminFsBrowse doubles as a path picker:
+  // in `mode:'pick'` it offers a "Select this folder" action that sets
+  // `fsPickedPath` on useAdminStore for AdminLibraries to consume.
+  AdminBackup: undefined;
+  AdminLogs: undefined;
+  AdminFsBrowse: { mode?: 'browse' | 'pick' } | undefined;
   LiveTv: undefined;
   LiveTvRecordings: undefined;
   // E9a (Music). Music aggregates across all music libs server-side, so

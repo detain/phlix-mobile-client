@@ -47,6 +47,17 @@ jest.mock('../../api/AdminManager', () => ({
     getAuthProviderConfigSchema: jest.fn(),
     getServerSettings: jest.fn(),
     updateServerSettings: jest.fn(),
+    createBackup: jest.fn(),
+    listBackups: jest.fn(),
+    deleteBackup: jest.fn(),
+    restoreBackup: jest.fn(),
+    uploadBackupS3: jest.fn(),
+    getBackupSchedule: jest.fn(),
+    updateBackupSchedule: jest.fn(),
+    getLogFiles: jest.fn(),
+    tailLog: jest.fn(),
+    tailAllLogs: jest.fn(),
+    browseFs: jest.fn(),
   },
 }));
 
@@ -99,6 +110,22 @@ const resetStore = () => {
     serverSettings: null,
     serverSettingsLoading: false,
     serverSettingsError: null,
+    backups: [],
+    backupsLoading: false,
+    backupsError: null,
+    backupSchedule: null,
+    backupScheduleLoading: false,
+    backupScheduleError: null,
+    logFiles: [],
+    logFilesLoading: false,
+    logFilesError: null,
+    currentTail: null,
+    tailLoading: false,
+    tailError: null,
+    fsListing: null,
+    fsLoading: false,
+    fsError: null,
+    fsPickedPath: null,
   });
 };
 
@@ -595,5 +622,217 @@ describe('useAdminStore', () => {
       useAdminStore.getState().updateServerSettings({ bogus: 1 })
     ).rejects.toThrow('unknown key');
     expect(useAdminStore.getState().serverSettingsError).toBe('unknown key');
+  });
+
+  // ── Backups (E10d) ──
+
+  it('loadBackups populates the list and clears loading', async () => {
+    const backups = [{ id: 'b1', created_at: 'x', label: 'a', size: 1 }];
+    mocked.listBackups.mockResolvedValue(backups);
+
+    await useAdminStore.getState().loadBackups();
+
+    expect(useAdminStore.getState().backups).toEqual(backups);
+    expect(useAdminStore.getState().backupsLoading).toBe(false);
+  });
+
+  it('loadBackups sets backupsError on failure without throwing', async () => {
+    mocked.listBackups.mockRejectedValue(new Error('nope'));
+
+    await useAdminStore.getState().loadBackups();
+
+    expect(useAdminStore.getState().backupsError).toBe('nope');
+  });
+
+  it('loadBackupSchedule populates the schedule', async () => {
+    const schedule = {
+      auto_backup_interval_days: 7,
+      retention_count: 5,
+      next_scheduled_backup: null,
+      next_scheduled_backup_iso: null,
+    };
+    mocked.getBackupSchedule.mockResolvedValue(schedule);
+
+    await useAdminStore.getState().loadBackupSchedule();
+
+    expect(useAdminStore.getState().backupSchedule).toEqual(schedule);
+    expect(useAdminStore.getState().backupScheduleLoading).toBe(false);
+  });
+
+  it('createBackup reloads the list and returns the new backup', async () => {
+    const newBackup = { id: 'b2', created_at: 'y', label: 'pre', size: 9 };
+    mocked.createBackup.mockResolvedValue(newBackup);
+    mocked.listBackups.mockResolvedValue([newBackup]);
+
+    const result = await useAdminStore.getState().createBackup('pre');
+
+    expect(mocked.createBackup).toHaveBeenCalledWith('pre');
+    expect(mocked.listBackups).toHaveBeenCalled();
+    expect(result).toEqual(newBackup);
+  });
+
+  it('createBackup rethrows and sets backupsError on failure', async () => {
+    mocked.createBackup.mockRejectedValue(new Error('disk full'));
+
+    await expect(useAdminStore.getState().createBackup()).rejects.toThrow(
+      'disk full'
+    );
+    expect(useAdminStore.getState().backupsError).toBe('disk full');
+  });
+
+  it('deleteBackup removes the row on success', async () => {
+    useAdminStore.setState({
+      backups: [
+        { id: 'b1', created_at: 'x', label: 'a', size: 1 },
+        { id: 'b2', created_at: 'y', label: 'b', size: 2 },
+      ],
+    });
+    mocked.deleteBackup.mockResolvedValue(undefined);
+
+    await useAdminStore.getState().deleteBackup('b1');
+
+    expect(useAdminStore.getState().backups.map((b) => b.id)).toEqual(['b2']);
+  });
+
+  it('deleteBackup rethrows and keeps the list on failure', async () => {
+    useAdminStore.setState({
+      backups: [{ id: 'b1', created_at: 'x', label: 'a', size: 1 }],
+    });
+    mocked.deleteBackup.mockRejectedValue(new Error('404'));
+
+    await expect(useAdminStore.getState().deleteBackup('b1')).rejects.toThrow(
+      '404'
+    );
+    expect(useAdminStore.getState().backups).toHaveLength(1);
+    expect(useAdminStore.getState().backupsError).toBe('404');
+  });
+
+  it('restoreBackup rethrows and sets backupsError on failure (500)', async () => {
+    mocked.restoreBackup.mockRejectedValue(new Error('restore failed'));
+
+    await expect(useAdminStore.getState().restoreBackup('b1')).rejects.toThrow(
+      'restore failed'
+    );
+    expect(useAdminStore.getState().backupsError).toBe('restore failed');
+  });
+
+  it('uploadBackupS3 rethrows and sets backupsError on failure (500)', async () => {
+    mocked.uploadBackupS3.mockRejectedValue(new Error('s3 down'));
+
+    await expect(useAdminStore.getState().uploadBackupS3('b1')).rejects.toThrow(
+      's3 down'
+    );
+    expect(useAdminStore.getState().backupsError).toBe('s3 down');
+  });
+
+  it('updateBackupSchedule stores the refreshed schedule and returns it', async () => {
+    const schedule = {
+      auto_backup_interval_days: 3,
+      retention_count: 10,
+      next_scheduled_backup: null,
+      next_scheduled_backup_iso: null,
+    };
+    mocked.updateBackupSchedule.mockResolvedValue(schedule);
+
+    const result = await useAdminStore
+      .getState()
+      .updateBackupSchedule({ retention_count: 10 });
+
+    expect(mocked.updateBackupSchedule).toHaveBeenCalledWith({
+      retention_count: 10,
+    });
+    expect(useAdminStore.getState().backupSchedule).toEqual(schedule);
+    expect(result.retention_count).toBe(10);
+  });
+
+  it('updateBackupSchedule rethrows and sets backupScheduleError on failure', async () => {
+    mocked.updateBackupSchedule.mockRejectedValue(new Error('bad'));
+
+    await expect(
+      useAdminStore.getState().updateBackupSchedule({ retention_count: 0 })
+    ).rejects.toThrow('bad');
+    expect(useAdminStore.getState().backupScheduleError).toBe('bad');
+  });
+
+  // ── Logs (E10d) ──
+
+  it('loadLogFiles populates the file list and clears loading', async () => {
+    const files = [{ name: 'app.log', size: 1, modified_at: 'x' }];
+    mocked.getLogFiles.mockResolvedValue(files);
+
+    await useAdminStore.getState().loadLogFiles();
+
+    expect(useAdminStore.getState().logFiles).toEqual(files);
+    expect(useAdminStore.getState().logFilesLoading).toBe(false);
+  });
+
+  it('loadLogFiles sets logFilesError on failure without throwing', async () => {
+    mocked.getLogFiles.mockRejectedValue(new Error('forbidden'));
+
+    await useAdminStore.getState().loadLogFiles();
+
+    expect(useAdminStore.getState().logFilesError).toBe('forbidden');
+  });
+
+  it('tailLog populates currentTail', async () => {
+    const tail = { file: 'app.log', lines: ['a'], truncated: false };
+    mocked.tailLog.mockResolvedValue(tail);
+
+    await useAdminStore.getState().tailLog('app.log', 500);
+
+    expect(mocked.tailLog).toHaveBeenCalledWith('app.log', 500);
+    expect(useAdminStore.getState().currentTail).toEqual(tail);
+    expect(useAdminStore.getState().tailLoading).toBe(false);
+  });
+
+  it('tailLog sets tailError on failure without throwing', async () => {
+    mocked.tailLog.mockRejectedValue(new Error('no file'));
+
+    await useAdminStore.getState().tailLog('missing.log');
+
+    expect(useAdminStore.getState().tailError).toBe('no file');
+  });
+
+  it('tailAllLogs populates currentTail', async () => {
+    const tail = { files: ['a.log'], lines: ['x'], truncated: true };
+    mocked.tailAllLogs.mockResolvedValue(tail);
+
+    await useAdminStore.getState().tailAllLogs(1000);
+
+    expect(mocked.tailAllLogs).toHaveBeenCalledWith(1000);
+    expect(useAdminStore.getState().currentTail).toEqual(tail);
+  });
+
+  // ── FS browse (E10d) ──
+
+  it('browseFs populates the listing and clears loading', async () => {
+    const listing = {
+      path: '/media',
+      parent: '/',
+      entries: [{ name: 'movies', path: '/media/movies' }],
+    };
+    mocked.browseFs.mockResolvedValue(listing);
+
+    await useAdminStore.getState().browseFs('/media');
+
+    expect(mocked.browseFs).toHaveBeenCalledWith('/media');
+    expect(useAdminStore.getState().fsListing).toEqual(listing);
+    expect(useAdminStore.getState().fsLoading).toBe(false);
+  });
+
+  it('browseFs sets fsError on failure without throwing', async () => {
+    mocked.browseFs.mockRejectedValue(new Error('traversal'));
+
+    await useAdminStore.getState().browseFs('/etc');
+
+    expect(useAdminStore.getState().fsError).toBe('traversal');
+  });
+
+  it('setFsPickedPath / clearFsPickedPath set and clear the hand-off', () => {
+    useAdminStore.getState().setFsPickedPath('/media/movies');
+    expect(useAdminStore.getState().fsPickedPath).toBe('/media/movies');
+
+    useAdminStore.getState().clearFsPickedPath();
+    expect(useAdminStore.getState().fsPickedPath).toBeNull();
   });
 });

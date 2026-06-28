@@ -21,6 +21,12 @@ import type {
   AuthProvider,
   AuthProviderConfigSchema,
   ServerSettings,
+  Backup,
+  BackupSchedule,
+  UpdateBackupScheduleInput,
+  LogFile,
+  LogTail,
+  FsListing,
 } from '../types/admin';
 
 /**
@@ -422,6 +428,105 @@ class AdminManager {
     const res = await apiClient.put<{ success: boolean; data: ServerSettings }>(
       '/admin/settings',
       { settings }
+    );
+    return res.data;
+  }
+
+  // ── Backup (E10d — ENVELOPED { success, data|message, count? }) ──
+
+  // POST /api/v1/admin/backup/create body { label? } → { success, message, data }
+  async createBackup(label?: string): Promise<Backup> {
+    const res = await apiClient.post<{
+      success: boolean;
+      message: string;
+      data: Backup;
+    }>('/admin/backup/create', label !== undefined ? { label } : {});
+    return res.data;
+  }
+
+  // GET /api/v1/admin/backup/list → { success, data:Backup[], count }
+  async listBackups(): Promise<Backup[]> {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: Backup[];
+      count: number;
+    }>('/admin/backup/list');
+    return res.data;
+  }
+
+  // DELETE /api/v1/admin/backup/{id} → { success, message } (404)
+  async deleteBackup(id: string): Promise<void> {
+    await apiClient.delete<{ success: boolean; message: string }>(
+      `/admin/backup/${encodeURIComponent(id)}`
+    );
+  }
+
+  // POST /api/v1/admin/backup/{id}/restore → { success, message } (500)
+  async restoreBackup(id: string): Promise<void> {
+    await apiClient.post<{ success: boolean; message: string }>(
+      `/admin/backup/${encodeURIComponent(id)}/restore`
+    );
+  }
+
+  // POST /api/v1/admin/backup/{id}/upload-s3 → { success, message } (500)
+  async uploadBackupS3(id: string): Promise<void> {
+    await apiClient.post<{ success: boolean; message: string }>(
+      `/admin/backup/${encodeURIComponent(id)}/upload-s3`
+    );
+  }
+
+  // GET /api/v1/admin/backup/schedule → { success, data:BackupSchedule }
+  async getBackupSchedule(): Promise<BackupSchedule> {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: BackupSchedule;
+    }>('/admin/backup/schedule');
+    return res.data;
+  }
+
+  // PUT /api/v1/admin/backup/schedule body { ... } → { success, message, data }
+  async updateBackupSchedule(
+    input: UpdateBackupScheduleInput
+  ): Promise<BackupSchedule> {
+    const res = await apiClient.put<{
+      success: boolean;
+      message: string;
+      data: BackupSchedule;
+    }>('/admin/backup/schedule', input);
+    return res.data;
+  }
+
+  // ── Logs (E10d — BARE envelopes) ──
+
+  // GET /api/v1/admin/logs → { files }
+  async getLogFiles(): Promise<LogFile[]> {
+    const res = await apiClient.get<{ files: LogFile[] }>('/admin/logs');
+    return res.files;
+  }
+
+  // GET /api/v1/admin/logs/tail?file=&lines= → { file, lines, truncated }
+  async tailLog(file: string, lines?: number): Promise<LogTail> {
+    return apiClient.get<LogTail>('/admin/logs/tail', {
+      file,
+      ...(lines !== undefined ? { lines } : {}),
+    });
+  }
+
+  // GET /api/v1/admin/logs/tail-all?lines= → { files, lines, truncated }
+  async tailAllLogs(lines?: number): Promise<LogTail> {
+    return apiClient.get<LogTail>(
+      '/admin/logs/tail-all',
+      lines !== undefined ? { lines } : undefined
+    );
+  }
+
+  // ── FS browse (E10d — ENVELOPED { success, data } → unwrap .data) ──
+
+  // GET /api/v1/admin/fs/browse?path= (empty/absent → roots) → { success, data:FsListing }
+  async browseFs(path?: string): Promise<FsListing> {
+    const res = await apiClient.get<{ success: boolean; data: FsListing }>(
+      '/admin/fs/browse',
+      path !== undefined && path !== '' ? { path } : undefined
     );
     return res.data;
   }

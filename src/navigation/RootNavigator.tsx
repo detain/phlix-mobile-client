@@ -22,6 +22,9 @@ import {
   AdminPluginsScreen,
   AdminAuthProvidersScreen,
   AdminServerSettingsScreen,
+  AdminBackupScreen,
+  AdminLogsScreen,
+  AdminFsBrowseScreen,
   CastScreen,
   LiveTvScreen,
   LiveTvRecordingsScreen,
@@ -228,6 +231,36 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Server Settings',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminBackup"
+              component={AdminBackupScreen}
+              options={{
+                headerShown: true,
+                title: 'Backup',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminLogs"
+              component={AdminLogsScreen}
+              options={{
+                headerShown: true,
+                title: 'Logs',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="AdminFsBrowse"
+              component={AdminFsBrowseScreen}
+              options={{
+                headerShown: true,
+                title: 'File Browser',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

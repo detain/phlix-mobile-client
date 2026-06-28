@@ -21,6 +21,12 @@ import type {
   AuthProvider,
   AuthProviderConfigSchema,
   ServerSettings,
+  Backup,
+  BackupSchedule,
+  UpdateBackupScheduleInput,
+  LogFile,
+  LogTail,
+  FsListing,
 } from '../types/admin';
 import type {
   CreateUserResult,
@@ -76,6 +82,30 @@ interface AdminState {
   serverSettingsLoading: boolean;
   serverSettingsError: string | null;
 
+  // Backups (E10d)
+  backups: Backup[];
+  backupsLoading: boolean;
+  backupsError: string | null;
+  backupSchedule: BackupSchedule | null;
+  backupScheduleLoading: boolean;
+  backupScheduleError: string | null;
+
+  // Logs (E10d)
+  logFiles: LogFile[];
+  logFilesLoading: boolean;
+  logFilesError: string | null;
+  currentTail: LogTail | null;
+  tailLoading: boolean;
+  tailError: string | null;
+
+  // FS browse (E10d)
+  fsListing: FsListing | null;
+  fsLoading: boolean;
+  fsError: string | null;
+  // The folder the FS browser was asked to "pick" — set by AdminFsBrowse in
+  // pick mode, read + cleared by AdminLibraries to append to its paths input.
+  fsPickedPath: string | null;
+
   // Dashboard actions
   loadDashboard: () => Promise<void>;
 
@@ -129,6 +159,27 @@ interface AdminState {
   updateServerSettings: (
     settings: Record<string, unknown>
   ) => Promise<ServerSettings>;
+
+  // Backup actions (E10d)
+  loadBackups: () => Promise<void>;
+  loadBackupSchedule: () => Promise<void>;
+  createBackup: (label?: string) => Promise<Backup>;
+  deleteBackup: (id: string) => Promise<void>;
+  restoreBackup: (id: string) => Promise<void>;
+  uploadBackupS3: (id: string) => Promise<void>;
+  updateBackupSchedule: (
+    input: UpdateBackupScheduleInput
+  ) => Promise<BackupSchedule>;
+
+  // Log actions (E10d)
+  loadLogFiles: () => Promise<void>;
+  tailLog: (file: string, lines?: number) => Promise<void>;
+  tailAllLogs: (lines?: number) => Promise<void>;
+
+  // FS browse actions (E10d)
+  browseFs: (path?: string) => Promise<void>;
+  setFsPickedPath: (path: string) => void;
+  clearFsPickedPath: () => void;
 }
 
 const errMessage = (error: unknown, fallback: string): string =>
@@ -165,6 +216,25 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   serverSettings: null,
   serverSettingsLoading: false,
   serverSettingsError: null,
+
+  backups: [],
+  backupsLoading: false,
+  backupsError: null,
+  backupSchedule: null,
+  backupScheduleLoading: false,
+  backupScheduleError: null,
+
+  logFiles: [],
+  logFilesLoading: false,
+  logFilesError: null,
+  currentTail: null,
+  tailLoading: false,
+  tailError: null,
+
+  fsListing: null,
+  fsLoading: false,
+  fsError: null,
+  fsPickedPath: null,
 
   // ── Dashboard ──
   loadDashboard: async () => {
@@ -624,4 +694,146 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       throw error;
     }
   },
+
+  // ── Backups (E10d) ──
+  loadBackups: async () => {
+    set({ backupsLoading: true, backupsError: null });
+    try {
+      const backups = await adminManager.listBackups();
+      set({ backups, backupsLoading: false });
+    } catch (error) {
+      set({
+        backupsError: errMessage(error, 'Failed to load backups'),
+        backupsLoading: false,
+      });
+    }
+  },
+
+  loadBackupSchedule: async () => {
+    set({ backupScheduleLoading: true, backupScheduleError: null });
+    try {
+      const backupSchedule = await adminManager.getBackupSchedule();
+      set({ backupSchedule, backupScheduleLoading: false });
+    } catch (error) {
+      set({
+        backupScheduleError: errMessage(error, 'Failed to load schedule'),
+        backupScheduleLoading: false,
+      });
+    }
+  },
+
+  createBackup: async (label?: string) => {
+    set({ backupsError: null });
+    try {
+      const backup = await adminManager.createBackup(label);
+      await get().loadBackups();
+      return backup;
+    } catch (error) {
+      set({ backupsError: errMessage(error, 'Failed to create backup') });
+      throw error;
+    }
+  },
+
+  deleteBackup: async (id: string) => {
+    set({ backupsError: null });
+    try {
+      await adminManager.deleteBackup(id);
+      set((state) => ({ backups: state.backups.filter((b) => b.id !== id) }));
+    } catch (error) {
+      set({ backupsError: errMessage(error, 'Failed to delete backup') });
+      throw error;
+    }
+  },
+
+  restoreBackup: async (id: string) => {
+    set({ backupsError: null });
+    try {
+      await adminManager.restoreBackup(id);
+    } catch (error) {
+      set({ backupsError: errMessage(error, 'Failed to restore backup') });
+      throw error;
+    }
+  },
+
+  uploadBackupS3: async (id: string) => {
+    set({ backupsError: null });
+    try {
+      await adminManager.uploadBackupS3(id);
+    } catch (error) {
+      set({ backupsError: errMessage(error, 'Failed to upload backup to S3') });
+      throw error;
+    }
+  },
+
+  updateBackupSchedule: async (input: UpdateBackupScheduleInput) => {
+    set({ backupScheduleError: null });
+    try {
+      const backupSchedule = await adminManager.updateBackupSchedule(input);
+      set({ backupSchedule });
+      return backupSchedule;
+    } catch (error) {
+      set({
+        backupScheduleError: errMessage(error, 'Failed to save schedule'),
+      });
+      throw error;
+    }
+  },
+
+  // ── Logs (E10d) ──
+  loadLogFiles: async () => {
+    set({ logFilesLoading: true, logFilesError: null });
+    try {
+      const logFiles = await adminManager.getLogFiles();
+      set({ logFiles, logFilesLoading: false });
+    } catch (error) {
+      set({
+        logFilesError: errMessage(error, 'Failed to load log files'),
+        logFilesLoading: false,
+      });
+    }
+  },
+
+  tailLog: async (file: string, lines?: number) => {
+    set({ tailLoading: true, tailError: null });
+    try {
+      const currentTail = await adminManager.tailLog(file, lines);
+      set({ currentTail, tailLoading: false });
+    } catch (error) {
+      set({
+        tailError: errMessage(error, 'Failed to tail log'),
+        tailLoading: false,
+      });
+    }
+  },
+
+  tailAllLogs: async (lines?: number) => {
+    set({ tailLoading: true, tailError: null });
+    try {
+      const currentTail = await adminManager.tailAllLogs(lines);
+      set({ currentTail, tailLoading: false });
+    } catch (error) {
+      set({
+        tailError: errMessage(error, 'Failed to tail logs'),
+        tailLoading: false,
+      });
+    }
+  },
+
+  // ── FS browse (E10d) ──
+  browseFs: async (path?: string) => {
+    set({ fsLoading: true, fsError: null });
+    try {
+      const fsListing = await adminManager.browseFs(path);
+      set({ fsListing, fsLoading: false });
+    } catch (error) {
+      set({
+        fsError: errMessage(error, 'Failed to browse directory'),
+        fsLoading: false,
+      });
+    }
+  },
+
+  setFsPickedPath: (path: string) => set({ fsPickedPath: path }),
+
+  clearFsPickedPath: () => set({ fsPickedPath: null }),
 }));

@@ -13,12 +13,15 @@ import {
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useAdminStore } from '../stores/useAdminStore';
 import type { Library } from '../types/media';
 import type { ScanJob } from '../types/admin';
+import type { RootStackParamList } from '../types/navigation';
 import {
   LIBRARY_TYPES,
   type LibraryType,
@@ -35,8 +38,15 @@ const errText = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
 
 const AdminLibrariesScreen: React.FC = () => {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAuthStore((state) => state.user);
   const isAdmin = !!user?.is_admin;
+
+  // FS-browse path picker hand-off (E10d). AdminFsBrowse in pick mode sets
+  // fsPickedPath; we consume + clear it here to append to the paths input.
+  const fsPickedPath = useAdminStore((state) => state.fsPickedPath);
+  const clearFsPickedPath = useAdminStore((state) => state.clearFsPickedPath);
 
   const libraries = useAdminStore((state) => state.libraries);
   const isLoading = useAdminStore((state) => state.librariesLoading);
@@ -130,6 +140,25 @@ const AdminLibrariesScreen: React.FC = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Consume a folder picked by AdminFsBrowse (pick mode): append it to the
+  // paths draft (deduped) and clear the hand-off so it isn't re-applied.
+  useEffect(() => {
+    if (fsPickedPath) {
+      setDraftPaths((prev) => {
+        const existing = parsePathsInput(prev);
+        if (existing.includes(fsPickedPath)) {
+          return prev;
+        }
+        return pathsToInput([...existing, fsPickedPath]);
+      });
+      clearFsPickedPath();
+    }
+  }, [fsPickedPath, clearFsPickedPath]);
+
+  const handleBrowsePaths = () => {
+    navigation.navigate('AdminFsBrowse', { mode: 'pick' });
+  };
 
   // Single source of truth for timer teardown on unmount — no leaked intervals.
   useEffect(() => {
@@ -474,7 +503,14 @@ const AdminLibrariesScreen: React.FC = () => {
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Paths (one per line or comma)</Text>
+            <View style={styles.pathsLabelRow}>
+              <Text style={styles.fieldLabel}>
+                Paths (one per line or comma)
+              </Text>
+              <TouchableOpacity onPress={handleBrowsePaths}>
+                <Text style={styles.browseLink}>Browse…</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={[styles.input, styles.pathsInput]}
               placeholder={'/media/movies\n/mnt/share/films'}
@@ -697,6 +733,17 @@ const styles = StyleSheet.create({
   fieldLabel: {
     color: '#888',
     fontSize: 13,
+    marginBottom: 8,
+  },
+  pathsLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  browseLink: {
+    color: '#0066cc',
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 8,
   },
   typeRow: {

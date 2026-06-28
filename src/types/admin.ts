@@ -252,3 +252,70 @@ export interface ServerSettings {
   overridden: string[];
   types: Record<string, string>;
 }
+
+// ── Backup (E10d) — `BackupController` ──
+//
+// ENVELOPED on the wire `{success, data|message, count?}`. The manager unwraps
+// `.data` for the list / schema reads; mutating ops surface `.message`.
+
+/** A backup record from `GET /admin/backup/list`. */
+export interface Backup {
+  id: string;
+  created_at: string;
+  label: string;
+  size: number;
+}
+
+/** The auto-backup schedule from `GET /admin/backup/schedule` (unwrapped `.data`). */
+export interface BackupSchedule {
+  auto_backup_interval_days: number;
+  retention_count: number;
+  next_scheduled_backup: string | null;
+  next_scheduled_backup_iso: string | null;
+}
+
+/** Body for `PUT /admin/backup/schedule` — both fields optional (partial). */
+export interface UpdateBackupScheduleInput {
+  auto_backup_interval_days?: number;
+  retention_count?: number;
+}
+
+// ── Logs (E10d) — `LogController` — BARE envelopes ──
+
+/** A log-file entry from `GET /admin/logs`. */
+export interface LogFile {
+  name: string;
+  size: number;
+  modified_at: string;
+}
+
+/**
+ * Tail output from `GET /admin/logs/tail` (single file → `file` set) or
+ * `GET /admin/logs/tail-all` (merged → `files` set). `lines` is the tail body.
+ */
+export interface LogTail {
+  file?: string;
+  files?: string[];
+  lines: string[];
+  truncated: boolean;
+}
+
+// ── FS browse (E10d) — `FsBrowseController` ──
+//
+// ENVELOPED `{success, data}`; the manager unwraps `.data`. Directories only.
+
+/** One directory entry from `GET /admin/fs/browse`. */
+export interface FsEntry {
+  name: string;
+  path: string;
+}
+
+/**
+ * A directory listing (unwrapped `.data`). `path`/`parent` are null at the
+ * filesystem roots (empty/absent `?path=`). `entries` are sub-directories only.
+ */
+export interface FsListing {
+  path: string | null;
+  parent: string | null;
+  entries: FsEntry[];
+}
