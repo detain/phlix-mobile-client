@@ -72,6 +72,14 @@ export {
   default as favoritesManager,
   type FavoritesResponse,
 } from './FavoritesManager';
+export { default as webAuthnManager } from './WebAuthnManager';
+export type {
+  PasskeyCredential,
+  CreationOptions,
+  RequestOptions,
+  RegistrationResult,
+  AuthResult,
+} from '../types/webauthn';
 export {
   getDeviceId,
   getDeviceName,

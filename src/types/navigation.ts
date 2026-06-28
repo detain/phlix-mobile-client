@@ -49,6 +49,9 @@ export type RootStackParamList = {
   // E10 (Favorites). Account-level favorited items; the list re-fetches from
   // the server, so no params are passed.
   Favorites: undefined;
+  // E10e (WebAuthn / passkeys). Passkey management for the current user;
+  // re-fetches the credential list on mount, so no params are passed.
+  Passkeys: undefined;
   Cast: {
     mediaItemId: string;
     streamUrl: string;

@@ -73,6 +73,21 @@ class AuthManager {
     return response;
   }
 
+  // Persist a passwordless (passkey) login envelope through the SAME credential
+  // store path password login uses (E10e). The WebAuthn login/verify endpoint
+  // returns { access_token, refresh_token, user } (no token_type/expires_in),
+  // which is the subset saveCredentials persists — so a passkey login leaves the
+  // app in the identical authenticated state. Returns the User for the caller to
+  // hand to the auth store.
+  async savePasskeyLogin(result: {
+    access_token: string;
+    refresh_token: string;
+    user: User;
+  }): Promise<User> {
+    await this.saveCredentials(result as LoginResponse);
+    return result.user;
+  }
+
   // Refresh access token → POST /api/v1/auth/refresh
   async refresh(refreshToken: string): Promise<LoginResponse> {
     const response = await apiClient.post<LoginResponse>('/auth/refresh', {
