@@ -79,3 +79,49 @@ jobs:
           name: android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
+
+  release-latest:
+    name: Update "latest" prerelease
+    needs: build-android-release
+    # On every master/main push, overwrite a rolling "latest" GitHub Release
+    # carrying the RAW release APK as a directly-downloadable asset (GitHub
+    # Actions artifacts are always served zipped — a Release is the only way to
+    # offer a bare, installable .apk). PRs don't reach here (the release build
+    # itself is gated to master/main).
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download Release APK
+        uses: actions/download-artifact@v8
+        with:
+          name: android-release-apk
+          path: artifacts
+
+      - name: Reset "latest" release + tag
+        run: gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish "latest" prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          name: Latest (master)
+          body: |
+            Rolling build of the latest `master` commit (${{ github.sha }}).
+            - **`app-release.apk`** — Android release build, download + install
+              directly (no zip). iOS isn't published here: App Store / device
+              installs need Apple code signing, which CI builds without
+              (`CODE_SIGNING_ALLOWED=NO`).
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          files: artifacts/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
