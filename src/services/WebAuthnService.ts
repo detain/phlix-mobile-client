@@ -22,6 +22,19 @@ import type {
   RegistrationResult,
 } from '../types/webauthn';
 
+/**
+ * Parse the JSON string the native ceremony returns. A malformed payload (a
+ * native bug or an interrupted ceremony) surfaces as a clear, actionable error
+ * instead of a raw SyntaxError leaking out of the service.
+ */
+function parseCredentialJson(json: string): Record<string, unknown> {
+  try {
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    throw new Error('Passkey ceremony returned an invalid response.');
+  }
+}
+
 class WebAuthnService {
   /**
    * Whether platform passkeys are available on this device. Never throws —
@@ -46,7 +59,7 @@ class WebAuthnService {
     // 2. Run the on-device attestation ceremony. The native module takes the
     //    options as a JSON string and returns the attestation credential JSON.
     const credentialJson = await PhlixWebAuthn.register(JSON.stringify(options));
-    const credential = JSON.parse(credentialJson) as Record<string, unknown>;
+    const credential = parseCredentialJson(credentialJson);
 
     // 3. Verify with the server, echoing the original challenge back so the
     //    server can match it to the issued options.
@@ -69,7 +82,7 @@ class WebAuthnService {
     const assertionJson = await PhlixWebAuthn.authenticate(
       JSON.stringify(options)
     );
-    const credential = JSON.parse(assertionJson) as Record<string, unknown>;
+    const credential = parseCredentialJson(assertionJson);
 
     // 3. Verify with the server → token envelope (same shape password login
     //    returns).

@@ -302,6 +302,13 @@ private class CeremonyDelegate: NSObject,
     func presentationAnchor(
         for controller: ASAuthorizationController
     ) -> ASPresentationAnchor {
-        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        // Prefer the active foreground scene's key window (multi-scene / iPad
+        // safe; `UIApplication.shared.windows` is deprecated since iOS 15).
+        let keyWindow = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .windows
+            .first { $0.isKeyWindow }
+        return keyWindow ?? ASPresentationAnchor()
     }
 }
