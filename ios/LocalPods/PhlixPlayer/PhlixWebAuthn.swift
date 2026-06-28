@@ -27,7 +27,11 @@ class PhlixWebAuthn: NSObject {
     // not deallocate them mid-ceremony. Only one ceremony runs at a time.
     private var activeDelegate: CeremonyDelegate?
 
-    override static func requiresMainQueueSetup() -> Bool {
+    // NOT `override`: this class subclasses NSObject directly (it is exported as
+    // a plain RCT_EXTERN_MODULE, not an RCTViewManager/RCTEventEmitter), so
+    // requiresMainQueueSetup is a bridge requirement satisfied via @objc, not a
+    // superclass override.
+    @objc static func requiresMainQueueSetup() -> Bool {
         return true
     }
 

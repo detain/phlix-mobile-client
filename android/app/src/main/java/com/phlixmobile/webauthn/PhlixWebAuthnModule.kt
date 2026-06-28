@@ -54,7 +54,7 @@ class PhlixWebAuthnModule(
 
     @ReactMethod
     fun register(optionsJson: String, promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         if (activity == null) {
             promise.reject("no_activity", "No foreground activity for the passkey prompt.")
             return
@@ -83,7 +83,7 @@ class PhlixWebAuthnModule(
 
     @ReactMethod
     fun authenticate(optionsJson: String, promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         if (activity == null) {
             promise.reject("no_activity", "No foreground activity for the passkey prompt.")
             return
