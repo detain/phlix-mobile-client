@@ -41,6 +41,11 @@ android {
             minifyEnabled false
         }
         release {
+            // Sign release builds with the debug key so `assembleRelease` emits an
+            // INSTALLABLE app-release.apk (an unsigned APK can't be sideloaded). This
+            // is the rolling-`latest` sideload artifact; a Play Store build should
+            // swap in a real release keystore (via CI secrets on a version tag).
+            signingConfig signingConfigs.debug
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
