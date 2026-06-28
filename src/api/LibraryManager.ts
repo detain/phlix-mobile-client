@@ -1,6 +1,7 @@
 // src/api/LibraryManager.ts
 import apiClient from './client';
 import { MediaItem, Season, Episode, Library } from '../types/media';
+import type { LetterIndex } from '../types/search';
 
 /**
  * Paginated `/media` envelope. `total` is only returned by `GET /media`
@@ -62,6 +63,21 @@ class LibraryManager {
    */
   async browseMedia(params: BrowseMediaParams = {}): Promise<PaginatedResponse<MediaItem>> {
     return apiClient.get<PaginatedResponse<MediaItem>>('/media', params);
+  }
+
+  /**
+   * Letter index for an A–Z rail → GET /api/v1/media/letter-index →
+   * { letters: [{letter, offset (cumulative), count}], total }.
+   *
+   * Accepts the SAME filter set as `browseMedia` (the server computes the index
+   * over the name-asc result set under those filters), so the rail reflects the
+   * active genre/rating/year/library filters. Non-alpha leading characters fold
+   * into the "#" bucket server-side. Array params (`genres[]`/`ratings[]`/…)
+   * serialize as `key[]=A&key[]=B` via axios's default serializer (verified
+   * against axios 1.x) — the server's expected `key[]=` shape.
+   */
+  async getLetterIndex(params: BrowseMediaParams = {}): Promise<LetterIndex> {
+    return apiClient.get<LetterIndex>('/media/letter-index', params);
   }
 
   // Recently added → GET /api/v1/media?sort=date_added&order=desc&limit=N
