@@ -36,6 +36,7 @@ import {
   CollectionsScreen,
   CollectionDetailScreen,
   FavoritesScreen,
+  PasskeysScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -362,6 +363,16 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Favorites',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="Passkeys"
+              component={PasskeysScreen}
+              options={{
+                headerShown: true,
+                title: 'Passkeys',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}

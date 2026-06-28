@@ -28,3 +28,4 @@ export { default as PhotoViewerScreen } from './PhotoViewerScreen';
 export { default as CollectionsScreen } from './CollectionsScreen';
 export { default as CollectionDetailScreen } from './CollectionDetailScreen';
 export { default as FavoritesScreen } from './FavoritesScreen';
+export { default as PasskeysScreen } from './PasskeysScreen';
