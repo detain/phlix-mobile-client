@@ -238,6 +238,27 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.settingLabel}>Server Settings</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminBackup')}
+              >
+                <Text style={styles.settingLabel}>Backup</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminLogs')}
+              >
+                <Text style={styles.settingLabel}>Logs</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => navigation.navigate('AdminFsBrowse')}
+              >
+                <Text style={styles.settingLabel}>File Browser</Text>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
             </View>
           </View>
         ) : null}

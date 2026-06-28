@@ -581,4 +581,184 @@ describe('AdminManager', () => {
     });
     expect(result.settings.a).toBe(2);
   });
+
+  // ── Backup (E10d — ENVELOPED { success, data|message, count? } → .data) ──
+
+  it('createBackup POSTs /admin/backup/create with { label } and unwraps .data', async () => {
+    const backup = { id: 'b1', created_at: '2026-06-27', label: 'pre', size: 100 };
+    mockedClient.post.mockResolvedValue({ success: true, message: 'ok', data: backup });
+
+    const result = await adminManager.createBackup('pre');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/backup/create', {
+      label: 'pre',
+    });
+    expect(result).toEqual(backup);
+  });
+
+  it('createBackup POSTs an empty body when no label is given', async () => {
+    const backup = { id: 'b1', created_at: '2026-06-27', label: '', size: 100 };
+    mockedClient.post.mockResolvedValue({ success: true, message: 'ok', data: backup });
+
+    await adminManager.createBackup();
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/backup/create', {});
+  });
+
+  it('listBackups GETs /admin/backup/list and unwraps .data', async () => {
+    const backups = [{ id: 'b1', created_at: '2026-06-27', label: 'a', size: 1 }];
+    mockedClient.get.mockResolvedValue({ success: true, data: backups, count: 1 });
+
+    const result = await adminManager.listBackups();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/backup/list');
+    expect(result).toEqual(backups);
+  });
+
+  it('deleteBackup DELETEs /admin/backup/{id} (encoded) and resolves void', async () => {
+    mockedClient.delete.mockResolvedValue({ success: true, message: 'ok' });
+
+    const result = await adminManager.deleteBackup('b 1');
+
+    expect(mockedClient.delete).toHaveBeenCalledWith('/admin/backup/b%201');
+    expect(result).toBeUndefined();
+  });
+
+  it('restoreBackup POSTs /admin/backup/{id}/restore and resolves void', async () => {
+    mockedClient.post.mockResolvedValue({ success: true, message: 'ok' });
+
+    const result = await adminManager.restoreBackup('b1');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/backup/b1/restore');
+    expect(result).toBeUndefined();
+  });
+
+  it('uploadBackupS3 POSTs /admin/backup/{id}/upload-s3 and resolves void', async () => {
+    mockedClient.post.mockResolvedValue({ success: true, message: 'ok' });
+
+    const result = await adminManager.uploadBackupS3('b1');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/admin/backup/b1/upload-s3');
+    expect(result).toBeUndefined();
+  });
+
+  it('getBackupSchedule GETs /admin/backup/schedule and unwraps .data', async () => {
+    const schedule = {
+      auto_backup_interval_days: 7,
+      retention_count: 5,
+      next_scheduled_backup: '2026-07-04',
+      next_scheduled_backup_iso: '2026-07-04T00:00:00Z',
+    };
+    mockedClient.get.mockResolvedValue({ success: true, data: schedule });
+
+    const result = await adminManager.getBackupSchedule();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/backup/schedule');
+    expect(result).toEqual(schedule);
+  });
+
+  it('updateBackupSchedule PUTs /admin/backup/schedule with the body and unwraps .data', async () => {
+    const schedule = {
+      auto_backup_interval_days: 3,
+      retention_count: 10,
+      next_scheduled_backup: null,
+      next_scheduled_backup_iso: null,
+    };
+    mockedClient.put.mockResolvedValue({ success: true, message: 'ok', data: schedule });
+
+    const result = await adminManager.updateBackupSchedule({
+      auto_backup_interval_days: 3,
+      retention_count: 10,
+    });
+
+    expect(mockedClient.put).toHaveBeenCalledWith('/admin/backup/schedule', {
+      auto_backup_interval_days: 3,
+      retention_count: 10,
+    });
+    expect(result.retention_count).toBe(10);
+  });
+
+  // ── Logs (E10d — BARE) ──
+
+  it('getLogFiles GETs /admin/logs and unwraps { files }', async () => {
+    const files = [{ name: 'app.log', size: 100, modified_at: '2026-06-27' }];
+    mockedClient.get.mockResolvedValue({ files });
+
+    const result = await adminManager.getLogFiles();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/logs');
+    expect(result).toEqual(files);
+  });
+
+  it('tailLog GETs /admin/logs/tail with file+lines and returns the whole tail', async () => {
+    const tail = { file: 'app.log', lines: ['a', 'b'], truncated: false };
+    mockedClient.get.mockResolvedValue(tail);
+
+    const result = await adminManager.tailLog('app.log', 500);
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/logs/tail', {
+      file: 'app.log',
+      lines: 500,
+    });
+    expect(result).toEqual(tail);
+  });
+
+  it('tailLog omits lines when not given', async () => {
+    mockedClient.get.mockResolvedValue({ file: 'app.log', lines: [], truncated: false });
+
+    await adminManager.tailLog('app.log');
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/logs/tail', {
+      file: 'app.log',
+    });
+  });
+
+  it('tailAllLogs GETs /admin/logs/tail-all with lines and returns the whole tail', async () => {
+    const tail = { files: ['a.log', 'b.log'], lines: ['x'], truncated: true };
+    mockedClient.get.mockResolvedValue(tail);
+
+    const result = await adminManager.tailAllLogs(1000);
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/logs/tail-all', {
+      lines: 1000,
+    });
+    expect(result).toEqual(tail);
+  });
+
+  it('tailAllLogs passes undefined params when no lines given', async () => {
+    mockedClient.get.mockResolvedValue({ files: [], lines: [], truncated: false });
+
+    await adminManager.tailAllLogs();
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/logs/tail-all', undefined);
+  });
+
+  // ── FS browse (E10d — ENVELOPED { success, data } → .data) ──
+
+  it('browseFs GETs /admin/fs/browse with { path } and unwraps .data', async () => {
+    const listing = {
+      path: '/media',
+      parent: '/',
+      entries: [{ name: 'movies', path: '/media/movies' }],
+    };
+    mockedClient.get.mockResolvedValue({ success: true, data: listing });
+
+    const result = await adminManager.browseFs('/media');
+
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/fs/browse', {
+      path: '/media',
+    });
+    expect(result).toEqual(listing);
+  });
+
+  it('browseFs passes undefined params for the roots (empty/absent path)', async () => {
+    const listing = { path: null, parent: null, entries: [] };
+    mockedClient.get.mockResolvedValue({ success: true, data: listing });
+
+    await adminManager.browseFs();
+    expect(mockedClient.get).toHaveBeenCalledWith('/admin/fs/browse', undefined);
+
+    await adminManager.browseFs('');
+    expect(mockedClient.get).toHaveBeenLastCalledWith('/admin/fs/browse', undefined);
+  });
 });
