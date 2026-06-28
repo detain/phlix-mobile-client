@@ -32,6 +32,10 @@ export type RootStackParamList = {
   Photos: { libraryId?: string };
   PhotoAlbum: { albumId: string; libraryId: string; title?: string };
   PhotoViewer: { libraryId: string; albumId: string; startIndex?: number };
+  // E10a (Collections). CollectionDetail re-fetches the collection by id; only
+  // serializable scalars are passed through nav params.
+  Collections: undefined;
+  CollectionDetail: { collectionId: string; title?: string };
   Cast: {
     mediaItemId: string;
     streamUrl: string;

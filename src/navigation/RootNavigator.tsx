@@ -27,6 +27,8 @@ import {
   PhotosScreen,
   PhotoAlbumScreen,
   PhotoViewerScreen,
+  CollectionsScreen,
+  CollectionDetailScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -266,6 +268,26 @@ const RootNavigator = () => {
                 animation: 'fade',
                 contentStyle: { backgroundColor: '#000' },
               }}
+            />
+            <Stack.Screen
+              name="Collections"
+              component={CollectionsScreen}
+              options={{
+                headerShown: true,
+                title: 'Collections',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="CollectionDetail"
+              component={CollectionDetailScreen}
+              options={({ route }) => ({
+                headerShown: true,
+                title: route.params?.title ?? 'Collection',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              })}
             />
             <Stack.Screen
               name="Cast"
