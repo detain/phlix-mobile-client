@@ -35,6 +35,20 @@ const makeStatus = (over: Partial<Record<string, unknown>> = {}) => ({
   ...over,
 });
 
+const makeVariant = (id: string, over: Partial<Record<string, unknown>> = {}) => ({
+  id,
+  label: id,
+  width: 1280,
+  height: 720,
+  bitrate: 3_000_000,
+  codecs: 'avc1.640029,mp4a.40.2',
+  url: `https://srv/hls/job-1/media_v${id}.m3u8?sig=a`,
+  is_original: false,
+  is_copy: false,
+  video_bitrate: 2_800_000,
+  ...over,
+});
+
 describe('TranscodeManager', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -166,6 +180,46 @@ describe('TranscodeManager', () => {
       await jest.advanceTimersByTimeAsync(3000);
 
       await expectation;
+    });
+
+    it('defaults variants to [] when the server sends none (legacy job)', async () => {
+      mockedClient.post.mockResolvedValue(makeJob({ status: 'ready', reused: true }));
+
+      const { promise } = transcodeManager.prepare('m1');
+      await jest.runOnlyPendingTimersAsync();
+      const result = await promise;
+
+      expect(result.variants).toEqual([]);
+    });
+
+    it('surfaces variants[] from the start response (G3)', async () => {
+      const variants = [makeVariant('1080p'), makeVariant('720p'), makeVariant('480p')];
+      mockedClient.post.mockResolvedValue(
+        makeJob({ status: 'ready', reused: true, variants }),
+      );
+
+      const { promise } = transcodeManager.prepare('m1');
+      await jest.runOnlyPendingTimersAsync();
+      const result = await promise;
+
+      expect(result.variants).toEqual(variants);
+    });
+
+    it('surfaces variants[] discovered during a status poll (G3)', async () => {
+      const variants = [makeVariant('720p'), makeVariant('480p')];
+      mockedClient.post.mockResolvedValue(makeJob({ status: 'encoding' }));
+      mockedClient.get
+        .mockResolvedValueOnce(makeStatus({ status: 'encoding', progress: 40 }))
+        .mockResolvedValueOnce(
+          makeStatus({ status: 'encoding', playlist_ready: true, progress: 100, variants }),
+        );
+
+      const { promise } = transcodeManager.prepare('m1', { pollIntervalMs: 1000 });
+      await jest.runOnlyPendingTimersAsync();
+      await jest.advanceTimersByTimeAsync(1000);
+
+      const result = await promise;
+      expect(result.variants).toEqual(variants);
     });
 
     it('cancel() stops polling and rejects the pending promise', async () => {

@@ -63,6 +63,8 @@ Located in `src/components/`, organized by domain:
 **Player Components**
 - `PlayerControls`: Play/pause, seek controls
 - `SeekBar`: Progress bar with scrubbing
+- `SkipButton`: Skip-intro/outro control
+- `QualityMenu`: Bottom-sheet stream-quality picker (Auto / a specific resolution rung). Only shown once a transcode fallback resolves an ABR ladder (`variants[]`); hidden for direct-play titles. Pure selection/URL-resolution logic lives alongside it in `quality.ts`, not in the component itself.
 
 **UI Components**
 - `SearchBar`: Reusable search input
@@ -266,6 +268,12 @@ interface SettingsState {
 }
 ```
 
+> The actual field is `defaultQuality: string` (default `'auto'`), set via
+> `setDefaultQuality`. It is now genuinely read and applied: `PlayerScreen`
+> seeds its in-player quality-picker selection from it and persists a fresh
+> pick back to it whenever the viewer changes quality. Previously it was
+> persisted/settable but never read by any playback code.
+
 ## API Layer
 
 ### Client Architecture
@@ -295,6 +303,7 @@ The API client uses Axios with:
 | `AuthManager` | Login, logout, token refresh |
 | `LibraryManager` | Fetch libraries, media items |
 | `PlaybackManager` | Stream info, playback sessions |
+| `TranscodeManager` | Start/poll on-demand transcode jobs; surfaces the ABR quality ladder (`variants[]`) the in-player `QualityMenu` picks from |
 
 ## Building and Testing Guide
 
