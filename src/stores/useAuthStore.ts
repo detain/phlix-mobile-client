@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useAuthStore.ts
 import { create } from 'zustand';
 import { authManager, User } from '../api/AuthManager';

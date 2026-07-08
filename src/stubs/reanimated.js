@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // Stub for react-native-reanimated when not installed
 // This allows gesture-handler to import reanimated without errors
 module.exports = {

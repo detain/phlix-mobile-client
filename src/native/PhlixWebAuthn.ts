@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/native/PhlixWebAuthn.ts
 //
 // Typed JS wrapper around the native `PhlixWebAuthn` module (slice E10e).

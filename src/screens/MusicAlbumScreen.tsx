@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/MusicAlbumScreen.tsx
 import React, { useEffect, useState } from 'react';
 import { View, FlatList, StyleSheet, Text, TouchableOpacity } from 'react-native';

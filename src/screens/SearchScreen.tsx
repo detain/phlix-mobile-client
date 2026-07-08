@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/SearchScreen.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import {

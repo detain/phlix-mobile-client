@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useFavoritesStore.ts
 //
 // Favorites LIST store (slice E10 favorites). Holds the paginated list of the

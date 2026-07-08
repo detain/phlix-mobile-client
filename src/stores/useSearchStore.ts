@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useSearchStore.ts
 //
 // Advanced-search store (slice E10b). Holds the text query, advanced filters,

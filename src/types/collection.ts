@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/collection.ts
 //
 // Collections domain (slice E10a). A collection is a named grouping of media

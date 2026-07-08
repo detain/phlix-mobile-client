@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/FavoritesScreen.tsx
 //
 // Favorites list (slice E10 favorites). A 2-col MediaCard grid of the user's

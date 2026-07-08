@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useWebAuthnStore.ts
 //
 // Passkey management state (slice E10e) — the list of the current user's

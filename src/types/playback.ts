@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/playback.ts
 //
 // NOTE on units: `position_ticks` / `duration_ticks` are 100ns TICKS (the server

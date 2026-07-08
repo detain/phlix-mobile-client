@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/hub/HubAuthService.ts
 import axios, { AxiosInstance } from 'axios';
 

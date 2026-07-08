@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/App.tsx
 import React, { useEffect } from 'react';
 import { StatusBar, LogBox, StyleSheet } from 'react-native';

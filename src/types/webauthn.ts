@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/webauthn.ts
 //
 // WebAuthn / passkeys domain types (slice E10e).

@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/profile.ts
 //
 // Multi-user profile types (slice E5). Field names mirror the SERVER's profile

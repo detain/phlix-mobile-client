@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/LiveTvManager.ts
 import axios from 'axios';
 import apiClient, { getApiBaseUrl, buildRequestHeaders } from './client';

@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/photos/photoScreenHelpers.ts
 //
 // Pure, side-effect-free helpers extracted from the Photos / PhotoAlbum /

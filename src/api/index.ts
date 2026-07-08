@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/index.ts
 export { default as apiClient, setActiveSessionId } from './client';
 export {

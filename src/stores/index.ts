@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/index.ts
 export { useAuthStore } from './useAuthStore';
 export { usePlayerStore } from './usePlayerStore';

@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/cast.ts
 //
 // Server-mediated Cast (slice E7). The server exposes four independent cast

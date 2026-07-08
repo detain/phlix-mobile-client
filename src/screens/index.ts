@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/index.ts
 export { default as HomeScreen } from './HomeScreen';
 export { default as LibraryScreen } from './LibraryScreen';

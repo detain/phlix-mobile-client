@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/PasskeysScreen.tsx
 //
 // Passkey management (slice E10e). Lists the current user's registered passkeys,

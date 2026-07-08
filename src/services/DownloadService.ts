@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/services/DownloadService.ts
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
 import type { EmitterSubscription } from 'react-native';

@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/favorites/favoritesHelpers.ts
 //
 // Pure helpers for the favorites/ratings UI (slice E10 favorites). No I/O, no

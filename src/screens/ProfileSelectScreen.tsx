@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/ProfileSelectScreen.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {

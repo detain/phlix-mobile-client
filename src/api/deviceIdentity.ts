@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/deviceIdentity.ts
 //
 // Stable per-install device identity used for the Phlix device headers
