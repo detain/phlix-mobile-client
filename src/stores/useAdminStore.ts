@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useAdminStore.ts
 import { create } from 'zustand';
 import { adminManager } from '../api/AdminManager';

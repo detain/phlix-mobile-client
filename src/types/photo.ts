@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/photo.ts
 //
 // Photo domain types (slice E9b). Field names are the server payload verbatim

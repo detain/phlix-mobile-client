@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/admin.ts
 //
 // Admin domain types (slice E6a). Field names mirror the phlix-server admin

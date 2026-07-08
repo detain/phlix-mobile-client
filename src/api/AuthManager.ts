@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/AuthManager.ts
 import apiClient from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';

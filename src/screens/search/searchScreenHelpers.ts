@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/search/searchScreenHelpers.ts
 //
 // Pure, side-effect-free helpers extracted from the SearchScreen (slice E10b)

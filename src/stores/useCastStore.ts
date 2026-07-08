@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useCastStore.ts
 import { create } from 'zustand';
 import { castManager, type CastMediaInput } from '../api/CastManager';

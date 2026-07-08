@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/collections/collectionScreenHelpers.ts
 //
 // Pure, side-effect-free helpers extracted from the Collections + Collection

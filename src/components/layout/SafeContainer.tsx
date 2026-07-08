@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/components/layout/SafeContainer.tsx
 import React from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';

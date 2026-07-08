@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/UserManager.ts
 import apiClient from './client';
 import { MediaItem } from '../types/media';

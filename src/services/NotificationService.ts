@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/services/NotificationService.ts
 /* eslint-disable no-void -- `void` marks intentional fire-and-forget notifee promises */
 import notifee, {

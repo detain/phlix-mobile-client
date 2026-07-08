@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/contracts.ts
 /**
  * Safe, non-divergent re-exports from `@phlix/contracts`.

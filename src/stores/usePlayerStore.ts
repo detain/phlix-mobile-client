@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/usePlayerStore.ts
 import { create } from 'zustand';
 import { MediaItem } from '../types/media';

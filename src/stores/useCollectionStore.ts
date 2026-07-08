@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/stores/useCollectionStore.ts
 import { create } from 'zustand';
 import { collectionManager } from '../api/CollectionManager';

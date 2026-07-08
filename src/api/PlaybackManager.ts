@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/api/PlaybackManager.ts
 import apiClient from './client';
 import { setActiveSessionId } from './client';

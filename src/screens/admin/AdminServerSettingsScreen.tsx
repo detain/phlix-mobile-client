@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/admin/AdminServerSettingsScreen.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {

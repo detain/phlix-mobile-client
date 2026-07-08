@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/music.ts
 //
 // Music domain types (slice E9a). Field names are the server payload verbatim

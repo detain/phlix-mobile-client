@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/webauthn/webauthnHelpers.ts
 //
 // Pure (off-React) helpers for the WebAuthn / passkeys screens (slice E10e).

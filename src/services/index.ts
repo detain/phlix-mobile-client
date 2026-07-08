@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/services/index.ts
 export { secureStorage } from './SecureStorage';
 export { downloadService } from './DownloadService';

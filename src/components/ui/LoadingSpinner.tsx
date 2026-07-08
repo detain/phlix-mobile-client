@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/components/ui/LoadingSpinner.tsx
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';

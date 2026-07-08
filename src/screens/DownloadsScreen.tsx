@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/screens/DownloadsScreen.tsx
 import React, { useEffect, useCallback } from 'react';
 import { View, FlatList, StyleSheet, Text, TouchableOpacity, Alert } from 'react-native';

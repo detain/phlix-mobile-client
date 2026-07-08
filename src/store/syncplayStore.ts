@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/store/syncplayStore.ts
 import { create } from 'zustand';
 import type { SyncPlayGroup, SyncPlayMember } from '../syncplay/SyncPlayService';

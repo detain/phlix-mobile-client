@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/search.ts
 //
 // Advanced-search + letter-index domain (slice E10b). Pure types + side-effect-

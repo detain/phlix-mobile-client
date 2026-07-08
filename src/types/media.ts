@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/media.ts
 //
 // Reconciled to the SERVER's ground-truth media shape in E2 (the API-correctness

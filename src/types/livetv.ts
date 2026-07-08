@@ -1,3 +1,9 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ */
+
 // src/types/livetv.ts
 //
 // Live TV / EPG / DVR domain types (slice E8). The server's Live TV surface is
