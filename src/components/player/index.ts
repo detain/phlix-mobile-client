@@ -2,3 +2,5 @@
 export { PlayerControls } from './PlayerControls';
 export { SeekBar } from './SeekBar';
 export { SkipButton } from './SkipButton';
+export { QualityMenu } from './QualityMenu';
+export type { QualityOption } from './quality';

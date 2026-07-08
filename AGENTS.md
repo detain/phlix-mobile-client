@@ -25,13 +25,13 @@ Metro reset: `npm start -- --reset-cache`. Android clean: `cd android && ./gradl
 
 **Entry**: `index.js` → `src/App.tsx` (`GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
 
-**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `index.ts`.
+**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `TranscodeManager.ts` (`startTranscode`/`prepare()`; `prepare()`'s result carries `variants: Rendition[]`, the ABR quality ladder consumed by `PlayerScreen`'s `QualityMenu`) · `index.ts`.
 
 **`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts`. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
 **`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
 
-**`src/components/`**: `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar}.tsx` · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has an `index.ts` of named re-exports.
+**`src/components/`**: `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar,SkipButton,QualityMenu}.tsx` (+ `quality.ts` pure helpers backing `QualityMenu`) · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has an `index.ts` of named re-exports.
 
 **`src/navigation/RootNavigator.tsx`**: root `Stack` (`Login` | `Main`+`Player`) → bottom `Tab` (`Home` · `Library` · `Search` · `Downloads` · `Settings`). `Player` is `fullScreenModal`.
 
@@ -74,6 +74,7 @@ Jest preset `react-native` (`jest.config.js`). Setup in `jest.setup.js` mocks `r
 - `PhlixPlayerView.kt` casts `currentActivity as? MainActivity` for PiP.
 - Push-notification typings in `src/types/react-native-push-notification.d.ts`.
 - ProGuard rules at `android/app/proguard-rules.pro`.
+- `PlayerScreen`'s quality picker only appears once a transcode fallback resolves ≥2 ladder rungs (`variants[]`) — hidden on direct-play. Its `<PhlixPlayerView startPosition=...>` is bound to `playerStartPosition` state, NOT the route-param constant — `handleQualitySelect` reseeds it from the live `currentPositionRef` on every switch; rebinding it back to the constant reintroduces a restart-from-0 bug.
 
 <!-- caliber:managed:pre-commit -->
 ## Before Committing
