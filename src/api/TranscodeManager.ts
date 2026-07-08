@@ -2,6 +2,7 @@
 /* eslint-disable no-void -- `void` marks intentional fire-and-forget polling promises */
 import apiClient from './client';
 import type {
+  Rendition,
   TranscodeJob,
   TranscodeStatus,
   TranscodeSubtitle,
@@ -23,6 +24,12 @@ export interface PrepareResult {
   masterUrl: string;
   /** Signed VTT subtitle tracks discovered during transcode. */
   subtitles: TranscodeSubtitle[];
+  /**
+   * The playable ABR quality ladder (server A7 `variants[]`), highest-first.
+   * Empty `[]` when the server is legacy/pre-ABR (client falls back to Auto-only
+   * native ABR on `masterUrl`). Feeds the mobile `QualityMenu` (G3).
+   */
+  variants: Rendition[];
 }
 
 /** A cancellable, polling prepare handle. */
@@ -71,6 +78,9 @@ class TranscodeManager {
     let jobId = '';
     let timer: ReturnType<typeof setTimeout> | null = null;
     let rejectOuter: ((reason: Error) => void) | null = null;
+    // The ladder can arrive on the start response and/or any status poll; keep
+    // the most recent non-empty list so the resolved result always carries it.
+    let lastVariants: Rendition[] = [];
 
     const clearTimer = (): void => {
       if (timer) {
@@ -95,7 +105,14 @@ class TranscodeManager {
           reject(new Error('Transcode ready but no master URL was returned'));
           return;
         }
-        resolve({ masterUrl, subtitles: subtitles ?? [] });
+        resolve({ masterUrl, subtitles: subtitles ?? [], variants: lastVariants });
+      };
+
+      // Remember the ladder off any response that carries one (start or poll).
+      const rememberVariants = (variants?: Rendition[] | null): void => {
+        if (Array.isArray(variants) && variants.length > 0) {
+          lastVariants = variants;
+        }
       };
 
       const poll = async (lastMasterUrl: string): Promise<void> => {
@@ -107,6 +124,7 @@ class TranscodeManager {
           if (cancelled) {
             return;
           }
+          rememberVariants(status.variants);
           opts.onProgress?.(status.progress);
 
           if (status.status === 'failed') {
@@ -140,6 +158,7 @@ class TranscodeManager {
             return;
           }
           jobId = job.job_id;
+          rememberVariants(job.variants);
           if (job.status === 'failed') {
             reject(new Error('Transcode failed'));
             return;

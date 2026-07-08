@@ -4,6 +4,13 @@
 // session-progress contract). Media `runtime` (see `src/types/media.ts`) is in
 // SECONDS — do not conflate the two.
 
+// The ABR quality ladder rung shape is the single source of truth in
+// `@phlix/contracts` (`Rendition`, added in v0.2.0 / step B1). Re-export it here
+// so the transcode job/status shapes below can carry the server's `variants[]`
+// without redeclaring a divergent local copy (G3).
+export type { Rendition, RenditionId, QualitySelection } from '@phlix/contracts';
+import type { Rendition } from '@phlix/contracts';
+
 export interface StreamInfo {
   url: string;
   /**
@@ -102,6 +109,13 @@ export interface TranscodeJob {
   status: TranscodeStatusValue;
   reused: boolean;
   subtitles: TranscodeSubtitle[];
+  /**
+   * The playable ABR quality ladder (server A7). Highest-first; each rung's
+   * `url` is an ABSOLUTE signed `media_v{id}.m3u8`. `null`/absent for a legacy
+   * pre-ABR server, in which case the client shows only Auto (native ABR on the
+   * master). See `@phlix/contracts` `Rendition`.
+   */
+  variants?: Rendition[] | null;
 }
 
 /** `GET /api/v1/transcode/{jobId}/status` response. `progress` is 0-100. */
@@ -114,6 +128,8 @@ export interface TranscodeStatus {
   master_url: string;
   dash_url: string;
   subtitles: TranscodeSubtitle[];
+  /** Same ABR ladder as {@link TranscodeJob.variants} (server A7). */
+  variants?: Rendition[] | null;
 }
 
 export interface PlaybackSession {

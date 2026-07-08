@@ -21,9 +21,19 @@ import { transcodeManager } from '../api/TranscodeManager';
 import { markerManager } from '../api/MarkerManager';
 import type { PrepareHandle } from '../api/TranscodeManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { StreamInfo, SubtitleTrack, Marker } from '../types/playback';
+import type { QualitySelection, Rendition } from '@phlix/contracts';
+import { AUTO_QUALITY } from '@phlix/contracts';
 import { SeekBar } from '../components/player/SeekBar';
 import { SkipButton } from '../components/player/SkipButton';
+import { QualityMenu } from '../components/player/QualityMenu';
+import {
+  buildQualityOptions,
+  resolveQualityUrl,
+  seedQualitySelection,
+  activeQualityLabel,
+} from '../components/player/quality';
 import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import type { PlaybackEvent } from '../native/types';
@@ -90,6 +100,15 @@ const PlayerScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [currentTime, setCurrentTime] = useState(startPosition);
+  // G3 finding 1: the position the native player (re)starts from. Seeded from the
+  // route param on mount, then re-pointed at the LIVE playback position on every
+  // quality swap so swapping `src` resumes near the current spot instead of
+  // restarting from 0 / the mount-time position.
+  const [playerStartPosition, setPlayerStartPosition] = useState(startPosition);
+  // Mirror of the live playback clock. `handleQualitySelect` reads THIS (not the
+  // `currentTime` state) at swap time so it never captures a stale closure and
+  // the swap callback needn't re-create on every progress tick.
+  const currentPositionRef = useRef(startPosition);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
@@ -107,6 +126,18 @@ const PlayerScreen: React.FC = () => {
   // ── E3: markers (SECONDS) ────────────────────────────────────────────────
   const [introMarker, setIntroMarker] = useState<Marker | null>(null);
   const [outroMarker, setOutroMarker] = useState<Marker | null>(null);
+
+  // ── G3: quality selection (ABR ladder) ───────────────────────────────────
+  // Variants become available once a transcode job resolves (server A7). Auto =
+  // native ABR on the multi-variant master; a pinned rung plays that rung's own
+  // media playlist. `defaultQuality` (persisted setting) seeds the pick.
+  const defaultQuality = useSettingsStore((state) => state.defaultQuality);
+  const setDefaultQuality = useSettingsStore((state) => state.setDefaultQuality);
+  const [qualityVariants, setQualityVariants] = useState<Rendition[]>([]);
+  const [qualityMasterUrl, setQualityMasterUrl] = useState('');
+  const [selectedQuality, setSelectedQuality] = useState<QualitySelection>(AUTO_QUALITY);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const qualityOptions = buildQualityOptions(qualityVariants, qualityMasterUrl);
 
   // ── E3: subtitles ────────────────────────────────────────────────────────
   const subtitleTracksState = usePlayerStore((state) => state.subtitleTracks);
@@ -200,6 +231,14 @@ const PlayerScreen: React.FC = () => {
     };
   }, [itemId]);
 
+  // G3 finding 1: keep the position ref in lockstep with the live playback clock
+  // (fed by every `setCurrentTime` source — progress, ready, seek, syncplay) so a
+  // quality swap can seed the new `src`'s start position from where the viewer
+  // actually is.
+  useEffect(() => {
+    currentPositionRef.current = currentTime;
+  }, [currentTime]);
+
   useEffect(() => {
     if (showControls && isPlaying) {
       hideControlsTimeout.current = setTimeout(() => {
@@ -224,6 +263,11 @@ const PlayerScreen: React.FC = () => {
       transcodeAttempted.current = false;
       setPreparingTranscode(false);
       setTranscodeProgress(0);
+      // G3: a fresh load has no ladder yet (only a transcode job produces one).
+      setQualityVariants([]);
+      setQualityMasterUrl('');
+      setSelectedQuality(AUTO_QUALITY);
+      setShowQualityMenu(false);
 
       // ── E8 Live TV: a direct stream URL was passed — play it verbatim and
       // SKIP the itemId detail-fetch / transcode lifecycle entirely. This branch
@@ -339,10 +383,20 @@ const PlayerScreen: React.FC = () => {
     prepareHandleRef.current = handle;
 
     try {
-      const { masterUrl, subtitles } = await handle.promise;
+      const { masterUrl, subtitles, variants } = await handle.promise;
+
+      // G3: seed the quality pick from the persisted default, then pick the URL
+      // to play — the master for Auto (native ABR), or a pinned rung's own
+      // media playlist. `defaultQuality` is thereby actually READ + APPLIED.
+      const seeded = seedQualitySelection(defaultQuality, variants);
+      const playUrl = resolveQualityUrl(variants, seeded, masterUrl);
+      setQualityVariants(variants);
+      setQualityMasterUrl(masterUrl);
+      setSelectedQuality(seeded);
+
       const hlsStreamInfo: StreamInfo = {
-        url: masterUrl,
-        stream_url: masterUrl,
+        url: playUrl,
+        stream_url: playUrl,
         protocol: 'hls',
         container: 'hls',
         size: 0,
@@ -372,7 +426,42 @@ const PlayerScreen: React.FC = () => {
       prepareHandleRef.current = null;
       setPreparingTranscode(false);
     }
-  }, [itemId, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo]);
+  }, [itemId, defaultQuality, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo]);
+
+  /**
+   * G3: apply a quality pick. Persists the choice to `defaultQuality` and swaps
+   * the player `src` — the master playlist for `Auto` (native ABR) or the
+   * chosen rung's own media playlist (a hard pin). Native players restart the
+   * item from `startPosition` on a `src` change (an AVPlayer/ExoPlayer detail),
+   * so we re-point `playerStartPosition` at the LIVE playback position captured
+   * from `currentPositionRef` at the moment of the switch — otherwise every
+   * Auto↔pin / rung↔rung switch would restart the video from the mount-time
+   * position (0 for a fresh play), a device-independent UX regression (finding 1).
+   */
+  const handleQualitySelect = useCallback(
+    (value: QualitySelection) => {
+      // Snapshot where the viewer actually is BEFORE the src swap so the reload
+      // resumes there. Read the ref (live source of truth), never the possibly
+      // stale mount-time `startPosition`.
+      const resumeAt = Math.max(0, currentPositionRef.current || 0);
+      setSelectedQuality(value);
+      setDefaultQuality(value);
+      const playUrl = resolveQualityUrl(qualityVariants, value, qualityMasterUrl);
+      const swapped: StreamInfo = {
+        url: playUrl,
+        stream_url: playUrl,
+        protocol: 'hls',
+        container: 'hls',
+        size: 0,
+        bitrate: 0,
+        duration_seconds: 0,
+      };
+      setPlayerStartPosition(resumeAt);
+      setStreamInfo(swapped);
+      setPlayerStreamInfo(swapped);
+    },
+    [qualityVariants, qualityMasterUrl, setDefaultQuality, setPlayerStreamInfo],
+  );
 
   const showControlsTemporarily = () => {
     setShowControls(true);
@@ -553,7 +642,7 @@ const PlayerScreen: React.FC = () => {
             // back to the unsigned url for older servers.
             src={streamInfo.stream_url || streamInfo.url}
             autoPlay={true}
-            startPosition={startPosition}
+            startPosition={playerStartPosition}
             volume={1.0}
             muted={false}
             // E3: selected subtitle VTT URL ('' = off). Native rendering is
@@ -626,6 +715,22 @@ const PlayerScreen: React.FC = () => {
                 <View style={styles.offlineBadge} accessibilityLabel="Playing offline">
                   <Text style={styles.offlineBadgeText}>⤓ Offline</Text>
                 </View>
+              )}
+
+              {/* G3: Quality picker — only when a real ladder (>1 choice) exists */}
+              {qualityOptions.length > 1 && (
+                <TouchableOpacity
+                  style={[
+                    styles.qualityButton,
+                    selectedQuality !== AUTO_QUALITY && styles.qualityButtonActive,
+                  ]}
+                  onPress={() => setShowQualityMenu(true)}
+                  accessibilityLabel="Video quality"
+                >
+                  <Text style={styles.qualityButtonText}>
+                    {activeQualityLabel(qualityOptions, selectedQuality)}
+                  </Text>
+                </TouchableOpacity>
               )}
 
               {/* Subtitle (CC) picker — only when tracks are available */}
@@ -818,6 +923,15 @@ const PlayerScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* G3: Quality picker */}
+      <QualityMenu
+        visible={showQualityMenu}
+        options={qualityOptions}
+        selected={selectedQuality}
+        onSelect={handleQualitySelect}
+        onClose={() => setShowQualityMenu(false)}
+      />
     </View>
   );
 };
@@ -909,6 +1023,23 @@ const styles = StyleSheet.create({
   syncPlayButtonText: {
     color: '#fff',
     fontSize: 18,
+  },
+  qualityButton: {
+    height: 44,
+    minWidth: 44,
+    paddingHorizontal: 12,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qualityButtonActive: {
+    backgroundColor: 'rgba(0,102,204,0.8)',
+  },
+  qualityButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   offlineBadge: {
     paddingHorizontal: 10,
