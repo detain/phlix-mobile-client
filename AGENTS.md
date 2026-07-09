@@ -25,56 +25,13 @@ Metro reset: `npm start -- --reset-cache`. Android clean: `cd android && ./gradl
 
 **Entry**: `index.js` → `src/App.tsx` (`GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
 
-**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `TranscodeManager.ts` (`startTranscode`/`prepare()`; `prepare()`'s result carries `variants: Rendition[]`, the ABR quality ladder consumed by `PlayerScreen`'s `QualityMenu`) · `index.ts`.
+**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `TranscodeManager.ts` (`startTranscode`/`prepare()`; `prepare()`'s result carries `variants: Rendition[]`, the ABR quality ladder consumed by `PlayerScreen`'s `QualityMenu`) · `SyncPlayManager.ts` (SyncPlay group-watch backend; re-exported from `index.ts`) · `index.ts`.
 
 **`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts`. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
 **`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
 
-**`src/components/`**: `RatingBadge.tsx` (aggregate rating badge from `MediaRatings.aggregateScore`) · `UserRatingPicker.tsx` (tappable 5-star personal rating via `favoritesManager.getMediaRatings`/`setRating`/`clearRating`) · `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar,SkipButton,QualityMenu}.tsx` (+ `quality.ts` pure helpers backing `QualityMenu`) · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has an `index.ts` of named re-exports.
-
-**`src/navigation/RootNavigator.tsx`**: root `Stack` (`Login` | `Main`+`Player`) → bottom `Tab` (`Home` · `Library` · `Search` · `Downloads` · `Settings`). `Player` is `fullScreenModal`.
-
-**`src/types/`**: `media.ts` (`MediaItem`, `Library`, `Series`, `Season`, `Episode`, `UserData`) · `navigation.ts` (`RootStackParamList`, `TabParamList`) · `playback.ts` (`StreamInfo`, `DeviceProfile`, `SubtitleTrack`, `AudioTrack`, `PlaybackSession`).
-
-**`src/services/`**: `SecureStorage.ts` (`react-native-keychain`, service `com.phlix.mobile`) · `DownloadService.ts` · `NotificationService.ts` · `index.ts`.
-
-**`src/utils/`**: `formatters.ts` (`formatTime`, `formatRuntime`, `formatFileSize`, `formatRelativeTime`, `truncateText`) · `storage.ts` (typed `AsyncStorage` wrapper).
-
-**`src/native/types.ts`**: `PhlixPlayerInterface`, `PhlixDownloaderInterface`, `PlaybackEvent`, `DownloadEvent`.
-
-**iOS native**: `ios/LocalPods/PhlixPlayer/PhlixPlayer.podspec` · `PhlixPlayerView.swift` (AVPlayer, KVO on `status`, periodic time observer) · `PhlixPlayerViewManager.m` (`RCT_EXTERN_MODULE` bridge — props `src`/`autoPlay`/`startPosition`/`volume`/`muted`, methods `play`/`pause`/`seekTo`).
-
-**Android native**: `android/app/src/main/java/com/phlixmobile/MainActivity.kt` · `MainApplication.kt` · `player/PhlixPlayerPackage.kt` · `player/PhlixPlayerView.kt` (ExoPlayer, `@ReactProp` for `src`/`autoPlay`/`startPosition`/`volume`/`muted`/`rate`/`pictureInPicture`, `@ReactMethod` for control). Manifest: `android/app/src/main/AndroidManifest.xml`. Build: `android/app/build.gradle` · `android/build.gradle`.
-
-## Conventions
-
-- **TS strict** (`tsconfig.json`), alias `@/* → src/*` (only used in tests via `moduleNameMapper`).
-- Components: `React.FC<Props>` arrow function, `StyleSheet.create` at bottom, dark palette bg `#0f0f1a` / surface `#1a1a2e` / card `#2d2d44` / accent `#0066cc` / text `#fff`+`#888` (matches `android/app/src/main/res/values/colors.xml`).
-- Screens: wrap in `<SafeContainer edges={['top']}>`, fall back to `<LoadingSpinner fullScreen />` / `<ErrorView onRetry=...>` / `<EmptyState>`.
-- Stores: typed `interface State`, async actions wrap in try/catch and set `error`/`isLoading`. `useSettingsStore` auto-saves via `get().saveSettings()` after each setter.
-- API managers: classes with async methods returning typed promises, exported `export const xManager = new XManager(); export default xManager;`.
-- DTOs use snake_case (`poster_url`, `run_time_ticks`, `user_data`) — match server.
-- AsyncStorage keys prefixed `phlix_` (`phlix_settings`, `phlix_downloads`).
-- Ticks are 100ns: `/10000000` for seconds, `/600000000` for minutes (see `MediaDetailScreen.tsx`, `formatters.ts`).
-- Navigation params declared in `src/types/navigation.ts`. `Player` route: `{ itemId: string; startPosition?: number }`.
-
-## Testing
-
-Jest preset `react-native` (`jest.config.js`). Setup in `jest.setup.js` mocks `react-native-safe-area-context`, `@react-navigation/native`, `react-native-gesture-handler`. Layout: `src/<dir>/__tests__/<file>.test.ts`. `moduleNameMapper`: `^@/(.*)$` → `<rootDir>/src/$1`. Coverage from `src/**/*.{ts,tsx}` excluding `*.d.ts` and `index.ts`.
-
-## CI/CD
-
-`.github/workflows/test.yml` (push/PR), `.github/workflows/build-android.yml`, `.github/workflows/build-ios.yml` (manual macOS runner).
-
-## Gotchas
-
-- `BASE_URL` hardcoded in `src/api/client.ts`.
-- iOS player is a **LocalPod** (`ios/LocalPods/PhlixPlayer/`) — bump `podspec` and re-run `pod install` after Swift changes.
-- `PhlixPlayerView.kt` casts `currentActivity as? MainActivity` for PiP.
-- Push-notification typings in `src/types/react-native-push-notification.d.ts`.
-- ProGuard rules at `android/app/proguard-rules.pro`.
-- `PlayerScreen`'s quality picker only appears once a transcode fallback resolves ≥2 ladder rungs (`variants[]`) — hidden on direct-play. Its `<PhlixPlayerView startPosition=...>` is bound to `playerStartPosition` state, NOT the route-param constant — `handleQualitySelect` reseeds it from the live `currentPositionRef` on every switch; rebinding it back to the constant reintroduces a restart-from-0 bug.
+**`src/components/`** syncplay subdir: `syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx` (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` and the fan-out coordinator `src/syncplay/SyncPlayService.ts`.
 
 <!-- caliber:managed:pre-commit -->
 ## Before Committing
@@ -89,7 +46,7 @@ grep -q "caliber" .git/hooks/pre-commit 2>/dev/null && echo "hook-active" || ech
 - If **hook-active**: the hook handles sync automatically — just commit normally. Tell the user: "Caliber will sync your agent configs automatically via the pre-commit hook."
 - If **no-hook**: run Caliber manually before committing:
   1. Tell the user: "Caliber: Syncing agent configs with your latest changes..."
-  2. Run: `caliber refresh && git add CLAUDE.md .claude/ .cursor/ .cursorrules .github/copilot-instructions.md .github/instructions/ AGENTS.md CALIBER_LEARNINGS.md .agents/ .opencode/ 2>/dev/null`
+  2. Run: `caliber refresh && git add CALIBER_LEARNINGS.md AGENTS.md .agents/ 2>/dev/null`
   3. After it completes, briefly tell the user what Caliber updated. Then proceed with the commit.
 
 **Valid `caliber refresh` options:** `--quiet` (suppress output) and `--dry-run` (preview without writing). Do not pass any other flags — options like `--auto-approve`, `--debug`, or `--force` do not exist and will cause errors.
@@ -105,3 +62,20 @@ If `caliber` is not found, read `.agents/skills/setup-caliber/SKILL.md` and foll
 Read `CALIBER_LEARNINGS.md` for patterns and anti-patterns learned from previous sessions.
 These are auto-extracted from real tool usage — treat them as project-specific rules.
 <!-- /caliber:managed:learnings -->
+
+<!-- caliber:managed:model-config -->
+## Model Configuration
+
+Recommended default: `claude-sonnet-4-6` with high effort (stronger reasoning; higher cost and latency than smaller models).
+Smaller/faster models trade quality for speed and cost — pick what fits the task.
+Pin your choice (`/model` in Claude Code, or `CALIBER_MODEL` when using Caliber with an API provider) so upstream default changes do not silently change behavior.
+
+<!-- /caliber:managed:model-config -->
+
+<!-- caliber:managed:sync -->
+## Context Sync
+
+This project uses [Caliber](https://github.com/caliber-ai-org/ai-setup) to keep AI agent configs in sync across Claude Code, Cursor, Copilot, and Codex.
+Configs update automatically before each commit via `caliber refresh`.
+If the pre-commit hook is not set up, read `.agents/skills/setup-caliber/SKILL.md` and follow the setup instructions.
+<!-- /caliber:managed:sync -->
