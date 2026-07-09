@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useProfileStore.test.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProfileStore } from '../useProfileStore';

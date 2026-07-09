@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/api/__tests__/AdminManager.test.ts
 import { adminManager } from '../AdminManager';
 import apiClient from '../client';

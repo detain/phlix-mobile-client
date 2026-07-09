@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useWebAuthnStore.test.ts
 import { useWebAuthnStore } from '../useWebAuthnStore';
 import { webAuthnService } from '../../services/WebAuthnService';

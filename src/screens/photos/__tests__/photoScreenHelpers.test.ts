@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/screens/photos/__tests__/photoScreenHelpers.test.ts
 import {
   pickInitialLibrary,

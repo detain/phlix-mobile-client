@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/__tests__/components/player/SkipButton.test.tsx
 //
 // SkipButton is a pure, hook-less presentational component: its only logic is the

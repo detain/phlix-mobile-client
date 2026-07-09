@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/screens/admin/__tests__/adminScreenHelpers.test.ts
 import {
   USER_STATUS_FILTERS,

@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/screens/__tests__/PlayerScreen.test.tsx
 //
 // Screen-level test for the PlayerScreen G3 quality wiring (menu-gating,

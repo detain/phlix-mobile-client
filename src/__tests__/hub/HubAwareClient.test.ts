@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/__tests__/hub/HubAwareClient.test.ts
 import { hubAwareClient } from '../../api/hubAwareClient';
 import { useHubStore } from '../../store/hubStore';

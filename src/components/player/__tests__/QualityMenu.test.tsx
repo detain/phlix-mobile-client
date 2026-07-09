@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/components/player/__tests__/QualityMenu.test.tsx
 //
 // QualityMenu is a pure, hook-less presentational component (G3): its only logic
