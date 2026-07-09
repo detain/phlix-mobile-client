@@ -35,6 +35,7 @@ import { SkipButton } from '../components/player/SkipButton';
 import { QualityMenu } from '../components/player/QualityMenu';
 import { AudioTrackList } from '../components/player/AudioTrackList';
 import { SubtitleTrackList } from '../components/player/SubtitleTrackList';
+import { SleepTimerMenu, SleepTimerDisplay, useSleepTimer } from '../components/player/SleepTimer';
 import type { StreamAudioTrack, StreamSubtitleTrack } from '@phlix/contracts';
 import {
   buildQualityOptions,
@@ -183,6 +184,20 @@ const PlayerScreen: React.FC = () => {
   const currentGroup = useSyncplayStore((state) => state.currentGroup);
   const isHost = useSyncplayStore((state) => state.isHost);
   const updatePlaybackState = useSyncplayStore((state) => state.updatePlaybackState);
+
+  // ── P3-S4: Sleep Timer state ─────────────────────────────────────────────
+  const [showSleepTimer, setShowSleepTimer] = useState(false);
+  const { remainingSeconds, startTimer } = useSleepTimer(() => {
+    // Fire: pause playback when timer expires
+    dispatchPlayerCommand(playerRef, 'pause');
+    setIsPlaying(false);
+    playerSetIsPlaying(false);
+  });
+
+  // ── P3-S4: Picture-in-Picture ─────────────────────────────────────────────
+  const handleStartPiP = () => {
+    dispatchPlayerCommand(playerRef, 'startPiP');
+  };
 
   // SyncPlay effect - connect and listen for commands
   useEffect(() => {
@@ -791,6 +806,28 @@ const PlayerScreen: React.FC = () => {
                   <Text style={styles.syncPlayButtonText}>👥</Text>
                 </TouchableOpacity>
               )}
+
+              {/* P3-S4: Sleep Timer — badge when running, button to set/change */}
+              {remainingSeconds > 0 ? (
+                <SleepTimerDisplay onPress={() => setShowSleepTimer(true)} remainingSeconds={remainingSeconds} />
+              ) : (
+                <TouchableOpacity
+                  style={styles.syncPlayButton}
+                  onPress={() => setShowSleepTimer(true)}
+                  accessibilityLabel="Sleep timer"
+                >
+                  <Text style={styles.syncPlayButtonText}>🌙</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* P3-S4: Picture-in-Picture button */}
+              <TouchableOpacity
+                style={styles.syncPlayButton}
+                onPress={handleStartPiP}
+                accessibilityLabel="Picture in picture"
+              >
+                <Text style={styles.syncPlayButtonText}>📺</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -857,6 +894,15 @@ const PlayerScreen: React.FC = () => {
         selected={selectedQuality}
         onSelect={handleQualitySelect}
         onClose={() => setShowQualityMenu(false)}
+      />
+
+      {/* P3-S4: Sleep Timer picker */}
+      <SleepTimerMenu
+        visible={showSleepTimer}
+        onSelect={(minutes) => {
+          startTimer(minutes);
+        }}
+        onClose={() => setShowSleepTimer(false)}
       />
     </View>
   );
