@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/__tests__/downloadStore.test.ts
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { MediaItem } from '../types/media';

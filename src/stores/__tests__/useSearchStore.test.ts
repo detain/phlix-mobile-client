@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useSearchStore.test.ts
 import { useSearchStore, SEARCH_PAGE_SIZE } from '../useSearchStore';
 import { libraryManager } from '../../api/LibraryManager';

@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/api/__tests__/TranscodeManager.test.ts
 /* eslint-disable jest/valid-expect -- rejection expectation is intentionally
    created before flushing fake timers (to attach the handler) and awaited after */

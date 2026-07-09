@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/components/player/__tests__/quality.test.ts
 import { AUTO_QUALITY } from '@phlix/contracts';
 import type { Rendition } from '@phlix/contracts';

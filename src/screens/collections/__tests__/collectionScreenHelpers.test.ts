@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/screens/collections/__tests__/collectionScreenHelpers.test.ts
 import {
   isSmartCollection,

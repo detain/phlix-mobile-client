@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/api/__tests__/WebAuthnManager.test.ts
 import { webAuthnManager } from '../WebAuthnManager';
 import apiClient from '../client';

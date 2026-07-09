@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/__tests__/syncplay/syncplayStore.test.ts
 import { useSyncplayStore } from '../../store/syncplayStore';
 import type { SyncPlayGroup, SyncPlayMember } from '../../syncplay/SyncPlayService';

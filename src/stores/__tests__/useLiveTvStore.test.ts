@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useLiveTvStore.test.ts
 import { useLiveTvStore } from '../useLiveTvStore';
 import { liveTvManager, isNotConfiguredError } from '../../api/LiveTvManager';

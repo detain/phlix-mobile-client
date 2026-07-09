@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/screens/music/__tests__/musicScreenHelpers.test.ts
 import {
   MUSIC_SEGMENTS,

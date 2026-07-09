@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/usePhotoStore.test.ts
 import { usePhotoStore } from '../usePhotoStore';
 import { photoManager } from '../../api/PhotoManager';

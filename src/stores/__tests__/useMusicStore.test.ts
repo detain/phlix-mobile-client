@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useMusicStore.test.ts
 import { useMusicStore } from '../useMusicStore';
 import { musicManager } from '../../api/MusicManager';

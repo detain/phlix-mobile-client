@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/api/__tests__/MarkerManager.test.ts
 import { markerManager, isWithinMarker } from '../MarkerManager';
 import apiClient from '../client';

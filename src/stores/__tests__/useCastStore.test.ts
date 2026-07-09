@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/stores/__tests__/useCastStore.test.ts
 import { useCastStore } from '../useCastStore';
 import { castManager } from '../../api/CastManager';

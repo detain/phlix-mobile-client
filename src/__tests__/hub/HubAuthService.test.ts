@@ -1,3 +1,10 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
 // src/__tests__/hub/HubAuthService.test.ts
 import { HubAuthService } from '../../hub/HubAuthService';
 
