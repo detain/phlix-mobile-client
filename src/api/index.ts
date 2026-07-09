@@ -88,6 +88,15 @@ export type {
   AuthResult,
 } from '../types/webauthn';
 export {
+  default as syncPlayManager,
+  type SyncPlayRoom,
+  type CreateRoomParams,
+  type CreateRoomResponse,
+  type JoinRoomResponse,
+  type SyncPlayMember,
+  type SyncPlayPlaybackState,
+} from './SyncPlayManager';
+export {
   getDeviceId,
   getDeviceName,
   getCachedDeviceId,
