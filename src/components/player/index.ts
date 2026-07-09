@@ -9,4 +9,6 @@ export { PlayerControls } from './PlayerControls';
 export { SeekBar } from './SeekBar';
 export { SkipButton } from './SkipButton';
 export { QualityMenu } from './QualityMenu';
+export { AudioTrackList } from './AudioTrackList';
+export { SubtitleTrackList } from './SubtitleTrackList';
 export type { QualityOption } from './quality';

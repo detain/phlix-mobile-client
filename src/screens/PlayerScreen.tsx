@@ -34,6 +34,9 @@ import { AUTO_QUALITY } from '@phlix/contracts';
 import { SeekBar } from '../components/player/SeekBar';
 import { SkipButton } from '../components/player/SkipButton';
 import { QualityMenu } from '../components/player/QualityMenu';
+import { AudioTrackList } from '../components/player/AudioTrackList';
+import { SubtitleTrackList } from '../components/player/SubtitleTrackList';
+import type { StreamAudioTrack, StreamSubtitleTrack } from '@phlix/contracts';
 import {
   buildQualityOptions,
   resolveQualityUrl,
@@ -150,6 +153,18 @@ const PlayerScreen: React.FC = () => {
   const selectedSubtitleId = usePlayerStore((state) => state.currentSubtitleTrackId);
   const setSelectedSubtitleId = usePlayerStore((state) => state.setCurrentSubtitleTrackId);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
+
+  // ── P3B-S7: audio tracks (StreamAudioTrack from contracts v0.3.2) ────────
+  // Will be populated from media item streams API when available
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [audioTrackList, setAudioTrackList] = useState<StreamAudioTrack[]>([]);
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+  const [showAudioPicker, setShowAudioPicker] = useState(false);
+
+  // ── P3B-S7: subtitle tracks (StreamSubtitleTrack from contracts v0.3.2) ─
+  // Will be populated from media item streams API when available
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [subtitleTrackList, setSubtitleTrackList] = useState<StreamSubtitleTrack[]>([]);
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -753,6 +768,20 @@ const PlayerScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
+              {/* P3B-S7: Audio track picker — shown when audio tracks are available */}
+              {audioTrackList.length > 0 && (
+                <TouchableOpacity
+                  style={[
+                    styles.syncPlayButton,
+                    selectedAudioTrackId && styles.syncPlayButtonActive,
+                  ]}
+                  onPress={() => setShowAudioPicker(true)}
+                  accessibilityLabel="Audio tracks"
+                >
+                  <Text style={styles.syncPlayButtonText}>🎧</Text>
+                </TouchableOpacity>
+              )}
+
               {/* SyncPlay indicator / button */}
               <TouchableOpacity
                 style={[
@@ -881,54 +910,27 @@ const PlayerScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* Subtitle track picker */}
-      <Modal
+      {/* P3B-S7: Subtitle track picker using contracts v0.3.2 types */}
+      <SubtitleTrackList
         visible={showSubtitlePicker}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowSubtitlePicker(false)}
-      >
-        <View style={styles.syncPlayModalOverlay}>
-          <View style={styles.syncPlayModalContent}>
-            <View style={styles.syncPlayModalHeader}>
-              <Text style={styles.syncPlayModalTitle}>Subtitles</Text>
-              <TouchableOpacity onPress={() => setShowSubtitlePicker(false)}>
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+        tracks={subtitleTrackList}
+        selected={selectedSubtitleId}
+        onSelect={(trackId) => {
+          setSelectedSubtitleId(trackId);
+        }}
+        onClose={() => setShowSubtitlePicker(false)}
+      />
 
-            <ScrollView style={styles.memberList}>
-              <TouchableOpacity
-                style={styles.memberRow}
-                onPress={() => {
-                  setSelectedSubtitleId(null);
-                  setShowSubtitlePicker(false);
-                }}
-              >
-                <Text style={styles.memberName}>
-                  Off {selectedSubtitleId === null ? '✓' : ''}
-                </Text>
-              </TouchableOpacity>
-
-              {subtitleTracksState.map((track) => (
-                <TouchableOpacity
-                  key={track.id}
-                  style={styles.memberRow}
-                  onPress={() => {
-                    setSelectedSubtitleId(track.id);
-                    setShowSubtitlePicker(false);
-                  }}
-                >
-                  <Text style={styles.memberName}>
-                    {track.display_title || track.language}{' '}
-                    {selectedSubtitleId === track.id ? '✓' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {/* P3B-S7: Audio track picker using contracts v0.3.2 types */}
+      <AudioTrackList
+        visible={showAudioPicker}
+        tracks={audioTrackList}
+        selected={selectedAudioTrackId}
+        onSelect={(trackId) => {
+          setSelectedAudioTrackId(trackId);
+        }}
+        onClose={() => setShowAudioPicker(false)}
+      />
 
       {/* G3: Quality picker */}
       <QualityMenu
