@@ -8,7 +8,7 @@
 // src/components/media/RecommendationCard.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { UserRecommendation } from '@phlix/contracts';
+import type { UserRecommendation } from '../../types/contracts';
 
 interface Props {
   item: UserRecommendation;
