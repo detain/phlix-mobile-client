@@ -9,3 +9,4 @@ export { PosterCard } from './PosterCard';
 export { MediaCard } from './MediaCard';
 export { MediaList } from './MediaList';
 export { ContinueWatching } from './ContinueWatching';
+export { default as RecommendationCard } from './RecommendationCard';

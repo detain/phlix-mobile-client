@@ -43,6 +43,7 @@ import {
   CollectionDetailScreen,
   FavoritesScreen,
   PasskeysScreen,
+  RecommendationsScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -82,6 +83,11 @@ const HomeStackNavigator = () => (
       name="HomeMain"
       component={HomeScreen}
       options={{ headerShown: false }}
+    />
+    <HomeStack.Screen
+      name="Recommendations"
+      component={RecommendationsScreen}
+      options={{ title: 'For You' }}
     />
     <HomeStack.Screen
       name="MediaDetail"
