@@ -17,8 +17,6 @@ import {
   requireNativeComponent,
   NativeSyntheticEvent,
   findNodeHandle,
-  Modal,
-  ScrollView,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +46,7 @@ import { downloadService } from '../services/DownloadService';
 import type { PlaybackEvent } from '../native/types';
 import { syncPlayService } from '../syncplay/SyncPlayService';
 import { useSyncplayStore } from '../store/syncplayStore';
+import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
 
 // Define the native player props interface
 interface NativePhlixPlayerProps {
@@ -182,8 +181,6 @@ const PlayerScreen: React.FC = () => {
   const [showSyncPlayOverlay, setShowSyncPlayOverlay] = useState(false);
   const currentGroup = useSyncplayStore((state) => state.currentGroup);
   const isHost = useSyncplayStore((state) => state.isHost);
-  const timeSyncStable = useSyncplayStore((state) => state.timeSyncStable);
-  const syncplayError = useSyncplayStore((state) => state.error);
   const updatePlaybackState = useSyncplayStore((state) => state.updatePlaybackState);
 
   // SyncPlay effect - connect and listen for commands
@@ -783,28 +780,15 @@ const PlayerScreen: React.FC = () => {
               )}
 
               {/* SyncPlay indicator / button */}
-              <TouchableOpacity
-                style={[
-                  styles.syncPlayButton,
-                  currentGroup && styles.syncPlayButtonActive,
-                ]}
-                onPress={() => setShowSyncPlayOverlay(true)}
-              >
-                <Text style={styles.syncPlayButtonText}>
-                  {currentGroup ? `👥 ${currentGroup.members.length}` : '👥'}
-                </Text>
-              </TouchableOpacity>
-
-              {/* TimeSync indicator */}
-              {currentGroup && (
-                <View style={styles.syncStatusIndicator}>
-                  <View
-                    style={[
-                      styles.syncStatusDot,
-                      timeSyncStable ? styles.syncStatusStable : styles.syncStatusUnstable,
-                    ]}
-                  />
-                </View>
+              {currentGroup ? (
+                <SyncPlayOverlay onPress={() => setShowSyncPlayOverlay(true)} />
+              ) : (
+                <TouchableOpacity
+                  style={styles.syncPlayButton}
+                  onPress={() => setShowSyncPlayOverlay(true)}
+                >
+                  <Text style={styles.syncPlayButtonText}>👥</Text>
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -836,79 +820,12 @@ const PlayerScreen: React.FC = () => {
         </Animated.View>
       )}
 
-      {/* SyncPlay Member List Overlay */}
-      <Modal
+      {/* SyncPlay Modal */}
+      <SyncPlayModal
         visible={showSyncPlayOverlay}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowSyncPlayOverlay(false)}
-      >
-        <View style={styles.syncPlayModalOverlay}>
-          <View style={styles.syncPlayModalContent}>
-            <View style={styles.syncPlayModalHeader}>
-              <Text style={styles.syncPlayModalTitle}>SyncPlay</Text>
-              <TouchableOpacity onPress={() => setShowSyncPlayOverlay(false)}>
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {currentGroup ? (
-              <>
-                <Text style={styles.groupNameText}>{currentGroup.name}</Text>
-                <Text style={styles.groupInfoText}>
-                  {isHost ? 'You are the host' : `Host: ${currentGroup.members.find((m) => m.id === currentGroup.hostId)?.name ?? 'Unknown'}`}
-                </Text>
-
-                <ScrollView style={styles.memberList}>
-                  {currentGroup.members.map((member) => (
-                    <View key={member.id} style={styles.memberRow}>
-                      <Text style={styles.memberName}>
-                        {member.name} {member.id === currentGroup.hostId ? '👑' : ''}
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-
-                <TouchableOpacity
-                  style={styles.leaveGroupButton}
-                  onPress={() => {
-                    syncPlayService.leaveGroup();
-                    setShowSyncPlayOverlay(false);
-                  }}
-                >
-                  <Text style={styles.leaveGroupButtonText}>Leave Group</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.noGroupText}>Not in a SyncPlay group</Text>
-
-                <TouchableOpacity
-                  style={styles.createGroupButton}
-                  onPress={() => {
-                    syncPlayService.createGroup(`Session ${itemId.slice(0, 6)}`);
-                    setShowSyncPlayOverlay(false);
-                  }}
-                >
-                  <Text style={styles.createGroupButtonText}>Create Group</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {syncplayError && (
-              <Text style={styles.syncPlayErrorText}>{syncplayError}</Text>
-            )}
-
-            {/* TimeSync status */}
-            <View style={styles.timeSyncStatus}>
-              <Text style={styles.timeSyncLabel}>Time Sync</Text>
-              <Text style={styles.timeSyncValue}>
-                {timeSyncStable ? 'Stable' : 'Syncing...'}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowSyncPlayOverlay(false)}
+        itemId={itemId}
+      />
 
       {/* P3B-S7: Subtitle track picker using contracts v0.3.2 types */}
       <SubtitleTrackList

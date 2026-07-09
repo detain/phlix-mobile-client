@@ -265,6 +265,40 @@ class SyncPlayService {
   }
 
   /**
+   * Connect to a specific SyncPlay room via provided WebSocket URL.
+   * Used when joining a room via REST API which returns the WebSocket URL.
+   */
+  connectWithRoom(roomId: string, sessionId: string, wsUrl: string): void {
+    if (this.ws) {
+      this.disconnect();
+    }
+
+    this.memberId = sessionId;
+
+    if (!wsUrl) {
+      this.emit('onConnectionStateChange', 'error');
+      return;
+    }
+
+    this.setConnectionState('connecting');
+
+    try {
+      this.ws = new WebSocket(wsUrl);
+      this.ws.onopen = () => {
+        this.setConnectionState('connected');
+        this.startSyncInterval();
+        // Join the room after connecting
+        this.joinGroup(roomId);
+      };
+      this.ws.onclose = this.handleClose.bind(this);
+      this.ws.onerror = this.handleError.bind(this);
+      this.ws.onmessage = (event: any) => this.handleMessage(event);
+    } catch {
+      this.setConnectionState('error');
+    }
+  }
+
+  /**
    * Disconnect from the SyncPlay WebSocket.
    */
   disconnect(): void {
