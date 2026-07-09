@@ -44,6 +44,7 @@ import {
   FavoritesScreen,
   PasskeysScreen,
   RecommendationsScreen,
+  ParentalControlsScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -385,6 +386,16 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Passkeys',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="ParentalControls"
+              component={ParentalControlsScreen}
+              options={{
+                headerShown: true,
+                title: 'Parental Controls',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}
