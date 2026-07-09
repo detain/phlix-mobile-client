@@ -81,6 +81,7 @@ export type HomeStackParamList = {
   HomeMain: undefined;
   MediaDetail: { itemId: string };
   SeasonDetail: { seasonId: string };
+  Recommendations: undefined;
 };
 
 // Library Stack
