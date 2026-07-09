@@ -211,6 +211,20 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Parental Controls Section (P5-S5) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Parental Controls</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() => navigation.navigate('ParentalControls')}
+            >
+              <Text style={styles.settingLabel}>Schedules, Tags & Limits</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Admin Section — only for server administrators */}
         {user?.is_admin ? (
           <View style={styles.section}>

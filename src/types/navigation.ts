@@ -58,6 +58,8 @@ export type RootStackParamList = {
   // E10e (WebAuthn / passkeys). Passkey management for the current user;
   // re-fetches the credential list on mount, so no params are passed.
   Passkeys: undefined;
+  // P5-S5 (Parental Controls). Access schedules, tag blocking, stream limits.
+  ParentalControls: undefined;
   Cast: {
     mediaItemId: string;
     streamUrl: string;
