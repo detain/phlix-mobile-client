@@ -20,9 +20,12 @@ import {
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
+import type { MediaRatings } from '@phlix/contracts';
 import { libraryManager } from '../api/LibraryManager';
 import { favoritesManager } from '../api/FavoritesManager';
+import { markerManager } from '../api/MarkerManager';
 import { MediaItem, Season, Episode } from '../types/media';
+import type { Chapter } from '../types/playback';
 import {
   starsFromRating,
   ratingForStar,
@@ -34,6 +37,8 @@ import { PosterCard } from '../components/media/PosterCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { CastButton } from '../components/cast';
+import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
+import { UserRatingPicker } from '../components/UserRatingPicker';
 import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
 
@@ -67,6 +72,10 @@ const MediaDetailScreen: React.FC = () => {
   // Guards against firing a second mutation while one is in flight.
   const [favBusy, setFavBusy] = useState(false);
   const [rateBusy, setRateBusy] = useState(false);
+  // P1-S8: aggregate ratings from GET /api/v1/media/{id}/ratings
+  const [mediaRatings, setMediaRatings] = useState<MediaRatings | null>(null);
+  // P2-S5: chapter markers from getPlaybackInfo()
+  const [chapters, setChapters] = useState<Chapter[]>([]);
 
   useEffect(() => {
     loadMediaDetails();
@@ -94,6 +103,20 @@ const MediaDetailScreen: React.FC = () => {
     }
   }, [selectedSeason]);
 
+  // P2-S5: load chapter markers for playable items (movies/episodes).
+  useEffect(() => {
+    const loadChapters = async () => {
+      try {
+        const info = await markerManager.getPlaybackInfo(itemId);
+        setChapters(info.chapters ?? []);
+      } catch {
+        // Chapters are non-critical — silently ignore fetch failures.
+        setChapters([]);
+      }
+    };
+    loadChapters();
+  }, [itemId]);
+
   const loadMediaDetails = async () => {
     try {
       setIsLoading(true);
@@ -107,6 +130,14 @@ const MediaDetailScreen: React.FC = () => {
       setUserDataPresent(Boolean(ud));
       setIsFavorite(Boolean(ud?.favorite));
       setRating(ud?.rating ?? null);
+
+      // P1-S8: fetch aggregate ratings (non-critical, silently fail)
+      try {
+        const ratings = await favoritesManager.getMediaRatings(itemId);
+        setMediaRatings(ratings);
+      } catch {
+        // Ratings unavailable
+      }
 
       if (mediaItem.type === 'series') {
         try {
@@ -152,6 +183,14 @@ const MediaDetailScreen: React.FC = () => {
       startPosition: episode.user_data?.resume_position_ticks
         ? episode.user_data.resume_position_ticks / 10000000
         : 0,
+    });
+  };
+
+  // P2-S5: tap a chapter to seek to that position in the player.
+  const handleChapterPress = (chapter: Chapter) => {
+    navigation.navigate('Player', {
+      itemId,
+      startPosition: chapter.start_seconds,
     });
   };
 
@@ -328,6 +367,13 @@ const MediaDetailScreen: React.FC = () => {
                   <Text style={styles.rating}>{item.rating}</Text>
                 </>
               )}
+              {/* P1-S8: aggregate rating badge (e.g., TMDB/IMDb average) */}
+              {mediaRatings?.aggregateScore != null && (
+                <>
+                  <Text style={styles.dot}>•</Text>
+                  <RatingBadgeFromMediaRatings ratings={mediaRatings} size="small" />
+                </>
+              )}
               {item.runtime && (
                 <>
                   <Text style={styles.dot}>•</Text>
@@ -431,6 +477,19 @@ const MediaDetailScreen: React.FC = () => {
           </View>
         )}
 
+        {/* P1-S8: User rating picker - interactive rating below description.
+            Shown only when authenticated (user_data present). */}
+        {userDataPresent && (
+          <View style={styles.ratingPickerSection}>
+            <Text style={styles.sectionLabel}>Your Rating</Text>
+            <UserRatingPicker
+              itemId={itemId}
+              initialRating={rating}
+              onRatingChange={setRating}
+            />
+          </View>
+        )}
+
         {/* Genres */}
         {item.genres && item.genres.length > 0 && (
           <View style={styles.genres}>
@@ -439,6 +498,35 @@ const MediaDetailScreen: React.FC = () => {
                 <Text style={styles.genreText}>{genre}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* P2-S5: Chapter markers - shown for playable items with chapters. */}
+        {chapters.length > 0 && !isSeries && (
+          <View style={styles.chaptersSection}>
+            <Text style={styles.sectionLabel}>Chapters</Text>
+            {chapters.map((chapter, index) => {
+              const totalSeconds = Math.floor(chapter.start_seconds);
+              const h = Math.floor(totalSeconds / 3600);
+              const m = Math.floor((totalSeconds % 3600) / 60);
+              const s = totalSeconds % 60;
+              const timeStr = h > 0
+                ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+                : `${m}:${s.toString().padStart(2, '0')}`;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.chapterItem}
+                  onPress={() => handleChapterPress(chapter)}
+                  accessibilityLabel={`Chapter ${index + 1}: ${chapter.title || 'Untitled'} at ${timeStr}`}
+                >
+                  <Text style={styles.chapterTime}>{timeStr}</Text>
+                  <Text style={styles.chapterTitle} numberOfLines={1}>
+                    {chapter.title || `Chapter ${index + 1}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -652,6 +740,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  // P1-S8: user rating picker section
+  ratingPickerSection: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  sectionLabel: {
+    color: '#888',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   genres: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -731,6 +832,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     lineHeight: 18,
+  },
+  // P2-S5: chapter list styles
+  chaptersSection: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  chapterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  chapterTime: {
+    color: '#888',
+    fontSize: 13,
+    width: 60,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  chapterTitle: {
+    color: '#ccc',
+    fontSize: 14,
+    flex: 1,
   },
   bottomPadding: {
     height: 100,
