@@ -19,5 +19,8 @@ RCT_EXTERN_METHOD(pause)
 RCT_EXTERN_METHOD(seekTo:(double)position)
 RCT_EXTERN_METHOD(updateVolume:(float)volume)
 RCT_EXTERN_METHOD(updateMuted:(BOOL)muted)
+// P3-S4: Picture-in-Picture
+RCT_EXTERN_METHOD(startPiP)
+RCT_EXTERN_METHOD(stopPiP)
 
 @end

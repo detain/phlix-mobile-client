@@ -19,6 +19,7 @@ class PhlixPlayerViewWrapper: UIView {
     private var playerLayer: AVPlayerLayer?
     private var timeObserver: Any?
     private var playerItem: AVPlayerItem?
+    private var pipController: AVPictureInPictureController?
 
     // Event emitter
     @objc var onPlaybackEvent: RCTDirectEventBlock?
@@ -95,6 +96,14 @@ class PhlixPlayerViewWrapper: UIView {
 
         playerLayer?.player = player
 
+        // P3-S4: Set up Picture-in-Picture when player is ready
+        if #available(iOS 14.0, *) {
+            if let layer = playerLayer {
+                pipController = AVPictureInPictureController(playerLayer: layer)
+                pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+            }
+        }
+
         // Apply current volume/muted state
         player?.volume = _volume
         player?.isMuted = _muted
@@ -168,6 +177,20 @@ class PhlixPlayerViewWrapper: UIView {
     @objc func updateMuted(_ muted: Bool) {
         _muted = muted
         player?.isMuted = muted
+    }
+
+    // P3-S4: Picture-in-Picture
+    @objc func startPiP() {
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        if #available(iOS 14.0, *) {
+            pipController?.startPictureInPicture()
+        }
+    }
+
+    @objc func stopPiP() {
+        if #available(iOS 14.0, *) {
+            pipController?.stopPictureInPicture()
+        }
     }
 
     private func cleanup() {
