@@ -167,6 +167,15 @@ jest.mock('../../syncplay/SyncPlayService', () => ({
     sendPause: jest.fn(),
   },
 }));
+jest.mock('../../api/SyncPlayManager', () => ({
+  syncPlayManager: {
+    getPublicRooms: jest.fn(),
+    createRoom: jest.fn(),
+    joinRoom: jest.fn(),
+    leaveRoom: jest.fn(),
+    getWebSocketUrl: jest.fn(),
+  },
+}));
 
 // useRoute/useNavigation are mocked globally in jest.setup.js (params: {}).
 

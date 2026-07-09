@@ -29,7 +29,7 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 
 See the source tree for the full `src/api/`, `src/stores/`, `src/screens/`, `src/components/`, `src/types/`, `src/services/`, and native module breakdown — the canonical per-file documentation lives inline in this file's original sections and in `@./DEVELOPER.md`.
 
-**`src/components/`** player subdir: `player/{PlayerControls,SeekBar,SkipButton,QualityMenu,SubtitleTrackList,AudioTrackList}.tsx` — `QualityMenu.tsx` [G3] is the bottom-sheet quality picker (logic in the pure sibling `player/quality.ts`); **`SubtitleTrackList.tsx`/`AudioTrackList.tsx`** [P3B-S7] are the subtitle- and audio-track selection lists wired into `PlayerScreen.tsx` and re-exported from `src/components/player/index.ts`.
+**`src/components/`** player subdir: `player/{PlayerControls,SeekBar,SkipButton,QualityMenu,SubtitleTrackList,AudioTrackList}.tsx` — `QualityMenu.tsx` [G3] is the bottom-sheet quality picker (logic in the pure sibling `player/quality.ts`); **`SubtitleTrackList.tsx`/`AudioTrackList.tsx`** [P3B-S7] are the subtitle- and audio-track selection lists wired into `PlayerScreen.tsx` and re-exported from `src/components/player/index.ts`. **`src/components/syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx`** [P8-S4] (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` (re-exported from `src/api/index.ts`) and the fan-out coordinator `src/syncplay/SyncPlayService.ts`.
 
 > NOTE: This is a condensed regeneration. The full per-file API/store/screen/type documentation is maintained in the repository's committed CLAUDE.md history and `@./DEVELOPER.md`; do not treat this condensed layout as authoritative over those.
 
@@ -69,19 +69,14 @@ grep -q "caliber" .git/hooks/pre-commit 2>/dev/null && echo "hook-active" || ech
 
 Read `CALIBER_LEARNINGS.md` for patterns and anti-patterns learned from previous sessions.
 
-<!-- caliber:managed:model-config -->
 ## Model Configuration
 
 Recommended default: `claude-sonnet-4-6` with high effort (stronger reasoning; higher cost and latency than smaller models).
 Smaller/faster models trade quality for speed and cost — pick what fits the task.
 Pin your choice (`/model` in Claude Code, or `CALIBER_MODEL` when using Caliber with an API provider) so upstream default changes do not silently change behavior.
 
-<!-- /caliber:managed:model-config -->
-
-<!-- caliber:managed:sync -->
 ## Context Sync
 
 This project uses [Caliber](https://github.com/caliber-ai-org/ai-setup) to keep AI agent configs in sync across Claude Code, Cursor, Copilot, and Codex.
 Configs update automatically before each commit via `caliber refresh`.
 If the pre-commit hook is not set up, run `/setup-caliber` to configure everything automatically.
-<!-- /caliber:managed:sync -->
