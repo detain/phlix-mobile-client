@@ -12,4 +12,5 @@ export { SkipButton } from './SkipButton';
 export { QualityMenu } from './QualityMenu';
 export { AudioTrackList } from './AudioTrackList';
 export { SubtitleTrackList } from './SubtitleTrackList';
+export { SleepTimerMenu, SleepTimerDisplay, useSleepTimer } from './SleepTimer';
 export type { QualityOption } from './quality';
