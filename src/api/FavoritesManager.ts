@@ -7,6 +7,7 @@
 // src/api/FavoritesManager.ts
 import apiClient from './client';
 import type { MediaItem } from '../types/media';
+import type { MediaRatings } from '@phlix/contracts';
 
 /**
  * Favorites / ratings API surface (slice E10 favorites) — account-level
@@ -84,6 +85,11 @@ class FavoritesManager {
       params.offset = opts.offset;
     }
     return apiClient.get<FavoritesResponse>('/users/me/favorites', params);
+  }
+
+  // GET /api/v1/media/{id}/ratings → MediaRatings (aggregate + all source ratings)
+  async getMediaRatings(itemId: string): Promise<MediaRatings> {
+    return apiClient.get<MediaRatings>(`/media/${encodeURIComponent(itemId)}/ratings`);
   }
 }
 
