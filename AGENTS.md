@@ -31,7 +31,7 @@ Metro reset: `npm start -- --reset-cache`. Android clean: `cd android && ./gradl
 
 **`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
 
-**`src/components/`**: `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar,SkipButton,QualityMenu}.tsx` (+ `quality.ts` pure helpers backing `QualityMenu`) · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has an `index.ts` of named re-exports.
+**`src/components/`**: `RatingBadge.tsx` (aggregate rating badge from `MediaRatings.aggregateScore`) · `UserRatingPicker.tsx` (tappable 5-star personal rating via `favoritesManager.getMediaRatings`/`setRating`/`clearRating`) · `layout/SafeContainer.tsx` · `media/{MediaCard,PosterCard,MediaList,ContinueWatching}.tsx` · `player/{PlayerControls,SeekBar,SkipButton,QualityMenu}.tsx` (+ `quality.ts` pure helpers backing `QualityMenu`) · `ui/{LoadingSpinner,ErrorView,EmptyState,SearchBar}.tsx`. Each subdir has an `index.ts` of named re-exports.
 
 **`src/navigation/RootNavigator.tsx`**: root `Stack` (`Login` | `Main`+`Player`) → bottom `Tab` (`Home` · `Library` · `Search` · `Downloads` · `Settings`). `Player` is `fullScreenModal`.
 
