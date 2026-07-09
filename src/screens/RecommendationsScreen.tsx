@@ -11,7 +11,7 @@ import { View, FlatList, StyleSheet, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiClient from '../api/client';
-import { UserRecommendation } from '@phlix/contracts';
+import type { UserRecommendation } from '../types/contracts';
 import { SafeContainer } from '../components/layout';
 import RecommendationCard from '../components/media/RecommendationCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';

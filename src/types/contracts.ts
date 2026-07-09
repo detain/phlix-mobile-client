@@ -54,3 +54,16 @@ export {
   ticksToMinutes,
   formatRuntime,
 } from '@phlix/contracts';
+
+/**
+ * User recommendation item from /me/recommendations endpoint.
+ * Score is a 0-1 value representing relevance/confidence.
+ */
+export interface UserRecommendation {
+  id: string;
+  score: number;
+  posterUrl?: string;
+  title?: string;
+  year?: number;
+  overview?: string;
+}
