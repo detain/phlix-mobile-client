@@ -18,6 +18,7 @@ import {
   requireNativeComponent,
   NativeSyntheticEvent,
   findNodeHandle,
+  Alert,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -84,6 +85,21 @@ const dispatchPlayerCommand = (ref: React.RefObject<any>, command: string, args?
     }
   }
 };
+
+// P5-S5: Detect AccessSchedule (403) / StreamLimitExceeded (429) errors from API calls.
+// Returns { isAccessError: boolean, message: string } when detected, otherwise null.
+function detectAccessStreamError(error: unknown): { isAccessError: boolean; message: string } | null {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
+    if (axiosError.response?.status === 403 && axiosError.response?.data?.error === 'AccessSchedule') {
+      return { isAccessError: true, message: 'Playback blocked by access schedule. Try again during allowed hours.' };
+    }
+    if (axiosError.response?.status === 429 && axiosError.response?.data?.error === 'StreamLimitExceeded') {
+      return { isAccessError: true, message: 'Stream limit reached. Stop another stream to continue watching.' };
+    }
+  }
+  return null;
+}
 
 type PlayerRouteParams = {
   Player: {
@@ -376,6 +392,14 @@ const PlayerScreen: React.FC = () => {
       setSelectedSubtitleId(null);
       setPlayerStreamInfo(onlineStreamInfo);
     } catch (err) {
+      // P5-S5: Check for access-schedule / stream-limit errors first.
+      const accessError = detectAccessStreamError(err);
+      if (accessError) {
+        Alert.alert('Playback Error', accessError.message, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to load video');
     } finally {
       setIsLoading(false);
@@ -451,6 +475,14 @@ const PlayerScreen: React.FC = () => {
       setSubtitleTracks(tracks);
       setSelectedSubtitleId(null);
     } catch (err) {
+      // P5-S5: Check for access-schedule / stream-limit errors first.
+      const accessError = detectAccessStreamError(err);
+      if (accessError) {
+        Alert.alert('Playback Error', accessError.message, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
+        return;
+      }
       // A cancel (unmount) should not surface an error to the user.
       const message = err instanceof Error ? err.message : 'Transcode failed';
       if (message !== 'Transcode preparation cancelled') {
@@ -460,7 +492,8 @@ const PlayerScreen: React.FC = () => {
       prepareHandleRef.current = null;
       setPreparingTranscode(false);
     }
-  }, [itemId, defaultQuality, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId, defaultQuality, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo, navigation]);
 
   /**
    * G3: apply a quality pick. Persists the choice to `defaultQuality` and swaps
