@@ -37,3 +37,4 @@ export { default as CollectionDetailScreen } from './CollectionDetailScreen';
 export { default as FavoritesScreen } from './FavoritesScreen';
 export { default as PasskeysScreen } from './PasskeysScreen';
 export { default as RecommendationsScreen } from './RecommendationsScreen';
+export { default as WatchHistoryScreen } from './WatchHistoryScreen';

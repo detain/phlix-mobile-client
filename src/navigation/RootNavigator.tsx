@@ -45,6 +45,7 @@ import {
   FavoritesScreen,
   PasskeysScreen,
   RecommendationsScreen,
+  WatchHistoryScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 
@@ -376,6 +377,16 @@ const RootNavigator = () => {
               options={{
                 headerShown: true,
                 title: 'Favorites',
+                headerStyle: { backgroundColor: '#1a1a2e' },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="WatchHistory"
+              component={WatchHistoryScreen}
+              options={{
+                headerShown: true,
+                title: 'Watch History',
                 headerStyle: { backgroundColor: '#1a1a2e' },
                 headerTintColor: '#fff',
               }}
