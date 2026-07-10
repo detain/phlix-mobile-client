@@ -190,6 +190,13 @@ const SettingsScreen: React.FC = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.settingRow}
+              onPress={() => navigation.navigate('WatchHistory')}
+            >
+              <Text style={styles.settingLabel}>Watch History</Text>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingRow}
               onPress={() => navigation.navigate('Collections')}
             >
               <Text style={styles.settingLabel}>Collections</Text>
