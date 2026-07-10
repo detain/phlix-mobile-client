@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@notifee/react-native": "^9.1.8",
-    "@phlix/contracts": "github:detain/phlix-contracts#v0.3.9",
+    "@phlix/contracts": "github:detain/phlix-contracts#v0.3.11",
     "@phlix/syncplay": "github:detain/phlix-syncplay#v0.1.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/cli-platform-android": "^20.2.0",
