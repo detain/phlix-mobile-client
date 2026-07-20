@@ -18,12 +18,18 @@
  *   - tick math helpers (`ticksToSeconds`, `ticksToMinutes`, `formatRuntime`)
  *
  * IMPORTANT — what is intentionally NOT re-exported here:
- *   - `MediaItem` / `MediaType` from contracts use `audio | image`, whereas
- *     mobile's `src/types/media.ts` uses `music | photo`. Re-exporting those
- *     would break every `=== 'music'` / `=== 'photo'` comparison in the app.
- *     The full `MediaType` / `MediaItem` consolidation is deferred to E2, where
- *     it is done together with the API/envelope rewrite (and verified against a
- *     live server). See the E1 worklog + Phase E plan.
+ *   - `MediaItem` from contracts still differs from mobile's local shape, so it
+ *     stays local pending the API/envelope rewrite.
+ *
+ * RESOLVED — `MediaType` consolidation is done. This previously read that
+ * `MediaType` could not be re-exported because contracts used `audio | image`
+ * where mobile used `music | photo`, so re-exporting would break every
+ * `=== 'music'` / `=== 'photo'` comparison. That was a symptom of contracts
+ * itself being wrong: its union had drifted to a stale six members and carried
+ * a bogus `image` the server never emits. Contracts now declares the full
+ * 13-member `media_items.type` ENUM — a superset of what mobile hand-rolled —
+ * so `music`/`photo` comparisons compile against it directly. `MediaType` is
+ * re-exported from `src/types/media.ts`; import it from there.
  *
  * Adding this file in E1 also proves both shared packages resolve and compile
  * inside the React Native bundle, without yet rewiring the API client (E2).

@@ -12,25 +12,35 @@
 //   - `rating` is a STRING (was `official_rating`)
 //   - `runtime` is in MINUTES (TMDB metadata; was `run_time_ticks` — ticks).
 //     The precise media length in SECONDS is the separate `duration` field.
-//   - the server returns `type: movie | series | season | episode` for video;
-//     mobile keeps a permissive superset (adds music | photo | audio | image)
-//     so existing `=== 'music'` / `=== 'photo'` checks still compile.
+//   - `type` is the full `media_items.type` column ENUM, re-exported from
+//     `@phlix/contracts` rather than redeclared here (see below).
 //
 // NOTE on units: media `runtime` is MINUTES and `duration` is SECONDS, but
 // PLAYBACK progress (`position_ticks` / `duration_ticks` in continue-watching +
 // session progress) is in 100ns TICKS. Do not conflate them — see
 // `src/types/playback.ts`.
 
-/** Server video types are movie|series|season|episode; music/photo are library kinds. */
-export type MediaType =
-  | 'movie'
-  | 'series'
-  | 'season'
-  | 'episode'
-  | 'music'
-  | 'photo'
-  | 'audio'
-  | 'image';
+/**
+ * Media type discriminator — re-exported from `@phlix/contracts`, the single
+ * source of truth for the `media_items.type` column ENUM (13 members: movie,
+ * series, season, episode, track, music, album, artist, video, audio, book,
+ * photo, audiobook).
+ *
+ * This was previously a hand-rolled permissive superset that added a bogus
+ * `image` — a value the server never emits (the photo kind is `photo`; `image`
+ * is a scanner-side label keying the media scanner's file-extension set). The
+ * same stale list in the server's `MediaItemShaper::VALID_TYPES` was
+ * relabelling real photo/book/audiobook/track rows as "movie"
+ * (phlix-server#527).
+ *
+ * The superset existed to keep `=== 'music'` / `=== 'photo'` checks compiling
+ * against a contracts union that lacked both. Contracts now has all 13, so the
+ * divergence is gone — re-export rather than redeclare, so this cannot drift
+ * again. Do not turn it back into a literal union.
+ */
+import type { MediaType } from '@phlix/contracts';
+
+export type { MediaType };
 
 export interface MediaStream {
   stream_index: number;
