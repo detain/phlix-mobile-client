@@ -126,7 +126,21 @@ export const verbForJobType = (jobType: ScanJob['job_type']): string => {
   }
 };
 
-/** Library `type` values the create/edit picker offers (server ENUM). */
+/**
+ * Library `type` values the create/edit picker offers.
+ *
+ * The `libraries.type` ENUM is SEVEN members — migration 035 added `book` AND
+ * `audiobook`:
+ *
+ *     enum('movie','series','music','photo','video','book','audiobook')
+ *
+ * `audiobook` was missing here, so an audiobook library could not be created
+ * from mobile, and editing one highlighted no chip (the picker had nothing to
+ * match) while saving resubmitted an unlisted value.
+ *
+ * NOTE this is the LIBRARY-kind vocabulary, NOT `MediaType` (the 13-member
+ * `media_items.type` ENUM). They overlap but are distinct.
+ */
 export const LIBRARY_TYPES = [
   'movie',
   'series',
@@ -134,6 +148,7 @@ export const LIBRARY_TYPES = [
   'photo',
   'book',
   'video',
+  'audiobook',
 ] as const;
 
 export type LibraryType = (typeof LIBRARY_TYPES)[number];

@@ -177,7 +177,12 @@ describe('verbForJobType', () => {
 });
 
 describe('library type helpers', () => {
-  it('exposes the server ENUM type set', () => {
+  // This asserted a SIX-member list while claiming to be "the server ENUM type
+  // set". The libraries.type ENUM has seven -- migration 035 added `book` AND
+  // `audiobook`, and only `book` made it in here. The effect was that an
+  // audiobook library could not be created from mobile, and editing an existing
+  // one matched no chip in the picker.
+  it('exposes the server ENUM type set (all 7, including audiobook)', () => {
     expect(LIBRARY_TYPES).toEqual([
       'movie',
       'series',
@@ -185,7 +190,21 @@ describe('library type helpers', () => {
       'photo',
       'book',
       'video',
+      'audiobook',
     ]);
+  });
+
+  it('offers both types migration 035 added', () => {
+    expect(LIBRARY_TYPES).toContain('book');
+    expect(LIBRARY_TYPES).toContain('audiobook');
+  });
+
+  // Library KINDS are not media_items.type (13 members). Guard against the two
+  // vocabularies being merged.
+  it('does not leak media-item-only types into the library kinds', () => {
+    for (const notALibraryKind of ['episode', 'season', 'track', 'album', 'artist', 'audio']) {
+      expect(LIBRARY_TYPES).not.toContain(notALibraryKind);
+    }
   });
 
   it('series_per_directory applies only to series', () => {

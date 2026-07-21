@@ -13,6 +13,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { downloadService } from '../services/DownloadService';
 import { useDownloadStore, DownloadTask, DownloadStatus } from '../store/downloadStore';
 import { formatFileSize } from '../utils/formatters';
+import { mediaTypeLabel } from '../utils/mediaType';
 
 function getStatusColor(status: DownloadStatus): string {
   switch (status) {
@@ -61,7 +62,7 @@ const DownloadItemRow: React.FC<{
       <View style={styles.downloadInfo}>
         <Text style={styles.downloadName} numberOfLines={1}>{task.item.name}</Text>
         <Text style={styles.downloadMeta}>
-          {task.item.type === 'movie' ? 'Movie' : 'Episode'}
+          {mediaTypeLabel(task.item.type)}
           {task.item.year ? ` • ${task.item.year}` : ''}
           {' • '}{formatFileSize(task.totalBytes)}
         </Text>

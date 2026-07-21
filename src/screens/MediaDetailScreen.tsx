@@ -42,6 +42,7 @@ import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
 import { UserRatingPicker } from '../components/UserRatingPicker';
 import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
+import { isDownloadableType, isPlayableType } from '../utils/mediaType';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -441,7 +442,7 @@ const MediaDetailScreen: React.FC = () => {
             </TouchableOpacity>
 
             {/* E7: Cast — server-mediated; needs the signed stream URL + id. */}
-            {!isSeries && item.stream_url ? (
+            {isPlayableType(item.type) && item.stream_url ? (
               <CastButton
                 mediaItemId={item.id}
                 streamUrl={item.stream_url}
@@ -451,8 +452,11 @@ const MediaDetailScreen: React.FC = () => {
               />
             ) : null}
 
-            {/* E4: Download action — playable leaf types only (not series containers) */}
-            {!isSeries && (
+            {/* E4: Download action — playable leaf types only.
+                This was `!isSeries`, a NEGATION, despite the comment claiming an
+                allowlist: season/album/artist/photo/book all got a Download
+                button that dead-ended in DownloadService. */}
+            {isDownloadableType(item.type) && (
               <TouchableOpacity
                 style={[
                   styles.playButton,

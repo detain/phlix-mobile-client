@@ -146,8 +146,19 @@ export interface Movie extends MediaItem {
 export interface Library {
   id: string;
   name: string;
-  /** Server library kind. */
-  type: 'video' | 'audio' | 'image' | 'movie' | 'series' | 'music' | 'photo';
+  /**
+   * Server library kind — the `libraries.type` ENUM, which is SEVEN members
+   * and is NOT the same vocabulary as {@link MediaType} (`media_items.type`,
+   * 13 members). They overlap but are distinct; do not merge them.
+   *
+   *     enum('movie','series','music','photo','video','book','audiobook')
+   *
+   * This union previously declared `audio` and `image`, neither of which the
+   * server can ever send (`image` is a scanner-side extension-set label; the
+   * column calls that kind `photo`), while OMITTING `book` and `audiobook`,
+   * which migration 035 made real.
+   */
+  type: 'movie' | 'series' | 'music' | 'photo' | 'video' | 'book' | 'audiobook';
   item_count?: number;
   paths?: string[];
   /** Series libraries: one directory per series. May arrive top-level or under options. */
