@@ -31,10 +31,25 @@ jobs:
         run: npm run lint
 
       - name: Run tests
-        run: npm test -- --passWithNoTests
+        # --coverage is REQUIRED for the uploads below to have anything to send.
+        # jest.config.js sets collectCoverageFrom but NOT collectCoverage, so
+        # without this flag ./coverage/lcov.info is never written and both the
+        # Codecov and Codacy steps silently upload nothing while reporting green.
+        # (lcov is in jest's default coverageReporters, so no config change is needed.)
+        run: npm test -- --passWithNoTests --coverage
 
       - name: Upload coverage
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
+
+      - name: Upload coverage to Codacy
+        uses: codacy/codacy-coverage-reporter-action@v1
+        # Never allowed to fail the build: a missing/expired token or a Codacy
+        # outage must not turn CI red. The Codecov step above uses
+        # fail_ci_if_error for the same reason; this action has no equivalent input.
+        continue-on-error: true
+        with:
+          api-token: ${{ secrets.CODACY_API_TOKEN }}
+          coverage-reports: ./coverage/lcov.info
