@@ -113,11 +113,39 @@ describe('useLiveTvStore', () => {
     expect(useLiveTvStore.getState().notConfigured).toBe(true);
   });
 
+  it('loadGuide sets guideError on a real failure (not notConfigured)', async () => {
+    mocked.getGuide.mockRejectedValue(new Error('boom'));
+    mockedNotConfigured.mockReturnValue(false);
+    await useLiveTvStore.getState().loadGuide();
+    const s = useLiveTvStore.getState();
+    expect(s.guideError).toBe('boom');
+    expect(s.notConfigured).toBe(false);
+  });
+
   it('loadRecordings stores recordings', async () => {
     mocked.getRecordings.mockResolvedValue([recording]);
     await useLiveTvStore.getState().loadRecordings('pending');
     expect(mocked.getRecordings).toHaveBeenCalledWith('pending');
     expect(useLiveTvStore.getState().recordings).toEqual([recording]);
+  });
+
+  it('loadRecordings sets notConfigured on a 404/500', async () => {
+    mocked.getRecordings.mockRejectedValue(new Error('500'));
+    mockedNotConfigured.mockReturnValue(true);
+    await useLiveTvStore.getState().loadRecordings();
+    const s = useLiveTvStore.getState();
+    expect(s.notConfigured).toBe(true);
+    expect(s.recordings).toEqual([]);
+    expect(s.recordingsError).toBeNull();
+  });
+
+  it('loadRecordings sets recordingsError on a real failure (not notConfigured)', async () => {
+    mocked.getRecordings.mockRejectedValue(new Error('boom'));
+    mockedNotConfigured.mockReturnValue(false);
+    await useLiveTvStore.getState().loadRecordings();
+    const s = useLiveTvStore.getState();
+    expect(s.recordingsError).toBe('boom');
+    expect(s.notConfigured).toBe(false);
   });
 
   it('loadUpcoming stores upcoming', async () => {
@@ -126,10 +154,46 @@ describe('useLiveTvStore', () => {
     expect(useLiveTvStore.getState().upcoming).toEqual([recording]);
   });
 
+  it('loadUpcoming sets notConfigured on a 404/500', async () => {
+    mocked.getUpcomingRecordings.mockRejectedValue(new Error('500'));
+    mockedNotConfigured.mockReturnValue(true);
+    await useLiveTvStore.getState().loadUpcoming();
+    const s = useLiveTvStore.getState();
+    expect(s.notConfigured).toBe(true);
+    expect(s.upcoming).toEqual([]);
+  });
+
+  it('loadUpcoming sets recordingsError on a real failure (not notConfigured)', async () => {
+    mocked.getUpcomingRecordings.mockRejectedValue(new Error('boom'));
+    mockedNotConfigured.mockReturnValue(false);
+    await useLiveTvStore.getState().loadUpcoming();
+    const s = useLiveTvStore.getState();
+    expect(s.recordingsError).toBe('boom');
+    expect(s.notConfigured).toBe(false);
+  });
+
   it('loadSeriesRules stores rules', async () => {
     mocked.getSeriesRules.mockResolvedValue([rule]);
     await useLiveTvStore.getState().loadSeriesRules();
     expect(useLiveTvStore.getState().seriesRules).toEqual([rule]);
+  });
+
+  it('loadSeriesRules sets notConfigured on a 404/500', async () => {
+    mocked.getSeriesRules.mockRejectedValue(new Error('500'));
+    mockedNotConfigured.mockReturnValue(true);
+    await useLiveTvStore.getState().loadSeriesRules();
+    const s = useLiveTvStore.getState();
+    expect(s.notConfigured).toBe(true);
+    expect(s.seriesRules).toEqual([]);
+  });
+
+  it('loadSeriesRules sets seriesRulesError on a real failure (not notConfigured)', async () => {
+    mocked.getSeriesRules.mockRejectedValue(new Error('boom'));
+    mockedNotConfigured.mockReturnValue(false);
+    await useLiveTvStore.getState().loadSeriesRules();
+    const s = useLiveTvStore.getState();
+    expect(s.seriesRulesError).toBe('boom');
+    expect(s.notConfigured).toBe(false);
   });
 
   // ── Mutators (rethrow) ──

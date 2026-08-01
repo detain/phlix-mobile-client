@@ -377,4 +377,36 @@ describe('hubStore', () => {
       expect(useHubStore.getState().error).toBeNull();
     });
   });
+
+  describe('refreshHubSession edge cases', () => {
+    it('should throw when not signed in', async () => {
+      await expect(useHubStore.getState().refreshHubSession()).rejects.toThrow(
+        'Not signed in to hub'
+      );
+    });
+  });
+
+  describe('fetchServers error handling', () => {
+    it('should set error and throw when fetch fails', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      mockedHubAuthService.hubAuthService.listServers.mockRejectedValue(
+        new Error('Network error')
+      );
+
+      await expect(useHubStore.getState().fetchServers()).rejects.toThrow(
+        'Network error'
+      );
+
+      const state = useHubStore.getState();
+      expect(state.error).toBe('Network error');
+      expect(state.isLoading).toBe(false);
+    });
+  });
 });

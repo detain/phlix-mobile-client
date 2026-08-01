@@ -342,4 +342,34 @@ describe('downloadStore', () => {
       expect(useDownloadStore.getState().calculateTotalStorageUsed()).toBe(0);
     });
   });
+
+  describe('updateTaskProgress edge cases', () => {
+    it('handles non-existent task id gracefully', async () => {
+      const store = useDownloadStore.getState();
+      // This should not throw - it just returns early
+      store.updateTaskProgress('non-existent-id', 50 * 1024 * 1024, 100 * 1024 * 1024);
+      // Verify state is unchanged
+      expect(Object.keys(useDownloadStore.getState().tasks).length).toBe(0);
+    });
+  });
+
+  describe('updateTaskStatus edge cases', () => {
+    it('handles non-existent task id gracefully', async () => {
+      const store = useDownloadStore.getState();
+      // This should not throw - it just returns early
+      store.updateTaskStatus('non-existent-id', 'downloading');
+      // Verify state is unchanged
+      expect(Object.keys(useDownloadStore.getState().tasks).length).toBe(0);
+    });
+  });
+
+  describe('updateTaskLocalPath edge cases', () => {
+    it('handles non-existent task id gracefully', async () => {
+      const store = useDownloadStore.getState();
+      // This should not throw - it just returns early
+      store.updateTaskLocalPath('non-existent-id', '/some/path');
+      // Verify state is unchanged
+      expect(Object.keys(useDownloadStore.getState().tasks).length).toBe(0);
+    });
+  });
 });
