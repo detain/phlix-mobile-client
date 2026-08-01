@@ -131,7 +131,7 @@ describe('useAuthStore', () => {
 
       try {
         await useAuthStore.getState().logout();
-      } catch (e) {
+      } catch (_e) {
         // Expected - logout throws when API fails
       }
 

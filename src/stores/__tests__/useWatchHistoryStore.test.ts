@@ -116,7 +116,7 @@ describe('useWatchHistoryStore', () => {
 
       try {
         await useWatchHistoryStore.getState().deleteItem('m1');
-      } catch (e) {
+      } catch (_e) {
         // Expected - the store re-throws the original error (null in this case)
       }
 
