@@ -31,7 +31,7 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
 
       - name: Build Android (Debug)
         run: cd android && ./gradlew assembleDebug
@@ -68,7 +68,7 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
 
       - name: Build Android (Release)
         run: cd android && ./gradlew assembleRelease
@@ -109,7 +109,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish "latest" prerelease
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228
         with:
           tag_name: latest
           name: Latest (master)

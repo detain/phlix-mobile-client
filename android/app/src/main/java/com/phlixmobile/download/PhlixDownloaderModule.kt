@@ -19,6 +19,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -155,7 +156,7 @@ class PhlixDownloaderModule(
                         putString("localPath", localPath)
                     })
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
                 if (controls[taskId]?.cancelled != true && controls[taskId]?.paused != true) {
                     finishError(taskId, e.message ?: "Download failed")
                 }

@@ -25,7 +25,9 @@ import androidx.credentials.GetCredentialResponse
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialCancellationException
+import androidx.credentials.exceptions.CreateCredentialException
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
@@ -75,6 +77,8 @@ class PhlixWebAuthnModule(
                 promise.resolve(response.registrationResponseJson)
             } catch (e: CreateCredentialCancellationException) {
                 promise.reject("user_canceled", "Passkey prompt was cancelled.", e)
+            } catch (e: CreateCredentialException) {
+                promise.reject("ceremony_failed", e.message ?: "Passkey registration failed.", e)
             } catch (e: Exception) {
                 promise.reject("ceremony_failed", e.message ?: "Passkey registration failed.", e)
             }
@@ -115,6 +119,8 @@ class PhlixWebAuthnModule(
                 }
             } catch (e: GetCredentialCancellationException) {
                 promise.reject("user_canceled", "Passkey prompt was cancelled.", e)
+            } catch (e: GetCredentialException) {
+                promise.reject("ceremony_failed", e.message ?: "Passkey authentication failed.", e)
             } catch (e: Exception) {
                 promise.reject("ceremony_failed", e.message ?: "Passkey authentication failed.", e)
             }
