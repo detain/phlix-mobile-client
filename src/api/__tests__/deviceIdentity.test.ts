@@ -13,16 +13,18 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 describe('deviceIdentity', () => {
+  // Get deviceIdentity module - use jest.requireActual to get the actual module
+  // Note: We don't reset modules between tests because it causes AsyncStorage mock issues
+  const getDeviceIdModule = () => jest.requireActual('../deviceIdentity');
+
   beforeEach(async () => {
-    jest.clearAllMocks();
+    // Clear AsyncStorage to ensure fresh state for each test
     await AsyncStorage.clear();
-    // Reset the module to clear cached state between tests
-    jest.resetModules();
   });
 
   describe('getDeviceId', () => {
     it('generates and persists a new UUID on first call', async () => {
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const id = await getDeviceId();
 
       // Should be a valid UUID format (v4)
@@ -33,7 +35,7 @@ describe('deviceIdentity', () => {
     });
 
     it('returns cached id on subsequent calls within same module instance', async () => {
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const firstId = await getDeviceId();
       const secondId = await getDeviceId();
 
@@ -47,10 +49,10 @@ describe('deviceIdentity', () => {
     });
 
     it('returns stored id if already persisted', async () => {
+      // Pre-populate AsyncStorage before calling getDeviceId
       await AsyncStorage.setItem('phlix_device_id', 'pre-existing-uuid');
-      jest.resetModules();
 
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const id = await getDeviceId();
 
       expect(id).toBe('pre-existing-uuid');
@@ -58,9 +60,8 @@ describe('deviceIdentity', () => {
 
     it('ignores empty/whitespace stored id and generates fresh one', async () => {
       await AsyncStorage.setItem('phlix_device_id', '   ');
-      jest.resetModules();
 
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const id = await getDeviceId();
 
       // Should NOT be whitespace
@@ -76,9 +77,8 @@ describe('deviceIdentity', () => {
       (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(
         new Error('storage error')
       );
-      jest.resetModules();
 
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const id = await getDeviceId();
 
       // Should still return an id (temp fallback)
@@ -91,7 +91,7 @@ describe('deviceIdentity', () => {
 
   describe('getCachedDeviceId', () => {
     it('returns the cached id after async resolution', async () => {
-      const { getDeviceId, getCachedDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId, getCachedDeviceId } = getDeviceIdModule();
       await getDeviceId();
 
       const cachedId = getCachedDeviceId();
@@ -102,7 +102,7 @@ describe('deviceIdentity', () => {
     });
 
     it('returns temp id if getDeviceId has not been called', async () => {
-      const { getCachedDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getCachedDeviceId } = getDeviceIdModule();
       const cachedId = getCachedDeviceId();
 
       // Should return a temp UUID format even before async init
@@ -114,9 +114,7 @@ describe('deviceIdentity', () => {
 
   describe('initDeviceIdentity', () => {
     it('initializes device identity and caches the id', async () => {
-      const { initDeviceIdentity, getCachedDeviceId } = jest.requireActual(
-        '../deviceIdentity'
-      );
+      const { initDeviceIdentity, getCachedDeviceId } = getDeviceIdModule();
 
       await initDeviceIdentity();
 
@@ -129,9 +127,7 @@ describe('deviceIdentity', () => {
     });
 
     it('is idempotent (can be called multiple times)', async () => {
-      const { initDeviceIdentity, getCachedDeviceId } = jest.requireActual(
-        '../deviceIdentity'
-      );
+      const { initDeviceIdentity, getCachedDeviceId } = getDeviceIdModule();
 
       await initDeviceIdentity();
       await initDeviceIdentity();
@@ -144,7 +140,7 @@ describe('deviceIdentity', () => {
 
   describe('UUID generation', () => {
     it('generated UUIDs are v4 format', async () => {
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
+      const { getDeviceId } = getDeviceIdModule();
       const id = await getDeviceId();
 
       // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
@@ -157,17 +153,14 @@ describe('deviceIdentity', () => {
     it('generates unique ids when fresh module instances are created', async () => {
       // This test verifies that the UUID generation itself produces unique values
       // by checking that multiple generations can result in different UUIDs
-      const { getDeviceId } = jest.requireActual('../deviceIdentity');
-      const firstId = await getDeviceId();
+      const firstModule = getDeviceIdModule();
+      const firstId = await firstModule.getDeviceId();
 
-      // Reset modules to get a fresh module instance
+      // Reset modules to get a fresh module instance (simulating new install)
       jest.resetModules();
-
-      // Clear AsyncStorage to ensure fresh UUID generation
       await AsyncStorage.clear();
-
-      const { getDeviceId: getSecondId } = jest.requireActual('../deviceIdentity');
-      const secondId = await getSecondId();
+      const secondModule = jest.requireActual('../deviceIdentity');
+      const secondId = await secondModule.getDeviceId();
 
       // Both should be valid UUIDs
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

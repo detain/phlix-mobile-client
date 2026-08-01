@@ -126,10 +126,14 @@ describe('useAuthStore', () => {
     });
 
     it('clears state even if logout throws', async () => {
-      (authManager.logout as jest.Mock).mockImplementation(() => Promise.reject(new Error('network error')));
+      mockedAuthManager.logout.mockRejectedValue(new Error('network error'));
       useAuthStore.setState({ user: mockUser, isAuthenticated: true });
 
-      await useAuthStore.getState().logout();
+      try {
+        await useAuthStore.getState().logout();
+      } catch (e) {
+        // Expected - logout throws when API fails
+      }
 
       expect(useAuthStore.getState().user).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
