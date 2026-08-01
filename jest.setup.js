@@ -9,21 +9,35 @@ jest.mock('react-native-reanimated', () =>
 
 // @notifee/react-native has no JS-only binding under jest — stub the full surface
 // used by NotificationService.
-jest.mock('@notifee/react-native', () => ({
-  __esModule: true,
-  default: {
-    createChannel: jest.fn().mockResolvedValue('id'),
-    displayNotification: jest.fn().mockResolvedValue(undefined),
-    cancelNotification: jest.fn(),
-    cancelAllNotifications: jest.fn(),
-    requestPermission: jest.fn().mockResolvedValue({}),
+jest.mock('@notifee/react-native', () => {
+  const mockFn = jest.fn();
+  const mockResolvedFn = jest.fn().mockResolvedValue(undefined);
+  const mockFnWithResolved = (resolvedValue) => jest.fn().mockResolvedValue(resolvedValue);
+
+  return {
+    __esModule: true,
+    default: {
+      createChannel: mockFnWithResolved('id'),
+      displayNotification: mockResolvedFn,
+      cancelNotification: mockFn,
+      cancelAllNotifications: mockFn,
+      requestPermission: mockFnWithResolved({}),
+      onForegroundEvent: jest.fn(() => () => {}),
+      onBackgroundEvent: mockFn,
+      setBadgeCount: mockFnWithResolved(undefined),
+    },
+    createChannel: mockFnWithResolved('id'),
+    displayNotification: mockResolvedFn,
+    cancelNotification: mockFn,
+    cancelAllNotifications: mockFn,
+    requestPermission: mockFnWithResolved({}),
     onForegroundEvent: jest.fn(() => () => {}),
-    onBackgroundEvent: jest.fn(),
-    setBadgeCount: jest.fn().mockResolvedValue(undefined),
-  },
-  AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
-  EventType: { PRESS: 1, DISMISSED: 0 },
-}));
+    onBackgroundEvent: mockFn,
+    setBadgeCount: mockFnWithResolved(undefined),
+    AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
+    EventType: { PRESS: 1, DISMISSED: 0 },
+  };
+});
 
 // Silence the warning: Animated: `useNativeDriver` is not supported
 jest.mock('react-native', () => {

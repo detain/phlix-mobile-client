@@ -51,4 +51,4 @@ jobs:
         continue-on-error: true
         with:
           api-token: ${{ secrets.CODACY_API_TOKEN }}
-          coverage-reports: ./coverage.xml
+          coverage-reports: ./coverage/lcov.info
