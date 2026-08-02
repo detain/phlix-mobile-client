@@ -105,14 +105,28 @@ export interface TranscodeSubtitle {
 }
 
 /**
- * `POST /api/v1/media/{id}/transcode` response. `master_url`/`hls_url`/`dash_url`
- * are ABSOLUTE signed URLs.
+ * `POST /api/v1/media/{id}/transcode` response. `master_url`/`hls_url` are
+ * ABSOLUTE signed URLs.
+ *
+ * ⚠ There is deliberately NO `dash_url`. phlix-server stopped emitting it in
+ * S11 because real DASH is unbuilt (tracked as S56-S60), so the advertised
+ * `/dash/{job}/manifest.mpd` always 404'd — declaring it handed this client a
+ * compile-time guarantee of a field that is `undefined` at runtime, which is
+ * strictly worse than omitting it. `@phlix/contracts` v0.4.0 dropped it from
+ * `TranscodeStartResponse` for the same reason; this local copy follows.
+ *
+ * Do not re-add it, not even as an optional member: an optional key invites
+ * every consumer to keep testing for something that is never sent. When DASH
+ * actually ships it comes back as a REQUIRED field, in lockstep with the
+ * server. The absence is pinned at the type level by
+ * `src/types/__tests__/playback.test.ts` ("declares no dash_url on either
+ * transcode shape") — `tsc --noEmit` is what kills a re-add; jest transpiles
+ * without type-checking and stays green.
  */
 export interface TranscodeJob {
   job_id: string;
   master_url: string;
   hls_url: string;
-  dash_url: string;
   status: TranscodeStatusValue;
   reused: boolean;
   subtitles: TranscodeSubtitle[];
@@ -125,7 +139,11 @@ export interface TranscodeJob {
   variants?: Rendition[] | null;
 }
 
-/** `GET /api/v1/transcode/{jobId}/status` response. `progress` is 0-100. */
+/**
+ * `GET /api/v1/transcode/{jobId}/status` response. `progress` is 0-100.
+ *
+ * ⚠ No `dash_url` here either — see {@link TranscodeJob}.
+ */
 export interface TranscodeStatus {
   job_id: string;
   status: TranscodeStatusValue;
@@ -133,7 +151,6 @@ export interface TranscodeStatus {
   playlist_ready: boolean;
   progress: number;
   master_url: string;
-  dash_url: string;
   subtitles: TranscodeSubtitle[];
   /** Same ABR ladder as {@link TranscodeJob.variants} (server A7). */
   variants?: Rendition[] | null;

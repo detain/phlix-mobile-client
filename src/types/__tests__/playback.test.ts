@@ -23,6 +23,35 @@ import type {
   PlaybackSession,
 } from '../playback';
 
+/**
+ * `true` only when `A` and `B` are the SAME type, not merely assignable to one
+ * another. Assignability is too weak for an absence pin: `false` is assignable
+ * to `boolean`, so a widened result would slip through a subtype check.
+ * (Mirrors the `Exact<A, B>` helper in `@phlix/contracts`' own S11 pin.)
+ */
+type Exact<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+
+/**
+ * `true` iff `K` is a member of `keyof T`. `keyof` includes OPTIONAL members,
+ * so this is RED for `dash_url?: string` just as it is for `dash_url: string` —
+ * which a value-level fixture or assignability check would NOT catch.
+ */
+type HasKey<T, K extends PropertyKey> = K extends keyof T ? true : false;
+
+/**
+ * Compile-time assertion: the type argument must resolve to exactly `true`.
+ * Anything else is a typecheck error.
+ *
+ * ⚠ The executing gate is `npm run typecheck` (`tsc --noEmit`), run by
+ * `.github/workflows/test.yml` before lint and jest. Jest uses the babel-based
+ * `@react-native/jest-preset`, which STRIPS types without checking them — a
+ * broken assertion here still shows GREEN under `npm test`.
+ */
+function assertExact<T extends true>(value: T): T {
+  return value;
+}
+
 describe('playback types', () => {
   describe('StreamInfo', () => {
     it('matches the server shape for direct play', () => {
@@ -225,7 +254,6 @@ describe('playback types', () => {
         job_id: 'job-1',
         master_url: 'https://server/transcode/job-1/master.m3u8',
         hls_url: 'https://server/transcode/job-1/playlist.m3u8',
-        dash_url: 'https://server/transcode/job-1/manifest.mpd',
         status: 'encoding',
         reused: false,
         subtitles: [],
@@ -241,7 +269,6 @@ describe('playback types', () => {
         job_id: 'job-2',
         master_url: 'https://server/transcode/job-2/master.m3u8',
         hls_url: 'https://server/transcode/job-2/playlist.m3u8',
-        dash_url: 'https://server/transcode/job-2/manifest.mpd',
         status: 'ready',
         reused: true,
         subtitles: [],
@@ -260,7 +287,6 @@ describe('playback types', () => {
         playlist_ready: false,
         progress: 45,
         master_url: 'https://server/transcode/job-1/master.m3u8',
-        dash_url: 'https://server/transcode/job-1/manifest.mpd',
         subtitles: [],
       };
       expect(status.progress).toBe(45);
@@ -275,11 +301,29 @@ describe('playback types', () => {
         playlist_ready: true,
         progress: 100,
         master_url: 'https://server/transcode/job-1/master.m3u8',
-        dash_url: 'https://server/transcode/job-1/manifest.mpd',
         subtitles: [],
       };
       expect(status.status).toBe('ready');
       expect(status.playlist_ready).toBe(true);
+    });
+
+    it('declares no dash_url on either transcode shape (S11 absence pin)', () => {
+      // phlix-server S11 removed `dash_url` from every transcode payload: real
+      // DASH is unbuilt (S56-S60), so `/dash/{job}/manifest.mpd` always 404'd.
+      // `@phlix/contracts` v0.4.0 dropped it from TranscodeStartResponse /
+      // TranscodeStatusResponse; these local copies followed.
+      //
+      // `Exact<…, false>` rather than a bare assignability check, so re-adding
+      // the member as `dash_url?: string` is just as RED as `dash_url: string`.
+      // The four fixtures above only prove the REQUIRED form is gone; they stay
+      // green against the optional form.
+      expect(assertExact<Exact<HasKey<TranscodeJob, 'dash_url'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<TranscodeStatus, 'dash_url'>, false>>(true)).toBe(true);
+
+      // Counterweight: the helper must be capable of reporting `true`, else the
+      // two assertions above would pass against literally any type.
+      expect(assertExact<Exact<HasKey<TranscodeJob, 'master_url'>, true>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<TranscodeStatus, 'master_url'>, true>>(true)).toBe(true);
     });
   });
 
