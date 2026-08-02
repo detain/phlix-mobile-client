@@ -55,7 +55,8 @@ class TranscodeManager {
    * Start (or reuse) a transcode job → POST /api/v1/media/{id}/transcode.
    * NO body — the server picks the profile from the X-Phlix-Device-Type header
    * (sent globally by client.ts). `?profile=` is appended only when provided.
-   * `master_url`/`hls_url`/`dash_url` come back ABSOLUTE + signed.
+   * `master_url`/`hls_url` come back ABSOLUTE + signed. (There is no
+   * `dash_url` — the server stopped emitting it in S11; see `TranscodeJob`.)
    */
   async startTranscode(itemId: string, profile?: string): Promise<TranscodeJob> {
     const params = profile ? { profile } : undefined;
