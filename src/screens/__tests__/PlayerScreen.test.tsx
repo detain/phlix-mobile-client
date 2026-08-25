@@ -91,6 +91,19 @@ class HookHost {
     return this.commit();
   }
 
+  // React unmount semantics: run every effect cleanup. PlayerScreen's
+  // hideControls effect clears its 3s timeout here (:304) — the S293 fixtures
+  // press play, arming it; the harness otherwise never unmounts, so the timer
+  // would fire post-suite (uncaught Animated.timing TypeError, jest exit 1).
+  unmount(): void {
+    for (const slot of this.slots) {
+      const cleanup = (slot as EffectSlot | undefined)?.cleanup;
+      if (typeof cleanup === 'function') cleanup();
+    }
+    this.slots = [];
+    this.renderFn = null;
+  }
+
   private commit(): unknown {
     this.cursor = 0;
     this.pending = [];
@@ -109,6 +122,11 @@ class HookHost {
 
 // `mock`-prefixed so the jest.mock factory below may reference it (jest lint rule).
 const mockHost: { current: HookHost | null } = { current: null };
+
+// The most recently mounted hook host — the S293 describe's afterEach unmounts
+// it so PlayerScreen's hideControls timer (armed by pressing play) is cleared
+// before the suite ends (the harness never unmounts otherwise).
+let mountedHost: HookHost | null = null;
 
 jest.mock('react', () => {
   const actual = jest.requireActual('react');
@@ -205,6 +223,13 @@ const mockMarkerManager = (jest.requireMock('../../api/MarkerManager') as any)
   .markerManager as { getPlaybackInfo: jest.Mock };
 const mockDownloadService = (jest.requireMock('../../services/DownloadService') as any)
   .downloadService as { getItemLocalPath: jest.Mock };
+const mockSyncplayStore = (jest.requireMock('../../store/syncplayStore') as any)
+  .__state as { isHost: boolean; currentGroup: unknown };
+const mockSyncPlaySvc = () =>
+  (jest.requireMock('../../syncplay/SyncPlayService') as any).syncPlayService as {
+    sendPlay: jest.Mock;
+    sendPause: jest.Mock;
+  };
 
 // ── tree helpers ────────────────────────────────────────────────────────────
 type El = { type: unknown; props: Record<string, unknown> };
@@ -245,6 +270,28 @@ const findQualityMenu = (tree: unknown): El | null =>
 const findQualityButton = (tree: unknown): El | null =>
   findEl(tree, (el) => el.props.accessibilityLabel === 'Video quality');
 
+// The center play/pause control (glyph text: '⏸' playing, '▶' paused).
+const findPlayPauseControl = (tree: unknown): El | null =>
+  findEl(
+    tree,
+    (el) =>
+      typeof el.props.onPress === 'function' &&
+      JSON.stringify(el.props.children ?? '').match(/[⏸▶]/) !== null,
+  );
+
+// SeekBar carries the internal SECONDS clock (currentTime prop).
+const findSeekBar = (tree: unknown): El | null =>
+  findEl(
+    tree,
+    (el) => typeof el.props.onSeek === 'function' && typeof el.props.currentTime === 'number',
+  );
+
+// Press the center play/pause control (props are untyped; cast like onProgress).
+const pressPlayPause = (tree: unknown): void => {
+  const control = findPlayPauseControl(tree);
+  (control!.props.onPress as () => void)();
+};
+
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 const LADDER = {
@@ -258,6 +305,7 @@ const LADDER = {
 
 function mount() {
   const host = new HookHost();
+  mountedHost = host;
   const render = () => host.render(() => (PlayerScreen as unknown as () => unknown)());
   return { host, render, rerender: () => host.rerender() };
 }
@@ -281,6 +329,7 @@ async function triggerTranscode(h: ReturnType<typeof mount>) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSyncplayStore.isHost = false; // S293 describe flips it; restore for siblings.
   mockSettings.defaultQuality = AUTO_QUALITY;
   mockPlayerStore.subtitleTracks = [];
   mockPlayerStore.currentSubtitleTrackId = null;
@@ -383,5 +432,66 @@ describe('PlayerScreen — G3 quality wiring', () => {
     const after = findPlayer(h.host.tree);
     expect(after!.props.startPosition).toBe(88);
     expect(after!.props.src).toBe('https://cdn/master.m3u8');
+  });
+});
+
+// ── S293: SyncPlay send boundaries carry MILLISECONDS (SPEC.md:91) ─────────
+// The wire unit is ms; `currentTime` is SECONDS. Each boundary fixture uses a
+// 1000×-sensitive position (42.5 s → 42_500 ms — never 0, never a value that
+// reads the same in both units). Swapping the conversion (identity) turns the
+// two named assertions below red — mutation-proved.
+describe('PlayerScreen — S293 SyncPlay send boundaries (seconds → ms)', () => {
+  // Host mode: only hosts broadcast play/pause (the `isHost` gate at :610).
+  beforeEach(() => {
+    mockSyncplayStore.isHost = true;
+  });
+
+  // Teardown: these fixtures are the first to press play, arming the 3s
+  // hideControls timer (PlayerScreen :299). The hook-host harness never
+  // unmounts, so run the host's effect cleanups (which clear the timer) after
+  // each test — the sibling suites use the same afterEach-cleanup convention.
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+  });
+
+  // Advance the internal seconds clock to a 1000×-sensitive position: 42.5 s.
+  // The wire value 42_500 ms is off by exactly 1000× if a boundary is left
+  // unconverted (it would carry 42.5).
+  async function bootAt42_5s() {
+    const h = await bootDirectPlay();
+    const player = findPlayer(h.host.tree);
+    (player!.props.onProgress as (e: unknown) => void)({
+      nativeEvent: { currentTime: 42.5, duration: 600 },
+    });
+    h.rerender();
+    return h;
+  }
+
+  it('host PLAY broadcasts the position in MILLISECONDS (42.5 s → 42_500 ms)', async () => {
+    const h = await bootAt42_5s();
+    pressPlayPause(h.host.tree);
+    h.rerender();
+
+    expect(mockSyncPlaySvc().sendPlay).toHaveBeenCalledTimes(1);
+    expect(mockSyncPlaySvc().sendPlay).toHaveBeenCalledWith(42_500);
+  });
+
+  it('host PAUSE broadcasts the position in MILLISECONDS (42.5 s → 42_500 ms)', async () => {
+    const h = await bootAt42_5s();
+    // First press starts playback (play branch); the second pauses it.
+    pressPlayPause(h.host.tree);
+    h.rerender();
+    pressPlayPause(h.host.tree);
+    h.rerender();
+
+    expect(mockSyncPlaySvc().sendPause).toHaveBeenCalledTimes(1);
+    expect(mockSyncPlaySvc().sendPause).toHaveBeenCalledWith(42_500);
+  });
+
+  it('the internal clock stays SECONDS while the wire carries ms', async () => {
+    const h = await bootAt42_5s();
+    // SeekBar is fed the internal seconds state — conversion must NOT leak in.
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(42.5);
   });
 });
