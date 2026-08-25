@@ -72,3 +72,19 @@ capping the resolution ABR is allowed to pick) and would need genuine
 cross-platform native code that is untestable in this CI environment (no
 Xcode/Gradle device or simulator build). Flagged as a possible future
 native-side enhancement, not a gap in this feature.
+
+### Fixed — SyncPlay positions on the wire are now milliseconds (S293)
+
+- **The SyncPlay send boundaries now convert the player's seconds to the
+  wire's milliseconds unit (`phlix-syncplay/SPEC.md:91`).** `PlayerScreen`'s
+  `currentTime` is seconds; the wire unit is milliseconds per
+  `phlix-syncplay/SPEC.md:91` — Roku was the only client already compliant.
+  A new `toSyncPlayPositionMs()` helper converts at each send boundary
+  (`sendPlay`/`sendPause` in `handlePlayPause`, `_handlePlay`,
+  `_handlePause`), asserted with 1000×-sensitive values and
+  mutation-proved. The receive side is untouched: inbound positions are
+  consumed exactly as before, and the player's internal seconds state and
+  the native player keep seconds. KNOWN LIMIT: `sendSeek` still has no
+  production callsite — a host seek is applied locally and never broadcast
+  — so no seek-position conversion ships. The server (stores the payload
+  raw, unit-agnostic) and Roku (already compliant) are not touched.
