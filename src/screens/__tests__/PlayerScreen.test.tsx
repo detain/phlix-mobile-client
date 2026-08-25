@@ -91,6 +91,19 @@ class HookHost {
     return this.commit();
   }
 
+  // React unmount semantics: run every effect cleanup. PlayerScreen's
+  // hideControls effect clears its 3s timeout here (:304) — the S293 fixtures
+  // press play, arming it; the harness otherwise never unmounts, so the timer
+  // would fire post-suite (uncaught Animated.timing TypeError, jest exit 1).
+  unmount(): void {
+    for (const slot of this.slots) {
+      const cleanup = (slot as EffectSlot | undefined)?.cleanup;
+      if (typeof cleanup === 'function') cleanup();
+    }
+    this.slots = [];
+    this.renderFn = null;
+  }
+
   private commit(): unknown {
     this.cursor = 0;
     this.pending = [];
@@ -109,6 +122,11 @@ class HookHost {
 
 // `mock`-prefixed so the jest.mock factory below may reference it (jest lint rule).
 const mockHost: { current: HookHost | null } = { current: null };
+
+// The most recently mounted hook host — the S293 describe's afterEach unmounts
+// it so PlayerScreen's hideControls timer (armed by pressing play) is cleared
+// before the suite ends (the harness never unmounts otherwise).
+let mountedHost: HookHost | null = null;
 
 jest.mock('react', () => {
   const actual = jest.requireActual('react');
@@ -287,6 +305,7 @@ const LADDER = {
 
 function mount() {
   const host = new HookHost();
+  mountedHost = host;
   const render = () => host.render(() => (PlayerScreen as unknown as () => unknown)());
   return { host, render, rerender: () => host.rerender() };
 }
@@ -425,6 +444,15 @@ describe('PlayerScreen — S293 SyncPlay send boundaries (seconds → ms)', () =
   // Host mode: only hosts broadcast play/pause (the `isHost` gate at :610).
   beforeEach(() => {
     mockSyncplayStore.isHost = true;
+  });
+
+  // Teardown: these fixtures are the first to press play, arming the 3s
+  // hideControls timer (PlayerScreen :299). The hook-host harness never
+  // unmounts, so run the host's effect cleanups (which clear the timer) after
+  // each test — the sibling suites use the same afterEach-cleanup convention.
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
   });
 
   // Advance the internal seconds clock to a 1000×-sensitive position: 42.5 s.
