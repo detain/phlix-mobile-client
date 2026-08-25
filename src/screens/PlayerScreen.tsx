@@ -86,6 +86,11 @@ const dispatchPlayerCommand = (ref: React.RefObject<any>, command: string, args?
   }
 };
 
+// S293: SyncPlay wire positions are MILLISECONDS (phlix-syncplay SPEC.md:91).
+// `currentTime` is SECONDS — convert at the SEND boundary only; the internal
+// seconds state and the native player keep seconds.
+const toSyncPlayPositionMs = (seconds: number): number => seconds * 1000;
+
 // P5-S5: Detect AccessSchedule (403) / StreamLimitExceeded (429) errors from API calls.
 // Returns { isAccessError: boolean, message: string } when detected, otherwise null.
 function detectAccessStreamError(error: unknown): { isAccessError: boolean; message: string } | null {
@@ -613,12 +618,12 @@ const PlayerScreen: React.FC = () => {
         dispatchPlayerCommand(playerRef, 'pause');
         setIsPlaying(false);
         playerSetIsPlaying(false);
-        syncPlayService.sendPause(currentTime);
+        syncPlayService.sendPause(toSyncPlayPositionMs(currentTime));
       } else {
         dispatchPlayerCommand(playerRef, 'play');
         setIsPlaying(true);
         playerSetIsPlaying(true);
-        syncPlayService.sendPlay(currentTime);
+        syncPlayService.sendPlay(toSyncPlayPositionMs(currentTime));
       }
     } else {
       // Non-hosts just control locally (playback is controlled by host)
@@ -641,7 +646,7 @@ const PlayerScreen: React.FC = () => {
     setIsPlaying(true);
     playerSetIsPlaying(true);
     if (isHost) {
-      syncPlayService.sendPlay(currentTime);
+      syncPlayService.sendPlay(toSyncPlayPositionMs(currentTime));
     }
   };
 
@@ -650,7 +655,7 @@ const PlayerScreen: React.FC = () => {
     setIsPlaying(false);
     playerSetIsPlaying(false);
     if (isHost) {
-      syncPlayService.sendPause(currentTime);
+      syncPlayService.sendPause(toSyncPlayPositionMs(currentTime));
     }
   };
 
