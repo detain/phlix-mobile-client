@@ -130,15 +130,9 @@ export const useSyncplayStore = create<SyncplayState>((set, get) => ({
    */
   applyPendingPlayMedia: (command) => {
     set({ pendingPlayMedia: command });
-    const { currentGroup } = get();
-    if (currentGroup) {
-      set({
-        currentGroup: {
-          ...currentGroup,
-          currentMediaId: command.mediaId,
-        },
-      });
-    }
+    // The paired caller for the current_media_id carry-through — single writer
+    // via setCurrentMediaId so the live group never forks from it.
+    get().setCurrentMediaId(command.mediaId);
   },
 
   /**

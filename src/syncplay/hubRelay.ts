@@ -151,12 +151,18 @@ export function parsePendingCommandFrame(raw: unknown): PendingPlayMediaCommand 
  * Build the relay URL: `ws(s)://<host>:8804/syncplay/<server_id>`.
  *
  * The scheme follows `hubBaseUrl` (`https:` → `wss:`); the port is the relay's
- * own 8804, never the origin's. Pure string handling — no `URL` global, which
- * is not guaranteed on every RN runtime. Exported for tests.
+ * own 8804, never the origin's. The host comes from the `URL` global (typed in
+ * RN's globals, IPv6-correct); a malformed base falls back to the raw
+ * authority string rather than throwing. Exported for tests.
  */
 export function buildHubRelayUrl(hubBaseUrl: string, serverId: string): string {
   const scheme = hubBaseUrl.startsWith('https://') ? 'wss:' : 'ws:';
-  const host = hubBaseUrl.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+  let host: string;
+  try {
+    host = new URL(hubBaseUrl).hostname;
+  } catch {
+    host = hubBaseUrl.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+  }
   return `${scheme}//${host}:${HUB_SYNC_PLAY_PORT}/syncplay/${encodeURIComponent(serverId)}`;
 }
 
