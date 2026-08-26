@@ -8,6 +8,7 @@
 // src/store/syncplayStore.ts
 import { create } from 'zustand';
 import type { SyncPlayGroup, SyncPlayMember } from '../syncplay/SyncPlayService';
+import type { PendingPlayMediaCommand } from '../syncplay/hubRelay';
 
 interface SyncplayState {
   // Current group
@@ -23,6 +24,10 @@ interface SyncplayState {
   timeSyncLatency: number;
   timeSyncStable: boolean;
 
+  // S298: a hub-relay `pending_command` / `play_media` frame awaiting the
+  // player's load-a-new-title path. Cleared by consumePendingPlayMedia.
+  pendingPlayMedia: PendingPlayMediaCommand | null;
+
   // UI state
   showMemberList: boolean;
   error: string | null;
@@ -36,8 +41,11 @@ interface SyncplayState {
   setShowMemberList: (show: boolean) => void;
   setError: (error: string | null) => void;
   updatePlaybackState: (state: SyncPlayGroup['playbackState'], position: number) => void;
+  setCurrentMediaId: (mediaId: string) => void;
   addMember: (member: SyncPlayMember) => void;
   removeMember: (memberId: string) => void;
+  applyPendingPlayMedia: (command: PendingPlayMediaCommand) => void;
+  consumePendingPlayMedia: () => void;
   reset: () => void;
 }
 
@@ -49,6 +57,7 @@ const initialState = {
   timeSyncOffset: 0,
   timeSyncLatency: 0,
   timeSyncStable: false,
+  pendingPlayMedia: null,
   showMemberList: false,
   error: null,
 };
@@ -88,6 +97,51 @@ export const useSyncplayStore = create<SyncplayState>((set, get) => ({
         playbackPosition,
       },
     });
+  },
+
+  setCurrentMediaId: (mediaId) => {
+    const { currentGroup } = get();
+    if (!currentGroup) {
+      return;
+    }
+
+    set({
+      currentGroup: {
+        ...currentGroup,
+        currentMediaId: mediaId,
+      },
+    });
+  },
+
+  /**
+   * Adopt a hub-relay `pending_command` / `play_media` frame (S298).
+   *
+   * The hub's SyncPlay relay delivers "Alexa, play X" to the app's open
+   * `:8804` socket (see `src/syncplay/hubRelay.ts`) REGARDLESS of SyncPlay
+   * room membership — the primary case has no room at all. This action is the
+   * store-side consumer:
+   *
+   * - `pendingPlayMedia` holds the command for the player's load-a-new-title
+   *   path (the ONLY place that can start playback from a bare media id).
+   * - When a group exists, `currentMediaId` is written into it — the paired
+   *   caller for the `current_media_id` carry-through in
+   *   `SyncPlayService.handleGroupState()` (`?? null` at the wire boundary,
+   *   produced here by the hub consumer), so the field is not dead wiring.
+   */
+  applyPendingPlayMedia: (command) => {
+    set({ pendingPlayMedia: command });
+    // The paired caller for the current_media_id carry-through — single writer
+    // via setCurrentMediaId so the live group never forks from it.
+    get().setCurrentMediaId(command.mediaId);
+  },
+
+  /**
+   * Mark the pending play-media command as handled (the player's load path
+   * took it over). Clears the store slot so a later session update cannot
+   * re-trigger the load.
+   */
+  consumePendingPlayMedia: () => {
+    set({ pendingPlayMedia: null });
   },
 
   addMember: (member) => {
