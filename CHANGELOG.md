@@ -88,3 +88,41 @@ native-side enhancement, not a gap in this feature.
   production callsite — a host seek is applied locally and never broadcast
   — so no seek-position conversion ships. The server (stores the payload
   raw, unit-agnostic) and Roku (already compliant) are not touched.
+
+### Added — hub-relay pending_command consumer (S298, mobile half)
+
+- **The mobile app now consumes "Alexa, play X" (`pending_command` /
+  `play_media` frames) from the hub's SyncPlay relay.** New
+  `src/syncplay/hubRelay.ts` opens a real `:8804` socket at
+  `ws(s)://<hub>:8804/syncplay/{server_id}` with the **bearer subprotocol
+  carrier** (`Sec-WebSocket-Protocol: bearer, <token>` — S237/S355-proven
+  against the real hub; the relay refuses query-string tokens by design).
+  The open-whenever lifecycle boots the socket whenever hub auth exists —
+  NOT gated on a SyncPlay room join — with a capped exponential reconnect
+  ladder that re-reads the token on every attempt (relay tokens expire
+  hourly). Frames are parsed at the boundary (parse-don't-validate); only
+  `pending_command` / `play_media` is consumed, everything else is dropped.
+- **`src/hub/RelayTokenProvider.ts`** mints the per-(user, server) client
+  relay token over `POST /api/v1/me/servers/{id}/relay-token` (S2a) with the
+  hub session JWT, caches it until just before `expires_at`, and returns
+  `null` (never a stale credential) on any failure or after sign-out.
+- **`src/syncplay/HubRelayConsumer.ts`** wires it at app boot (`App.tsx`):
+  hub-auth-gated socket lifecycle + a command router that consumes each
+  delivered frame once and navigates the player to the media id — the
+  mobile load-a-new-title path (PlayerScreen's itemId-driven load resolves a
+  signed stream and auto-plays).
+- **`current_media_id` carry-through paired caller.** The wire value was
+  already mapped into `SyncPlayGroup` (`?? null` in
+  `SyncPlayService.handleGroupState`); `applyPendingPlayMedia` is the caller
+  that writes the delivered media id into the live group via the new
+  `setCurrentMediaId` store action — the field is produced at the wire
+  boundary and consumed here, not dead wiring.
+- **Tests** (`src/__tests__/syncplay/hubRelay.test.ts`,
+  `HubRelayConsumer.test.ts`, `syncplayStore.test.ts`,
+  `src/__tests__/hub/RelayTokenProvider.test.ts`): carrier shape, parse
+  boundary, lifecycle/reconnect, router (deliver → navigate → consume,
+  once per unique command), store consumer pair, mint/cache/re-mint. Real
+  hub proof: handshake OPEN + delivered=1 + control delivered=0 (see the
+  lane report). KNOWN LIMIT: no device/emulator on the build box — the
+  frame's path through the consumer into the player load is proven at the
+  component/store level; pixel playback is unobservable here.
