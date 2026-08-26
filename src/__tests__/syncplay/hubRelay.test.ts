@@ -219,13 +219,15 @@ describe('openHubRelayConnection', () => {
   });
 
   it('opens a socket with the :8804 /syncplay/{server_id} URL and the bearer subprotocol carrier', () => {
-    openHubRelayConnection(config());
+    openHubRelayConnection(
+      config({ tokenProvider: () => 's298fmCarrierProof9f' })
+    );
     const ws = socket();
     expect(ws.url).toBe('ws://127.0.0.1:8804/syncplay/srv-1');
     // S237/S355 carrier: the token travels in the SUBPROTOCOL, never the query
     // string (query-string tokens are refused by design).
     expect(ws.url).not.toContain('token');
-    expect(ws.protocols).toEqual(['bearer', 'relay-token-1']);
+    expect(ws.protocols).toEqual(['bearer', 's298fmCarrierProof9f']);
   });
 
   it('is idempotent for the same server id — no second socket', () => {
