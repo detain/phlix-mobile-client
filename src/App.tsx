@@ -11,10 +11,11 @@ import { StatusBar, LogBox, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { RootNavigator } from './navigation';
+import { RootNavigator, navigationRef } from './navigation';
 import { useAuthStore } from './stores/useAuthStore';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { initDeviceIdentity } from './api/deviceIdentity';
+import { startHubRelayConsumer, stopHubRelayConsumer } from './syncplay/HubRelayConsumer';
 
 // Ignore specific warnings in development
 LogBox.ignoreLogs([
@@ -35,10 +36,29 @@ const App: React.FC = () => {
       } catch (error) {
         console.error('Failed to initialize app:', error);
       }
+
+      // S298 — boot the hub-relay pending-command consumer ("open-whenever").
+      // The socket opens itself once hub auth exists (the hub store restores a
+      // persisted session) and stays open with a capped reconnect ladder until
+      // stopHubRelayConsumer. A delivered "Alexa, play X" frame routes into the
+      // Player route with the media id — the load-a-new-title path.
+      startHubRelayConsumer({
+        navigateToPlayer: (itemId) => {
+          if (navigationRef.isReady()) {
+            navigationRef.navigate('Player', { itemId });
+          }
+        },
+      });
     };
 
     initialize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopHubRelayConsumer();
+    };
   }, []);
 
   return (

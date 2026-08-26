@@ -7,7 +7,7 @@
 
 // src/navigation/RootNavigator.tsx
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
@@ -53,6 +53,12 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const LibraryStack = createNativeStackNavigator<LibraryStackParamList>();
+
+// S298 — navigation ref for the hub-relay pending-command router. The consumer
+// (src/syncplay/HubRelayConsumer.ts) runs OUTSIDE the navigator tree (booted
+// from App.tsx), so it cannot use `useNavigation`; this ref is the seam that
+// lets a delivered `pending_command` navigate the player to the media id.
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // Tab Bar Icon Component
 const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
@@ -174,7 +180,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Login" component={LoginScreen} />

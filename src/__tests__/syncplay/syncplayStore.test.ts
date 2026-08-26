@@ -259,3 +259,80 @@ describe('useSyncplayStore', () => {
     });
   });
 });
+
+// ── S298: the hub-relay pending_command consumer pair ─────────────────────────
+
+describe('useSyncplayStore — hub-relay pending_command consumer (S298)', () => {
+  const group: SyncPlayGroup = {
+    id: 'sp_abc123',
+    name: 'Movie Night',
+    members: [],
+    currentMediaId: 'media-456',
+    playbackState: 'paused',
+    playbackPosition: 12000,
+    hostId: 'member-1',
+    hasPassword: false,
+  };
+
+  const cmd = {
+    type: 'pending_command' as const,
+    command: 'play_media' as const,
+    serverId: 'srv-1',
+    mediaId: 'media-9',
+    title: 'Inception',
+    issuedAt: 1_700_000_000,
+    source: 'alexa',
+  };
+
+  beforeEach(() => {
+    useSyncplayStore.setState({
+      currentGroup: null,
+      pendingPlayMedia: null,
+    });
+  });
+
+  it('holds the delivered command for the player load path', () => {
+    expect(useSyncplayStore.getState().pendingPlayMedia).toBeNull();
+    useSyncplayStore.getState().applyPendingPlayMedia(cmd);
+    expect(useSyncplayStore.getState().pendingPlayMedia).toEqual(cmd);
+  });
+
+  it('writes currentMediaId into a live group — the paired caller for the carry-through', () => {
+    useSyncplayStore.getState().setCurrentGroup(group);
+    expect(useSyncplayStore.getState().currentGroup?.currentMediaId).toBe('media-456');
+
+    useSyncplayStore.getState().applyPendingPlayMedia(cmd);
+    expect(useSyncplayStore.getState().currentGroup?.currentMediaId).toBe('media-9');
+    expect(useSyncplayStore.getState().pendingPlayMedia).toEqual(cmd);
+  });
+
+  it('works with NO group — the primary "Alexa, play X" case has no room', () => {
+    expect(useSyncplayStore.getState().currentGroup).toBeNull();
+    useSyncplayStore.getState().applyPendingPlayMedia(cmd);
+    expect(useSyncplayStore.getState().pendingPlayMedia).toEqual(cmd);
+    // No group → nothing to mutate; the player consumes pendingPlayMedia.
+    expect(useSyncplayStore.getState().currentGroup).toBeNull();
+  });
+
+  it('consumePendingPlayMedia clears the slot so a session update cannot re-trigger the load', () => {
+    useSyncplayStore.getState().applyPendingPlayMedia(cmd);
+    useSyncplayStore.getState().consumePendingPlayMedia();
+    expect(useSyncplayStore.getState().pendingPlayMedia).toBeNull();
+  });
+
+  it('setCurrentMediaId writes the media id into a live group and is a no-op without one', () => {
+    useSyncplayStore.getState().setCurrentGroup(group);
+    useSyncplayStore.getState().setCurrentMediaId('media-777');
+    expect(useSyncplayStore.getState().currentGroup?.currentMediaId).toBe('media-777');
+
+    useSyncplayStore.getState().setCurrentGroup(null);
+    expect(() => useSyncplayStore.getState().setCurrentMediaId('media-888')).not.toThrow();
+    expect(useSyncplayStore.getState().currentGroup).toBeNull();
+  });
+
+  it('reset clears the pending command slot', () => {
+    useSyncplayStore.getState().applyPendingPlayMedia(cmd);
+    useSyncplayStore.getState().reset();
+    expect(useSyncplayStore.getState().pendingPlayMedia).toBeNull();
+  });
+});
