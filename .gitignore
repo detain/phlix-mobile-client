@@ -13,6 +13,7 @@ dist/
 
 # Android/Gradle
 android/app/build/
+android/app/.cxx/
 android/.gradle/
 android/build/
 
