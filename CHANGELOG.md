@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — parental-controls creates 400'd on the wire shape (S234)
+
+- **`@phlix/contracts` bumped to `v0.4.4`** (from `v0.4.3`) in `package.json` /
+  `package-lock.json` (resolved SHA `981cac4c`, the v0.4.4 tag commit). The
+  release declares the snake_case wire shapes (`tag_type`, `start_time`,
+  `end_time`, `days_of_week`, `is_active`) and `profileId: string` (CHAR(36)).
+- **`ParentalControlsManager`**: `addTag` now posts `{tag, tag_type}` and
+  `createSchedule`/`updateSchedule` post `{name, start_time, end_time,
+  days_of_week, is_active}` — the previous camelCase bodies (`tagType`,
+  `startTime`, …) 400'd against the server. `profileId` is now `string`
+  (CHAR(36) UUID) everywhere in the parental-controls surface.
+- **`src/types/parental.ts`**: wire keys corrected to snake_case (mirroring
+  contracts v0.4.4); GET read paths map the server's `profile_id` emission
+  into the local `profileId` shape.
+- **`ParentalControlsScreen`**: schedule read/display and the add-tag/create-
+  schedule payloads use the snake_case keys; the active profile id now comes
+  from `useProfileStore.activeProfileId` (the app's real profile model —
+  `user.profileId` never existed on the auth `User` shape).
+
 ### Added — in-app stream quality picker (G3)
 
 - **`@phlix/contracts` bumped to `v0.2.0`** (from `v0.1.1`) in `package.json` /

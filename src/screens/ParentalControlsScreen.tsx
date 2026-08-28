@@ -19,7 +19,7 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useProfileStore } from '../stores/useProfileStore';
 import { parentalControlsManager } from '../api';
 import { SafeContainer } from '../components/layout';
 import type { AccessSchedule, DayOfWeek, ProfileTag, ProfileStreamLimit } from '../types/parental';
@@ -75,8 +75,10 @@ interface ScheduleFormState {
 }
 
 const ParentalControlsScreen: React.FC = () => {
-  const user = useAuthStore((state) => state.user);
-  const profileId = (user as any)?.profileId as number | undefined;
+  // The active profile id is the CHAR(36) UUID string tracked by the profile
+  // store (server `user_profiles.id`); `user.profileId` does not exist on the
+  // auth `User` shape, so the store is the honest source.
+  const profileId = useProfileStore((state) => state.activeProfileId) ?? undefined;
 
   // ── All hooks MUST be called before any early returns (Rules of Hooks) ───
   // ── Tab State ───────────────────────────────────────────────────────────
@@ -136,7 +138,7 @@ const ParentalControlsScreen: React.FC = () => {
     setErrorTags(null);
     try {
       const data = await parentalControlsManager.getTags(profileId);
-      setTags(data.filter((t) => t.tagType === 'blocked'));
+      setTags(data.filter((t) => t.tag_type === 'blocked'));
     } catch (e) {
       setErrorTags(e instanceof Error ? e.message : 'Failed to load tags');
     } finally {
@@ -192,10 +194,10 @@ const ParentalControlsScreen: React.FC = () => {
     setEditingSchedule(schedule);
     setScheduleForm({
       name: schedule.name,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
-      daysOfWeek: [...schedule.daysOfWeek],
-      isActive: schedule.isActive,
+      startTime: schedule.start_time,
+      endTime: schedule.end_time,
+      daysOfWeek: [...schedule.days_of_week],
+      isActive: schedule.is_active,
     });
     setShowScheduleForm(true);
   };
@@ -225,18 +227,18 @@ const ParentalControlsScreen: React.FC = () => {
         await parentalControlsManager.updateSchedule(profileId, {
           id: editingSchedule.id,
           name: scheduleForm.name,
-          startTime: scheduleForm.startTime,
-          endTime: scheduleForm.endTime,
-          daysOfWeek: scheduleForm.daysOfWeek,
-          isActive: scheduleForm.isActive,
+          start_time: scheduleForm.startTime,
+          end_time: scheduleForm.endTime,
+          days_of_week: scheduleForm.daysOfWeek,
+          is_active: scheduleForm.isActive,
         });
       } else {
         await parentalControlsManager.createSchedule(profileId, {
           name: scheduleForm.name,
-          startTime: scheduleForm.startTime,
-          endTime: scheduleForm.endTime,
-          daysOfWeek: scheduleForm.daysOfWeek,
-          isActive: scheduleForm.isActive,
+          start_time: scheduleForm.startTime,
+          end_time: scheduleForm.endTime,
+          days_of_week: scheduleForm.daysOfWeek,
+          is_active: scheduleForm.isActive,
         });
       }
       closeScheduleForm();
@@ -273,7 +275,7 @@ const ParentalControlsScreen: React.FC = () => {
     if (!tag || !profileId) return;
     setAddingTag(true);
     try {
-      await parentalControlsManager.addTag(profileId, { tag, tagType: 'blocked' });
+      await parentalControlsManager.addTag(profileId, { tag, tag_type: 'blocked' });
       setNewTagInput('');
       await loadTags();
     } catch {
@@ -380,19 +382,19 @@ const ParentalControlsScreen: React.FC = () => {
                 key={schedule.id}
                 style={[
                   styles.listItem,
-                  !schedule.isActive && styles.listItemInactive,
+                  !schedule.is_active && styles.listItemInactive,
                 ]}
               >
                 <View style={styles.listItemInfo}>
                   <Text style={styles.listItemName}>{schedule.name}</Text>
                   <Text style={styles.listItemDetail}>
-                    {formatTimeDisplay(schedule.startTime)} –{' '}
-                    {formatTimeDisplay(schedule.endTime)}
+                    {formatTimeDisplay(schedule.start_time)} –{' '}
+                    {formatTimeDisplay(schedule.end_time)}
                   </Text>
                   <Text style={styles.listItemDetail}>
-                    {formatDaysDisplay(schedule.daysOfWeek)}
+                    {formatDaysDisplay(schedule.days_of_week)}
                   </Text>
-                  {!schedule.isActive && (
+                  {!schedule.is_active && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>Inactive</Text>
                     </View>
