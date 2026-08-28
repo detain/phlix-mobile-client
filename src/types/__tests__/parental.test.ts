@@ -7,14 +7,18 @@
 
 // src/types/__tests__/parental.test.ts
 //
-// `parental.ts` declares only interfaces aligned with @phlix/contracts v0.3.5,
-// so these are compile-time shape assertions.
+// `parental.ts` declares only interfaces aligned with @phlix/contracts v0.4.4
+// (S234: snake_case wire keys, CHAR(36) string profile ids), so these are
+// compile-time shape assertions.
 import type {
   DayOfWeek,
   AccessSchedule,
   ProfileTag,
   ProfileStreamLimit,
 } from '../parental';
+
+// CHAR(36) UUID, as the server stores/emits it (S234).
+const PROFILE = 'a1a1a1a1-1111-4111-8111-a1a1a1a1a1a1';
 
 describe('parental types', () => {
   describe('DayOfWeek', () => {
@@ -28,54 +32,54 @@ describe('parental types', () => {
     it('matches the server shape', () => {
       const schedule: AccessSchedule = {
         id: 1,
-        profileId: 42,
+        profileId: PROFILE,
         name: 'Weekday Evenings',
-        startTime: '18:00:00',
-        endTime: '22:00:00',
-        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        isActive: true,
+        start_time: '18:00:00',
+        end_time: '22:00:00',
+        days_of_week: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        is_active: true,
       };
       expect(schedule.name).toBe('Weekday Evenings');
-      expect(schedule.daysOfWeek).toHaveLength(5);
+      expect(schedule.days_of_week).toHaveLength(5);
     });
 
-    it('allows empty daysOfWeek', () => {
+    it('allows empty days_of_week', () => {
       const schedule: AccessSchedule = {
         id: 2,
-        profileId: 42,
+        profileId: PROFILE,
         name: 'Never active',
-        startTime: '00:00:00',
-        endTime: '00:00:00',
-        daysOfWeek: [],
-        isActive: false,
+        start_time: '00:00:00',
+        end_time: '00:00:00',
+        days_of_week: [],
+        is_active: false,
       };
-      expect(schedule.daysOfWeek).toHaveLength(0);
+      expect(schedule.days_of_week).toHaveLength(0);
     });
 
     it('allows weekends only', () => {
       const schedule: AccessSchedule = {
         id: 3,
-        profileId: 42,
+        profileId: PROFILE,
         name: 'Weekend All Day',
-        startTime: '00:00:00',
-        endTime: '23:59:59',
-        daysOfWeek: ['sat', 'sun'],
-        isActive: true,
+        start_time: '00:00:00',
+        end_time: '23:59:59',
+        days_of_week: ['sat', 'sun'],
+        is_active: true,
       };
-      expect(schedule.daysOfWeek).toContain('sat');
-      expect(schedule.daysOfWeek).toContain('sun');
+      expect(schedule.days_of_week).toContain('sat');
+      expect(schedule.days_of_week).toContain('sun');
     });
 
-    it('allows null id for new schedules', () => {
+    it('allows id 0 for new schedules', () => {
       // id is number but allow 0 as valid
       const schedule: AccessSchedule = {
         id: 0,
-        profileId: 1,
+        profileId: PROFILE,
         name: 'New',
-        startTime: '08:00:00',
-        endTime: '20:00:00',
-        daysOfWeek: ['mon'],
-        isActive: true,
+        start_time: '08:00:00',
+        end_time: '20:00:00',
+        days_of_week: ['mon'],
+        is_active: true,
       };
       expect(schedule.id).toBe(0);
     });
@@ -85,29 +89,29 @@ describe('parental types', () => {
     it('matches the blocked tag shape', () => {
       const tag: ProfileTag = {
         id: 1,
-        profileId: 42,
+        profileId: PROFILE,
         tag: 'kids',
-        tagType: 'blocked',
+        tag_type: 'blocked',
       };
       expect(tag.tag).toBe('kids');
-      expect(tag.tagType).toBe('blocked');
+      expect(tag.tag_type).toBe('blocked');
     });
 
     it('matches the allowed tag shape', () => {
       const tag: ProfileTag = {
         id: 2,
-        profileId: 42,
+        profileId: PROFILE,
         tag: 'family',
-        tagType: 'allowed',
+        tag_type: 'allowed',
       };
-      expect(tag.tagType).toBe('allowed');
+      expect(tag.tag_type).toBe('allowed');
     });
   });
 
   describe('ProfileStreamLimit', () => {
     it('matches the server shape with null bandwidth', () => {
       const limit: ProfileStreamLimit = {
-        profileId: 42,
+        profileId: PROFILE,
         maxConcurrentStreams: 3,
         maxTotalBandwidthKbps: null,
       };
@@ -117,7 +121,7 @@ describe('parental types', () => {
 
     it('matches the server shape with bandwidth cap', () => {
       const limit: ProfileStreamLimit = {
-        profileId: 42,
+        profileId: PROFILE,
         maxConcurrentStreams: 1,
         maxTotalBandwidthKbps: 10000,
       };
@@ -126,7 +130,7 @@ describe('parental types', () => {
 
     it('allows zero streams (rare but valid)', () => {
       const limit: ProfileStreamLimit = {
-        profileId: 1,
+        profileId: PROFILE,
         maxConcurrentStreams: 0,
         maxTotalBandwidthKbps: null,
       };
