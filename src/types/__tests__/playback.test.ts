@@ -93,62 +93,131 @@ describe('playback types', () => {
     });
   });
 
+  // S404: the local `SubtitleTrack`/`AudioTrack` mirror is RETIRED — these
+  // names now re-export `@phlix/contracts` v0.4.5's playback.ts pair, which
+  // declares the REAL `StreamTrackShaper` wire (verified at server 01340633).
+  // The old fixtures pinned the `display_title` fiction the server never
+  // emitted; they are rewritten honestly (not deleted), and the compile-time
+  // `HasKey`/`assertExact` absences below are the anti-re-add gate — the
+  // executing check is `npm run typecheck` (jest transpiles types away).
   describe('SubtitleTrack', () => {
-    it('matches the subtitle track shape', () => {
+    it('carries the full playback-info wire shape (StreamTrackShaper keys)', () => {
       const track: SubtitleTrack = {
         id: 'sub1',
-        codec: 'subrip',
+        index: 0,
+        stream_index: 1,
         language: 'eng',
-        display_title: 'English',
+        label: 'eng',
+        codec: 'subrip',
+        source: null,
+        hearing_impaired: true,
+        url: '/api/v1/media/m1/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
       };
-      expect(track.id).toBe('sub1');
+      expect(track.label).toBe('eng');
+      expect(track.hearing_impaired).toBe(true);
+      // Golden values from the contracts golden-vector capture (embedded row).
+      const titled: SubtitleTrack = {
+        id: 'sub2',
+        index: 2,
+        stream_index: 4,
+        language: 'spa',
+        label: 'Español (Forzada)',
+        codec: 'mov_text',
+        source: null,
+        hearing_impaired: false,
+        url: '/api/v1/media/m1/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
+      };
+      expect(titled.label).toContain('Español');
     });
 
-    it('allows optional url for external subtitles', () => {
+    it('admits a null url (server has no itemId to mint against)', () => {
       const track: SubtitleTrack = {
-        id: 'sub2',
-        codec: 'webvtt',
-        language: 'spa',
-        display_title: 'Spanish',
-        url: 'https://server/subtitles/spa.vtt',
+        id: 'sub3',
+        index: 0,
+        stream_index: 1,
+        language: 'pt',
+        label: 'pt',
+        codec: 'ass',
+        source: null,
+        hearing_impaired: false,
+        url: null,
       };
-      expect(track.url).toContain('vtt');
+      expect(track.url).toBeNull();
+    });
+
+    it('external rows carry a source provenance string', () => {
+      const track: SubtitleTrack = {
+        id: 'ss-ext',
+        index: 1,
+        stream_index: 1,
+        language: 'und',
+        label: 'Subtitle 1',
+        codec: 'webvtt',
+        source: 'opensubtitles',
+        hearing_impaired: true,
+        url: '/api/v1/media/m1/subtitles/external/ss-ext?exp=1800000000&sig=dGVzdC1zaWc',
+      };
+      expect(track.source).toBe('opensubtitles');
+    });
+
+    it('declares the display string as label and NOT the retired display_title fiction', () => {
+      expect(assertExact<Exact<HasKey<SubtitleTrack, 'label'>, true>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<SubtitleTrack, 'display_title'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<SubtitleTrack, 'title'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<SubtitleTrack, 'url'>, true>>(true)).toBe(true);
     });
   });
 
   describe('AudioTrack', () => {
-    it('matches the audio track shape', () => {
+    it('carries the full playback-info wire shape (StreamTrackShaper keys)', () => {
       const track: AudioTrack = {
         id: 'audio1',
-        codec: 'aac',
-        language: 'eng',
-        display_title: 'English (AAC)',
+        index: 0,
+        stream_index: 1,
+        codec: 'eac3',
+        language: 'en',
         channels: 6,
+        bitrate: 640000,
+        title: null,
+        default: false,
       };
       expect(track.channels).toBe(6);
-    });
-
-    it('allows optional url for external audio', () => {
-      const track: AudioTrack = {
+      expect(track.default).toBe(false);
+      const promoted: AudioTrack = {
         id: 'audio2',
-        codec: 'mp3',
-        language: 'und',
-        display_title: 'Commentary',
+        index: 1,
+        stream_index: 2,
+        codec: 'aac',
+        language: 'en',
         channels: 2,
-        url: 'https://server/audio/commentary.mp3',
+        bitrate: 128000,
+        title: 'Commentary',
+        default: true,
       };
-      expect(track.url).toBeDefined();
+      expect(promoted.title).toBe('Commentary');
+      expect(promoted.default).toBe(true);
     });
 
-    it('supports stereo audio', () => {
+    it('bitrate is REQUIRED-present and nullable (server always emits the key)', () => {
       const track: AudioTrack = {
         id: 'audio3',
-        codec: 'aac',
-        language: 'eng',
-        display_title: 'English Stereo',
-        channels: 2,
+        index: 0,
+        stream_index: 0,
+        codec: '',
+        language: 'und',
+        channels: 0,
+        bitrate: null,
+        title: null,
+        default: true,
       };
-      expect(track.channels).toBe(2);
+      expect(track.bitrate).toBeNull();
+    });
+
+    it('has no url/label — the audio wire carries neither', () => {
+      expect(assertExact<Exact<HasKey<AudioTrack, 'url'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<AudioTrack, 'label'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<AudioTrack, 'display_title'>, false>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<AudioTrack, 'bitrate'>, true>>(true)).toBe(true);
     });
   });
 

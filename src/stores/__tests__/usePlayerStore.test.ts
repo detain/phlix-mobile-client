@@ -122,8 +122,21 @@ describe('usePlayerStore', () => {
 
   describe('subtitle track setters', () => {
     it('setSubtitleTracks', () => {
+      // S404: full playback-info WIRE rows (contracts v0.4.5 =
+      // StreamTrackShaper keys; the old `display_title` fixture pinned a key
+      // the server never emitted — rewritten honestly).
       const tracks = [
-        { id: 'sub1', codec: 'srt', language: 'en', display_title: 'English' },
+        {
+          id: 'sub1',
+          index: 0,
+          stream_index: 1,
+          language: 'en',
+          label: 'English',
+          codec: 'srt',
+          source: null,
+          hearing_impaired: false,
+          url: '/api/v1/media/m1/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
+        },
       ];
       usePlayerStore.getState().setSubtitleTracks(tracks);
       expect(usePlayerStore.getState().subtitleTracks).toEqual(tracks);
@@ -143,8 +156,20 @@ describe('usePlayerStore', () => {
 
   describe('audio track setters', () => {
     it('setAudioTracks', () => {
+      // S404: full wire AudioTrack row (bitrate REQUIRED, title nullable,
+      // no url on the audio wire).
       const tracks = [
-        { id: 'aud1', codec: 'aac', language: 'en', display_title: 'English', channels: 2 },
+        {
+          id: 'aud1',
+          index: 0,
+          stream_index: 1,
+          codec: 'aac',
+          language: 'en',
+          channels: 2,
+          bitrate: 128000,
+          title: null,
+          default: true,
+        },
       ];
       usePlayerStore.getState().setAudioTracks(tracks);
       expect(usePlayerStore.getState().audioTracks).toEqual(tracks);
