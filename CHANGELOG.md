@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — S280 client route gate (mobile half)
+
+- **`src/api/test/server-route-manifest.json`** — vendored byte-for-byte from
+  `@phlix/contracts` `dist/server-route-manifest.json` (400 `[method, pathTemplate]`
+  tuples derived from phlix-server `8f72faec`). No tag is consumed this wave;
+  the copy is pinned by provenance sha inside.
+- **`src/api/test/routeManifest.gate.test.ts`** — scans every request-issuing
+  source and asserts each issued URL is tuple-exact against the vendored
+  manifest (exact-segment compare, never substring — no sibling-wildcard
+  absorption). Coverage is pinned per module: **171 request sites / 167
+  distinct tuples / 19 modules**, hub-addressed + passthrough files excluded
+  with enumerated reasons and negative pins. A planted unserved URL was
+  demonstrated RED (and reverted to green). Tizen/console gates are the named
+  W19 follow-up.
+
+### Fixed — SyncPlay called four routes phlix-server never registered (S280)
+
+- **`src/api/SyncPlayManager.ts`** called `GET|POST /api/v1/syncplay/rooms`,
+  `POST /api/v1/syncplay/rooms/{id}/join` and `DELETE /api/v1/syncplay/rooms/{id}/leave`
+  — none of which exists. The server's five SyncPlay rails are all under
+  `/syncplay/groups` (and `leave` is **POST**, not DELETE). The same
+  S264/S276/S279 defect class, now caught (and fixed) in mobile: the responses
+  are the server's snake_case `{ groups }` / `{ success, group }` envelopes,
+  mapped to the modal's existing view models by a deliberately minimal local
+  mapper. No new behaviour shipped — the browse/create/join/leave flow simply
+  stops 404ing at the wire. The WebSocket transport URL is unaffected (it is
+  not an HTTP-router route; pinned out of the gate by design).
+
 ### Fixed — parental-controls creates 400'd on the wire shape (S234)
 
 - **`@phlix/contracts` bumped to `v0.4.4`** (from `v0.4.3`) in `package.json` /
