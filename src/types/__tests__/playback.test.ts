@@ -279,6 +279,9 @@ describe('playback types', () => {
   });
 
   describe('PlaybackInfo', () => {
+    // S407: the server's getPlaybackInfo ALWAYS emits both track rails
+    // (MediaItemController.php :340-341, StreamTrackShaper-shaped). They are
+    // REQUIRED members here — fixtures below carry them on every case.
     it('matches the full playback info shape', () => {
       const info: PlaybackInfo = {
         item_id: 'm123',
@@ -288,10 +291,66 @@ describe('playback types', () => {
           { start_seconds: 120, end_seconds: 300, title: 'Chapter 1' },
           { start_seconds: 301, end_seconds: 600, title: 'Chapter 2' },
         ],
+        // Golden values: contracts test/fixtures/stream-track-vectors.json @
+        // 068d5e86 (provenance server 01340633), audio case
+        // `stored-default-on-second-nullables-passthrough`.
+        audio_tracks: [
+          {
+            id: 'as-1',
+            index: 0,
+            stream_index: 1,
+            codec: 'eac3',
+            language: 'en',
+            channels: 6,
+            bitrate: 640000,
+            title: null,
+            default: false,
+          },
+          {
+            id: 'as-2',
+            index: 1,
+            stream_index: 2,
+            codec: 'aac',
+            language: 'en',
+            channels: 2,
+            bitrate: 128000,
+            title: 'Commentary',
+            default: true,
+          },
+        ],
+        // Golden values: same vectors file, subtitle case
+        // `embedded-text-codecs-bitmap-skipped-but-counted` (the signer's
+        // stripped `?exp&sig` re-appended in the documented mint form).
+        subtitle_tracks: [
+          {
+            id: 'ss-1',
+            index: 0,
+            stream_index: 1,
+            language: 'eng',
+            label: 'eng',
+            codec: 'subrip',
+            source: null,
+            hearing_impaired: true,
+            url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
+          },
+          {
+            id: 'ss-2',
+            index: 2,
+            stream_index: 4,
+            language: 'spa',
+            label: 'Español (Forzada)',
+            codec: 'mov_text',
+            source: null,
+            hearing_impaired: false,
+            url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
+          },
+        ],
       };
       expect(info.item_id).toBe('m123');
       expect(info.intro_marker?.start_seconds).toBe(0);
       expect(info.chapters).toHaveLength(2);
+      expect(info.audio_tracks[1].title).toBe('Commentary');
+      expect(info.subtitle_tracks[1].label).toBe('Español (Forzada)');
     });
 
     it('allows null markers when no intro/outro', () => {
@@ -300,6 +359,8 @@ describe('playback types', () => {
         intro_marker: null,
         outro_marker: null,
         chapters: [],
+        audio_tracks: [],
+        subtitle_tracks: [],
       };
       expect(info.intro_marker).toBeNull();
       expect(info.outro_marker).toBeNull();
@@ -312,8 +373,30 @@ describe('playback types', () => {
         outro_marker: null,
         chapters: [],
         skip_button_spec: { type: 'outro' },
+        audio_tracks: [],
+        subtitle_tracks: [],
       };
       expect(info.skip_button_spec).toBeDefined();
+    });
+
+    it('declares the track rails as REQUIRED wire-typed members (S407 both-direction pin)', () => {
+      // Same gate style as the dash_url absence pin: the EXECUTING check is
+      // `npm run typecheck` (jest transpiles types away).
+      // Direction 1 — the keys exist at all (an absent key is a wire bug the
+      // server cannot ship: MediaItemController.php :340-341).
+      expect(assertExact<Exact<HasKey<PlaybackInfo, 'audio_tracks'>, true>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<PlaybackInfo, 'subtitle_tracks'>, true>>(true)).toBe(true);
+      // Direction 2 — REQUIRED, not optional: `audio_tracks?: AudioTrack[]`
+      // resolves to `AudioTrack[] | undefined`, breaking the Exact tie. This is
+      // the anti-optional gate; the first fixture above is the anti-absence one.
+      expect(assertExact<Exact<PlaybackInfo['audio_tracks'], AudioTrack[]>>(true)).toBe(true);
+      expect(assertExact<Exact<PlaybackInfo['subtitle_tracks'], SubtitleTrack[]>>(true)).toBe(true);
+      // Counterweight: the helper DOES report non-exactness for a genuinely
+      // optional member (`stream_url?: string` reads as `string | undefined`),
+      // so Direction 2 above cannot pass against an optionalised rail.
+      expect(
+        assertExact<Exact<Exact<StreamInfo['stream_url'], string>, false>>(true),
+      ).toBe(true);
     });
   });
 

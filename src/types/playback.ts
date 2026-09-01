@@ -16,7 +16,7 @@
 // so the transcode job/status shapes below can carry the server's `variants[]`
 // without redeclaring a divergent local copy (G3).
 export type { Rendition, RenditionId, QualitySelection } from '@phlix/contracts';
-import type { Rendition } from '@phlix/contracts';
+import type { Rendition, AudioTrack, SubtitleTrack } from '@phlix/contracts';
 
 export interface StreamInfo {
   url: string;
@@ -82,6 +82,14 @@ export interface Chapter {
  * `GET /api/v1/media/{id}/playback-info`.
  * Reconciled to the server shape. `intro_marker`/`outro_marker` are null when
  * the item has no detected intro/outro. All positions are SECONDS.
+ *
+ * S407: the track rails are REQUIRED members because the server ALWAYS emits
+ * both keys (`MediaItemController::getPlaybackInfo()` json at :340-341, rows
+ * shaped by `StreamTrackShaper::audioTracks()/subtitleTracks()` — verified at
+ * server `01340633`). An absent key is a wire bug, not an option — same
+ * required-if-server-sends logic as the `dash_url` absence pin below, pinned
+ * in both directions in `src/types/__tests__/playback.test.ts`. The row types
+ * are the playback.ts WIRE pair (S404 ruling), never the `Stream*` DB mirror.
  */
 export interface PlaybackInfo {
   item_id: string;
@@ -90,6 +98,10 @@ export interface PlaybackInfo {
   chapters: Chapter[];
   /** Free-form server hint for skip-button presentation (shape not fixed). */
   skip_button_spec?: unknown;
+  /** Audio rows of the played item — the picker's source of truth. */
+  audio_tracks: AudioTrack[];
+  /** Text-subtitle rows (bitmap rows are server-skipped). */
+  subtitle_tracks: SubtitleTrack[];
 }
 
 // ── Transcode lifecycle (server contract) ────────────────────────────────────

@@ -15,12 +15,18 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import type { StreamSubtitleTrack } from '@phlix/contracts';
+import type { SubtitleTrack } from '../../types/playback';
 
 interface SubtitleTrackListProps {
   visible: boolean;
-  /** Selectable subtitle tracks. */
-  tracks: StreamSubtitleTrack[];
+  /**
+   * Selectable subtitle tracks — the playback-info WIRE shape (contracts
+   * playback.ts `SubtitleTrack`, S404 ruling). S407: this picker previously
+   * typed the `Stream*` DB mirror and read `title`/`isForced`/`isDefault` —
+   * keys the subtitle wire NEVER emits (no forced/default concept; the
+   * display string is `label`, the only flag is `hearing_impaired`).
+   */
+  tracks: SubtitleTrack[];
   /** The currently active track id (null = subtitles off). */
   selected: string | null;
   /** Called with the chosen track id; the caller persists + swaps the stream. */
@@ -29,8 +35,11 @@ interface SubtitleTrackListProps {
 }
 
 /**
- * Bottom-sheet subtitle track picker for the native player. Displays
- * `StreamSubtitleTrack[]` with language, codec, and forced/default badges.
+ * Bottom-sheet subtitle track picker for the native player. Displays wire
+ * `SubtitleTrack[]` rows by their server-derived `label`, with codec and a
+ * hearing-impaired badge — the honest subset of what the playback-info wire
+ * actually emits (S404 ruling: there is no forced/default concept on subtitle
+ * rows; the old FORCED/DEFAULT badges read DB-mirror fiction keys).
  * Includes an "Off" option at the top to disable subtitles.
  */
 export const SubtitleTrackList: React.FC<SubtitleTrackListProps> = ({
@@ -89,22 +98,17 @@ export const SubtitleTrackList: React.FC<SubtitleTrackListProps> = ({
                   }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
-                  accessibilityLabel={`${track.title || track.language} ${track.isForced ? 'forced' : ''} ${track.isDefault ? 'default' : ''}`}
+                  accessibilityLabel={`${track.label}${track.hearing_impaired ? ' hearing impaired' : ''}`}
                 >
                   <View style={styles.rowContent}>
                     <View style={styles.rowHeader}>
                       <Text style={styles.rowText}>
-                        {track.title || track.language}
+                        {track.label}
                       </Text>
                       <View style={styles.badges}>
-                        {track.isForced && (
-                          <View style={styles.badgeForced}>
-                            <Text style={styles.badgeText}>FORCED</Text>
-                          </View>
-                        )}
-                        {track.isDefault && (
-                          <View style={styles.badgeDefault}>
-                            <Text style={styles.badgeText}>DEFAULT</Text>
+                        {track.hearing_impaired && (
+                          <View style={styles.badgeHearingImpaired}>
+                            <Text style={styles.badgeText}>HI</Text>
                           </View>
                         )}
                       </View>
@@ -192,13 +196,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
-  badgeForced: {
-    backgroundColor: '#5a3d00',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeDefault: {
+  badgeHearingImpaired: {
     backgroundColor: '#1a3d5a',
     paddingHorizontal: 6,
     paddingVertical: 2,

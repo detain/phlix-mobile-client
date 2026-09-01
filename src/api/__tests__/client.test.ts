@@ -9,7 +9,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { setActiveSessionId } from '../client';
+import { setActiveSessionId, absolutizeApiPath } from '../client';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 // Importing ../client constructs the ApiClient, which registers a request
 // interceptor on the mocked axios instance. We pull that interceptor back out
@@ -77,5 +78,36 @@ describe('ApiClient request interceptor', () => {
     await interceptor(config);
 
     expect(config.headers._store['X-Phlix-Session-ID']).toBe('sess-9');
+  });
+});
+
+// S407: subtitle rails carry a server-relative SIGNED path on the wire; the
+// native player is handed a bare URI, so absolutizeApiPath is the single join
+// point. Under jest, react-native-config is `{}` so the build-time root is the
+// hardcoded default and `getServerRoot()` returns it when the store is unset.
+describe('absolutizeApiPath (S407 signed-path join)', () => {
+  beforeEach(async () => {
+    await useSettingsStore.getState().setServerUrl('');
+  });
+
+  it('prefixes a server-relative signed path with the resolved root', () => {
+    const abs = absolutizeApiPath(
+      '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
+    );
+    expect(abs).toBe(
+      'https://api.phlix.app/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
+    );
+  });
+
+  it('passes an already-absolute URL through untouched (transcode synth rows)', () => {
+    const url = 'https://cdn.example/master/subtitle_en.vtt?sig=abc';
+    expect(absolutizeApiPath(url)).toBe(url);
+  });
+
+  it('honours a runtime server override', async () => {
+    await useSettingsStore.getState().setServerUrl('https://home.lan:8096/');
+    expect(absolutizeApiPath('/api/v1/media/9/subtitles/1')).toBe(
+      'https://home.lan:8096/api/v1/media/9/subtitles/1',
+    );
   });
 });

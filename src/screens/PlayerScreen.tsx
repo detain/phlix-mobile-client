@@ -37,7 +37,7 @@ import { QualityMenu } from '../components/player/QualityMenu';
 import { AudioTrackList } from '../components/player/AudioTrackList';
 import { SubtitleTrackList } from '../components/player/SubtitleTrackList';
 import { SleepTimerMenu, SleepTimerDisplay, useSleepTimer } from '../components/player/SleepTimer';
-import type { StreamAudioTrack, StreamSubtitleTrack } from '@phlix/contracts';
+import { absolutizeApiPath } from '../api/client';
 import {
   buildQualityOptions,
   resolveQualityUrl,
@@ -90,6 +90,25 @@ const dispatchPlayerCommand = (ref: React.RefObject<any>, command: string, args?
 // `currentTime` is SECONDS — convert at the SEND boundary only; the internal
 // seconds state and the native player keep seconds.
 const toSyncPlayPositionMs = (seconds: number): number => seconds * 1000;
+
+/**
+ * S407 NAMED REFUSAL (audio tracks): the picker persists the viewer's choice
+ * to the store, but APPLYING it to the native player is unsupported — the JS
+ * bridge exposes no audio-selection surface at all:
+ *  - iOS exports exactly 9 props (src/autoPlay/startPosition/volume/muted/
+ *    subtitleUrl/onPlaybackEvent/onProgress/onError) and 7 commands
+ *    (play/pause/seekTo/updateVolume/updateMuted/startPiP/stopPiP) —
+ *    `ios/LocalPods/PhlixPlayer/PhlixPlayerViewManager.m`, no
+ *    `selectMediaOption`/`AVAudioMediaSelectionOption` anywhere in the pod.
+ *  - Android `receiveCommand` handles ONLY play|pause|seekTo|setVolume|setMuted
+ *    — `android/app/src/main/java/com/phlixmobile/player/PhlixPlayerViewManager.kt`.
+ * Inventing a native method is out of bounds; the refusal is stated visibly at
+ * the picker instead. `src/screens/__tests__/NativeAudioSelectionBoundary.test.ts`
+ * pins the real bridge surface — if a native audio API ever lands, that test
+ * goes RED and this constant must be retired with it.
+ */
+export const AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE =
+  'Audio track choice is saved, but the native player has no audio-track switching API yet — it will apply once supported.';
 
 // P5-S5: Detect AccessSchedule (403) / StreamLimitExceeded (429) errors from API calls.
 // Returns { isAccessError: boolean, message: string } when detected, otherwise null.
@@ -170,23 +189,21 @@ const PlayerScreen: React.FC = () => {
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityOptions = buildQualityOptions(qualityVariants, qualityMasterUrl);
 
-  // ── E3: subtitles ────────────────────────────────────────────────────────
+  // ── E3 + S407: track rails — ONE source of truth: the player store ───────
+  // S407 killed the dead local mirrors that used to sit here: the pickers read
+  // the SAME store lists the buttons gate on and the subtitleUrl find() resolves
+  // against (feeding the modal a different list was the CC-button/picker duality
+  // bug — the button appeared while the picker stayed empty). Never reintroduce
+  // a parallel list.
   const subtitleTracksState = usePlayerStore((state) => state.subtitleTracks);
   const selectedSubtitleId = usePlayerStore((state) => state.currentSubtitleTrackId);
   const setSelectedSubtitleId = usePlayerStore((state) => state.setCurrentSubtitleTrackId);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
 
-  // ── P3B-S7: audio tracks (StreamAudioTrack from contracts v0.3.2) ────────
-  // Will be populated from media item streams API when available
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [audioTrackList, setAudioTrackList] = useState<StreamAudioTrack[]>([]);
-  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+  const audioTracksState = usePlayerStore((state) => state.audioTracks);
+  const selectedAudioTrackId = usePlayerStore((state) => state.currentAudioTrackId);
+  const setSelectedAudioTrackId = usePlayerStore((state) => state.setCurrentAudioTrackId);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
-
-  // ── P3B-S7: subtitle tracks (StreamSubtitleTrack from contracts v0.3.2) ─
-  // Will be populated from media item streams API when available
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [subtitleTrackList, setSubtitleTrackList] = useState<StreamSubtitleTrack[]>([]);
 
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -318,6 +335,13 @@ const PlayerScreen: React.FC = () => {
       transcodeAttempted.current = false;
       setPreparingTranscode(false);
       setTranscodeProgress(0);
+      // S407: every load starts from empty rails; playback-info (loadMarkers)
+      // is the one direct-play feeder and a transcode replaces the subtitle
+      // rail. Clearing here (not mid-stream) keeps a single writer per phase.
+      setSubtitleTracks([]);
+      setAudioTracks([]);
+      setSelectedSubtitleId(null);
+      setSelectedAudioTrackId(null);
       // G3: a fresh load has no ladder yet (only a transcode job produces one).
       setQualityVariants([]);
       setQualityMasterUrl('');
@@ -390,11 +414,9 @@ const PlayerScreen: React.FC = () => {
       };
 
       setStreamInfo(onlineStreamInfo);
-      // Direct-play subtitle/audio track lists are not exposed by the stream_url
-      // path; subtitles come from the transcode response when transcoding.
-      setSubtitleTracks([]);
-      setAudioTracks([]);
-      setSelectedSubtitleId(null);
+      // S407: no rail writes here. The direct-play rails come from the
+      // playback-info response loadMarkers feeds into the store; the old `[]`
+      // writes here raced that feeder and are why the pickers stayed empty.
       setPlayerStreamInfo(onlineStreamInfo);
     } catch (err) {
       // P5-S5: Check for access-schedule / stream-limit errors first.
@@ -414,15 +436,33 @@ const PlayerScreen: React.FC = () => {
   /**
    * Fetch intro/outro markers (SECONDS) for the SkipButton overlay via the
    * one-call playback-info route. Non-fatal: a failure just means no skip UI.
+   *
+   * S407: the SAME response carries `audio_tracks`/`subtitle_tracks` (the
+   * server always emits both keys — MediaItemController::getPlaybackInfo
+   * verified at 01340633), so this is the direct-play rails' ONE feeder —
+   * consume it here, do not re-fetch elsewhere. Precedence: a transcode rail
+   * (synth rows from the job's VTT set, see startTranscodeFallback) OWNS the
+   * subtitle list once the job started — a late playback-info response must not
+   * roll it back to rows describing the container that failed to direct-play.
+   * Audio rails have no transcode counterpart: this feeder owns them outright,
+   * including the clear on failure (stale previous-item rows must not linger).
    */
   const loadMarkers = async () => {
     try {
       const info = await markerManager.getPlaybackInfo(itemId);
       setIntroMarker(info.intro_marker);
       setOutroMarker(info.outro_marker);
+      setAudioTracks(info.audio_tracks);
+      if (!transcodeAttempted.current) {
+        setSubtitleTracks(info.subtitle_tracks);
+      }
     } catch {
       setIntroMarker(null);
       setOutroMarker(null);
+      setAudioTracks([]);
+      if (!transcodeAttempted.current) {
+        setSubtitleTracks([]);
+      }
     }
   };
 
@@ -476,8 +516,12 @@ const PlayerScreen: React.FC = () => {
       // (`{language,url}`): ordinals are positional, `label` takes the
       // server's display-string slot (exactly what the old fictional
       // `display_title` held — display behavior unchanged), and `source`
-      // marks the client-side provenance. Reconciling this picker with
-      // playback-info rows properly is S407 territory; the SHAPE is honest.
+      // marks the client-side provenance.
+      // S407 reconciliation (the handoff note above is now resolved): a
+      // transcode REPLACES the playback-info subtitle rail, it does not merge
+      // with it — the playable source is now the HLS master and only THESE
+      // rows describe its subtitles. loadMarkers honours this precedence
+      // (skips its subtitle feed once `transcodeAttempted.current` is set).
       const tracks: SubtitleTrack[] = subtitles.map((s, i) => ({
         id: `tx-${i}`,
         index: i,
@@ -688,8 +732,14 @@ const PlayerScreen: React.FC = () => {
   };
 
   // Resolve the absolute signed VTT URL for the selected subtitle track ('' = off).
-  const selectedSubtitleUrl =
+  // Playback-info rows carry a server-relative SIGNED path; the native player is
+  // handed a bare URI, so absolutize at this single prop boundary
+  // (`absolutizeApiPath` passes already-absolute transcode rows through).
+  const selectedSubtitleWireUrl =
     subtitleTracksState.find((t) => t.id === selectedSubtitleId)?.url ?? '';
+  const selectedSubtitleUrl = selectedSubtitleWireUrl
+    ? absolutizeApiPath(selectedSubtitleWireUrl)
+    : '';
 
   if (isLoading) {
     return (
@@ -831,8 +881,8 @@ const PlayerScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* P3B-S7: Audio track picker — shown when audio tracks are available */}
-              {audioTrackList.length > 0 && (
+              {/* P3B-S7 + S407: Audio track picker — gated on the SAME store rail the modal reads */}
+              {audioTracksState.length > 0 && (
                 <TouchableOpacity
                   style={[
                     styles.syncPlayButton,
@@ -915,10 +965,10 @@ const PlayerScreen: React.FC = () => {
         itemId={itemId}
       />
 
-      {/* P3B-S7: Subtitle track picker using contracts v0.3.2 types */}
+      {/* P3B-S7 + S407: Subtitle picker fed the SAME store rail the CC button gates on */}
       <SubtitleTrackList
         visible={showSubtitlePicker}
-        tracks={subtitleTrackList}
+        tracks={subtitleTracksState}
         selected={selectedSubtitleId}
         onSelect={(trackId) => {
           setSelectedSubtitleId(trackId);
@@ -926,14 +976,17 @@ const PlayerScreen: React.FC = () => {
         onClose={() => setShowSubtitlePicker(false)}
       />
 
-      {/* P3B-S7: Audio track picker using contracts v0.3.2 types */}
+      {/* P3B-S7 + S407: Audio picker fed the store rail. Selection PERSISTS;
+          applying it natively is the named refusal (footnote + bridge-boundary
+          test) — see AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE. */}
       <AudioTrackList
         visible={showAudioPicker}
-        tracks={audioTrackList}
+        tracks={audioTracksState}
         selected={selectedAudioTrackId}
         onSelect={(trackId) => {
           setSelectedAudioTrackId(trackId);
         }}
+        note={AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE}
         onClose={() => setShowAudioPicker(false)}
       />
 

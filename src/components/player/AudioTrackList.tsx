@@ -15,22 +15,33 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import type { StreamAudioTrack } from '@phlix/contracts';
+import type { AudioTrack } from '../../types/playback';
 
 interface AudioTrackListProps {
   visible: boolean;
-  /** Selectable audio tracks. */
-  tracks: StreamAudioTrack[];
+  /**
+   * Selectable audio tracks — the playback-info WIRE shape (contracts
+   * playback.ts `AudioTrack`, S404 ruling). The existing row reads
+   * (`title ?? language`, `channels`, `bitrate`, `codec`) are already
+   * wire-compatible; only the annotation moved off the `Stream*` DB mirror.
+   */
+  tracks: AudioTrack[];
   /** The currently active track id (null = no track selected / audio off). */
   selected: string | null;
-  /** Called with the chosen track id; the caller persists + swaps the stream. */
+  /** Called with the chosen track id; the caller persists + applies (or refuses) the choice. */
   onSelect: (trackId: string) => void;
+  /**
+   * S407: optional honest footnote shown in the sheet — the player screen uses
+   * it for the named audio-application refusal (selection persists; the native
+   * bridge has no audio-track switching surface yet).
+   */
+  note?: string;
   onClose: () => void;
 }
 
 /**
  * Bottom-sheet audio track picker for the native player. Displays
- * `StreamAudioTrack[]` with language, codec, channel count, and bitrate.
+ * wire `AudioTrack[]` rows with language, codec, channel count, and bitrate.
  * Uses BCP 47 language tags from the server's `bc_p47_language` column.
  */
 export const AudioTrackList: React.FC<AudioTrackListProps> = ({
@@ -38,6 +49,7 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
   tracks,
   selected,
   onSelect,
+  note,
   onClose,
 }) => {
   const formatChannels = (channels: number): string => {
@@ -46,7 +58,8 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
     return `${channels} ch`;
   };
 
-  const formatBitrate = (bitrate?: number): string => {
+  // The audio wire carries `bitrate` ALWAYS present, nullable (S404 ruling).
+  const formatBitrate = (bitrate: number | null): string => {
     if (!bitrate) return '';
     if (bitrate >= 1000000) return `${(bitrate / 1000000).toFixed(1)} Mbps`;
     if (bitrate >= 1000) return `${(bitrate / 1000).toFixed(0)} kbps`;
@@ -68,6 +81,8 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
           </View>
+
+          {note ? <Text style={styles.noteText}>{note}</Text> : null}
 
           <ScrollView style={styles.list}>
             {tracks.length === 0 && (
@@ -141,6 +156,11 @@ const styles = StyleSheet.create({
   },
   list: {
     maxHeight: 300,
+  },
+  noteText: {
+    color: '#c9a227',
+    fontSize: 12,
+    marginBottom: 10,
   },
   emptyText: {
     color: '#888',
