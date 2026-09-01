@@ -5,6 +5,18 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W22 currency re-pin (manifest provenance → server 01340633)
+
+- **`src/api/test/server-route-manifest.json`** re-vendored from the merged
+  `@phlix/contracts` master export (regen `068d5e86`, shipped untagged): the
+  400-tuple SET is byte-identical — only provenance moved (server master is
+  one CI-only commit above `8f72faec`). New vendored md5
+  `6ea0eac92bfb0632d986b122608b9acc`; the gate's serverSha pin follows to
+  `01340633`. No package.json pin move (gate reads the vendored copy); all
+  coverage pins (171 sites / 167 tuples / 19 modules incl.
+  `RecommendationsScreen.tsx: 1`) stayed green UNTOUCHED. jest 1151 baseline
+  preserved.
+
 ### Added — S280 client route gate (mobile half)
 
 - **`src/api/test/server-route-manifest.json`** — vendored byte-for-byte from
