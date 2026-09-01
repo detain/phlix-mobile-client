@@ -35,22 +35,24 @@ export interface StreamInfo {
   duration_seconds: number;
 }
 
-export interface SubtitleTrack {
-  id: string;
-  codec: string;
-  language: string;
-  display_title: string;
-  url?: string;
-}
-
-export interface AudioTrack {
-  id: string;
-  codec: string;
-  language: string;
-  display_title: string;
-  channels: number;
-  url?: string;
-}
+/**
+ * Track shapes — S404 local-mirror retirement.
+ *
+ * This file used to RE-DECLARE `SubtitleTrack`/`AudioTrack` with a required
+ * `display_title` (and optional `url`). That pair was a fiction: phlix-server's
+ * authoritative `StreamTrackShaper` (verified at `01340633`) never emitted a
+ * `display_title` key (zero hits in server `src/`). `@phlix/contracts` v0.4.5
+ * corrected its playback.ts pair to the honest wire shape, so the local
+ * mirror is retired and the wire types are re-exported verbatim — audio rows
+ * carry `id, index, stream_index, codec, language, channels,
+ * bitrate (always, nullable), title (nullable), default`; subtitle rows carry
+ * `id, index, stream_index, language, label, codec, source, hearing_impaired,
+ * url (signed path, null without itemId)`. Consumers that display a track
+ * read `label` (subtitle) / `title ?? language` (audio) — never a key the
+ * wire does not emit. The PlayerScreen transcode picker builds its rows in
+ * exactly that honest shape.
+ */
+export type { AudioTrack, SubtitleTrack } from '@phlix/contracts';
 
 /** Skip marker boundaries — populated from /api/v1/media/{id}/playback-info. */
 export interface SkipMarkers {

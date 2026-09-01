@@ -173,3 +173,32 @@ native-side enhancement, not a gap in this feature.
   lane report). KNOWN LIMIT: no device/emulator on the build box — the
   frame's path through the consumer into the player load is proven at the
   component/store level; pixel playback is unobservable here.
+
+### Fixed — S404 track-shape alignment (local mirror retired)
+
+- **`src/types/playback.ts` re-declared `SubtitleTrack`/`AudioTrack` with a
+  required `display_title` — a key phlix-server has NEVER emitted**
+  (`StreamTrackShaper` is the wire authority, verified at server `01340633`;
+  `display_title`: zero hits in server `src/`). The mirror is retired: the
+  file now re-exports the corrected `@phlix/contracts` v0.4.5 playback.ts
+  pair verbatim (audio: `id, index, stream_index, codec, language, channels,
+  bitrate (always present, nullable), title (nullable), default`; subtitle:
+  `id, index, stream_index, language, label, codec, source, hearing_impaired,
+  url (nullable)`).
+- **`PlayerScreen`'s transcode subtitle rows now carry the full honest wire
+  shape** (the old hand-literal held `display_title: s.language`; the display
+  string moves to `label` — same value, same rendering; ordinals positional,
+  `source: 'transcode'` marks client provenance). Behavior unchanged.
+- **`@phlix/contracts` pinned to v0.4.5** (lockfile resolves the tag to the
+  merge squash; the vendored route manifest shipped in the bundle stays
+  byte-identical, md5 `cca4660dda7876fba840f9d108ad7c18`).
+- **Tests rewritten honestly (not deleted)**: the `src/types/__tests__/playback.test.ts`
+  track fixtures now pin the nine-key wire shapes plus compile-time ABSENCE
+  pins (`display_title`/`title`-on-subtitle must never come back — gated by
+  `tsc`, the file's documented executing check); the `usePlayerStore` track
+  fixtures carry full wire rows. `tsc --noEmit` clean, eslint clean (2
+  pre-existing disable-comment warnings unchanged), jest 76 suites /
+  1151 passed + 1 skipped, metro android bundle emitted.
+- Out of scope by ruling: the DEAD `audioTrackList`/`subtitleTrackList`
+  pickers (setters have zero call sites; components still type against the
+  `Stream*` DB mirrors) — wiring is S407.

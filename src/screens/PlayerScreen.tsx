@@ -470,11 +470,23 @@ const PlayerScreen: React.FC = () => {
       setPlayerStreamInfo(hlsStreamInfo);
 
       // Expose the signed VTT tracks from the transcode response as a picker.
+      // S404: rows carry the honest wire `SubtitleTrack` shape (contracts
+      // v0.4.5 = the StreamTrackShaper emission). These particular rows are
+      // client-synthesised from the transcode `subtitles[]` envelope
+      // (`{language,url}`): ordinals are positional, `label` takes the
+      // server's display-string slot (exactly what the old fictional
+      // `display_title` held — display behavior unchanged), and `source`
+      // marks the client-side provenance. Reconciling this picker with
+      // playback-info rows properly is S407 territory; the SHAPE is honest.
       const tracks: SubtitleTrack[] = subtitles.map((s, i) => ({
         id: `tx-${i}`,
-        codec: 'vtt',
+        index: i,
+        stream_index: i,
         language: s.language,
-        display_title: s.language,
+        label: s.language,
+        codec: 'vtt',
+        source: 'transcode',
+        hearing_impaired: false,
         url: s.url,
       }));
       setSubtitleTracks(tracks);
