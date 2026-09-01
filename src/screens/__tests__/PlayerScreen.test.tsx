@@ -23,8 +23,17 @@
 //
 // All I/O collaborators (stores, managers, services) are mocked as inert stubs
 // so no hook/renderer internals or network run during a pass.
+//
+// S407 added the track-picker fake-transport arms: the mocked
+// `markerManager.getPlaybackInfo` is the FAKE WIRE — it resolves payloads
+// built from the contracts golden vectors (provenance comment on the
+// constants below) and the assertions run through the REAL PlayerScreen
+// wiring (feed → store → picker props / native `subtitleUrl` prop).
 
 import { AUTO_QUALITY } from '@phlix/contracts';
+import type { AudioTrack, SubtitleTrack } from '../../types/playback';
+import { SubtitleTrackList } from '../../components/player/SubtitleTrackList';
+import { AudioTrackList } from '../../components/player/AudioTrackList';
 
 // ── controlled hook host ──────────────────────────────────────────────────
 // A minimal, single-component hooks runtime. Slots are keyed by call order,
@@ -155,7 +164,10 @@ jest.mock('../../stores/usePlayerStore', () => {
   const state = {
     subtitleTracks: [] as unknown[],
     currentSubtitleTrackId: null as string | null,
+    audioTracks: [] as unknown[],
+    currentAudioTrackId: null as string | null,
     setCurrentSubtitleTrackId: jest.fn(),
+    setCurrentAudioTrackId: jest.fn(),
     setStreamInfo: jest.fn(),
     setSubtitleTracks: jest.fn(),
     setAudioTracks: jest.fn(),
@@ -165,6 +177,18 @@ jest.mock('../../stores/usePlayerStore', () => {
   };
   return { __state: state, usePlayerStore: (sel: (s: unknown) => unknown) => sel(state) };
 });
+
+// S407: the screen joins relative wire paths to the server root at the native
+// prop boundary via api/client. Hermetic stub here (the REAL join arithmetic is
+// unit-pinned in src/api/__tests__/client.test.ts); the screen test asserts the
+// boundary is EXERCISED — a relative path comes out prefixed, an absolute one
+// passes through.
+jest.mock('../../api/client', () => ({
+  absolutizeApiPath: (pathOrUrl: string) =>
+    pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')
+      ? pathOrUrl
+      : `https://srv.test${pathOrUrl}`,
+}));
 
 jest.mock('../../store/syncplayStore', () => {
   const state = {
@@ -205,7 +229,7 @@ jest.mock('../../api/SyncPlayManager', () => ({
 // useRoute/useNavigation are mocked globally in jest.setup.js (params: {}).
 
 // Import AFTER the mocks are registered (jest hoists the mock calls).
-import PlayerScreen from '../PlayerScreen';
+import PlayerScreen, { AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE } from '../PlayerScreen';
 
 const mockSettings = (jest.requireMock('../../stores/useSettingsStore') as any).__state as {
   defaultQuality: string;
@@ -214,6 +238,12 @@ const mockSettings = (jest.requireMock('../../stores/useSettingsStore') as any).
 const mockPlayerStore = (jest.requireMock('../../stores/usePlayerStore') as any).__state as {
   subtitleTracks: unknown[];
   currentSubtitleTrackId: string | null;
+  audioTracks: unknown[];
+  currentAudioTrackId: string | null;
+  setSubtitleTracks: jest.Mock;
+  setCurrentSubtitleTrackId: jest.Mock;
+  setAudioTracks: jest.Mock;
+  setCurrentAudioTrackId: jest.Mock;
 };
 const mockPlaybackManager = (jest.requireMock('../../api/PlaybackManager') as any)
   .playbackManager as { getStreamUrl: jest.Mock };
@@ -286,6 +316,81 @@ const findSeekBar = (tree: unknown): El | null =>
     (el) => typeof el.props.onSeek === 'function' && typeof el.props.currentTime === 'number',
   );
 
+// S407: the picker modals are identifiable by their component reference — the
+// hook host keeps the tree as unrendered elements, so `el.type` IS the real
+// picker function imported above.
+const findRailModal = (tree: unknown, component: unknown): El | null =>
+  findEl(tree, (el) => el.type === component);
+
+// Top-bar affordances by their accessibility labels.
+const findButton = (tree: unknown, label: string): El | null =>
+  findEl(tree, (el) => el.props.accessibilityLabel === label);
+
+// ── S407 fake-transport payload ───────────────────────────────────────────
+// Golden values copied from contracts `test/fixtures/stream-track-vectors.json`
+// @ 068d5e86 (provenance: phlix-server 01340633, StreamTrackShaper dump).
+// Audio: case `stored-default-on-second-nullables-passthrough`.
+// Subtitle: case `embedded-text-codecs-bitmap-skipped-but-counted` — the
+// fixture stores PATH-ONLY urls (the signer's `?exp=<digits>&sig=<base64url>`
+// is stripped at dump time); the documented mint form is re-appended here so
+// the payload matches what the client actually reads off the wire.
+const GOLDEN_AUDIO_TRACKS: AudioTrack[] = [
+  {
+    id: 'as-1',
+    index: 0,
+    stream_index: 1,
+    codec: 'eac3',
+    language: 'en',
+    channels: 6,
+    bitrate: 640000,
+    title: null,
+    default: false,
+  },
+  {
+    id: 'as-2',
+    index: 1,
+    stream_index: 2,
+    codec: 'aac',
+    language: 'en',
+    channels: 2,
+    bitrate: 128000,
+    title: 'Commentary',
+    default: true,
+  },
+];
+const GOLDEN_SUBTITLE_TRACKS: SubtitleTrack[] = [
+  {
+    id: 'ss-1',
+    index: 0,
+    stream_index: 1,
+    language: 'eng',
+    label: 'eng',
+    codec: 'subrip',
+    source: null,
+    hearing_impaired: true,
+    url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
+  },
+  {
+    id: 'ss-2',
+    index: 2,
+    stream_index: 4,
+    language: 'spa',
+    label: 'Español (Forzada)',
+    codec: 'mov_text',
+    source: null,
+    hearing_impaired: false,
+    url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
+  },
+];
+const GOLDEN_PLAYBACK_INFO = {
+  item_id: '11111111-2222-3333-4444-555555555555',
+  intro_marker: null,
+  outro_marker: null,
+  chapters: [],
+  audio_tracks: GOLDEN_AUDIO_TRACKS,
+  subtitle_tracks: GOLDEN_SUBTITLE_TRACKS,
+};
+
 // Press the center play/pause control (props are untyped; cast like onProgress).
 const pressPlayPause = (tree: unknown): void => {
   const control = findPlayPauseControl(tree);
@@ -333,11 +438,34 @@ beforeEach(() => {
   mockSettings.defaultQuality = AUTO_QUALITY;
   mockPlayerStore.subtitleTracks = [];
   mockPlayerStore.currentSubtitleTrackId = null;
+  mockPlayerStore.audioTracks = [];
+  mockPlayerStore.currentAudioTrackId = null;
+  // S407: make the fake store ROUND-TRIP the rail writes (like zustand does),
+  // so a rerender observes the playback-info feed end-to-end — feed → store →
+  // picker props / native `subtitleUrl` prop.
+  mockPlayerStore.setSubtitleTracks.mockImplementation((tracks: unknown[]) => {
+    mockPlayerStore.subtitleTracks = tracks;
+  });
+  mockPlayerStore.setCurrentSubtitleTrackId.mockImplementation((id: string | null) => {
+    mockPlayerStore.currentSubtitleTrackId = id;
+  });
+  mockPlayerStore.setAudioTracks.mockImplementation((tracks: unknown[]) => {
+    mockPlayerStore.audioTracks = tracks;
+  });
+  mockPlayerStore.setCurrentAudioTrackId.mockImplementation((id: string | null) => {
+    mockPlayerStore.currentAudioTrackId = id;
+  });
   mockDownloadService.getItemLocalPath.mockReturnValue(null);
   mockPlaybackManager.getStreamUrl.mockResolvedValue('https://cdn/direct.mp4');
+  // Honest default: the server ALWAYS emits both rails (S407 type pin), so the
+  // stub carries the full shape even when a test does not exercise rails.
   mockMarkerManager.getPlaybackInfo.mockResolvedValue({
+    item_id: 'm-test',
     intro_marker: null,
     outro_marker: null,
+    chapters: [],
+    audio_tracks: [],
+    subtitle_tracks: [],
   });
   mockTranscodeManager.prepare.mockReturnValue({
     promise: Promise.resolve(LADDER),
@@ -493,5 +621,143 @@ describe('PlayerScreen — S293 SyncPlay send boundaries (seconds → ms)', () =
     const h = await bootAt42_5s();
     // SeekBar is fed the internal seconds state — conversion must NOT leak in.
     expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(42.5);
+  });
+});
+
+// ── S407: the track pickers are fed by the REAL playback-info payload ──────
+// The mocked `markerManager.getPlaybackInfo` is the fake wire; every assertion
+// below runs through the real PlayerScreen wiring. The subtitle picker ships
+// the OBSERVABLE-EFFECT arm (selection drives the native `subtitleUrl` prop —
+// iOS PhlixPlayerView.swift didSet→reload / Android SubtitleConfiguration).
+// The audio picker ships the NAMED-REFUSAL arm (the native bridge exposes no
+// audio-track switching surface — see NativeAudioSelectionBoundary.test.ts);
+// selection persists to the store and the refusal note reaches the modal.
+describe('PlayerScreen — S407 track pickers fed by playback-info', () => {
+  async function bootWithTracks() {
+    mockMarkerManager.getPlaybackInfo.mockResolvedValue(GOLDEN_PLAYBACK_INFO);
+    const h = mount();
+    h.render();
+    await flush();
+    h.rerender();
+    return h;
+  }
+
+  it('feeds BOTH rails into the store from the fake playback-info payload', async () => {
+    const h = await bootWithTracks();
+    expect(mockPlayerStore.subtitleTracks).toEqual(GOLDEN_SUBTITLE_TRACKS);
+    expect(mockPlayerStore.audioTracks).toEqual(GOLDEN_AUDIO_TRACKS);
+    // And the setters actually ran (not a silent drop).
+    expect(mockPlayerStore.setSubtitleTracks).toHaveBeenCalledWith(GOLDEN_SUBTITLE_TRACKS);
+    expect(mockPlayerStore.setAudioTracks).toHaveBeenCalledWith(GOLDEN_AUDIO_TRACKS);
+    h.host.unmount();
+  });
+
+  it('kills the button/picker duality: CC button gate and modal read the SAME store rail', async () => {
+    const h = await bootWithTracks();
+    const ccButton = findButton(h.host.tree, 'Subtitles');
+    expect(ccButton).not.toBeNull(); // store rail non-empty ⇒ button shows
+    const modal = findRailModal(h.host.tree, SubtitleTrackList);
+    expect(modal).not.toBeNull();
+    expect(modal!.props.tracks).toBe(mockPlayerStore.subtitleTracks); // identical reference
+  });
+
+  it('subtitle selection has an OBSERVABLE EFFECT: the native subtitleUrl prop becomes the absolutized signed path', async () => {
+    const h = await bootWithTracks();
+    const playerBefore = findPlayer(h.host.tree);
+    expect(playerBefore!.props.subtitleUrl).toBe(''); // off by default
+
+    const modal = findRailModal(h.host.tree, SubtitleTrackList);
+    (modal!.props.onSelect as (id: string | null) => void)('ss-1');
+    h.rerender();
+
+    const player = findPlayer(h.host.tree);
+    // The wire row carries a RELATIVE signed path; the boundary absolutizes it.
+    expect(player!.props.subtitleUrl).toBe(
+      `https://srv.test${GOLDEN_SUBTITLE_TRACKS[0].url}`,
+    );
+    h.host.unmount();
+  });
+
+  it('subtitle OFF row resets the observable effect to empty string', async () => {
+    const h = await bootWithTracks();
+    const modal = findRailModal(h.host.tree, SubtitleTrackList);
+    (modal!.props.onSelect as (id: string | null) => void)('ss-2');
+    h.rerender();
+    (modal!.props.onSelect as (id: string | null) => void)(null);
+    h.rerender();
+    expect(findPlayer(h.host.tree)!.props.subtitleUrl).toBe('');
+    h.host.unmount();
+  });
+
+  it('AUDIO picker carries the named refusal note into the modal', async () => {
+    const h = await bootWithTracks();
+    const modal = findRailModal(h.host.tree, AudioTrackList);
+    expect(modal).not.toBeNull();
+    expect(modal!.props.note).toBe(AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE);
+    h.host.unmount();
+  });
+
+  it('AUDIO selection PERSISTS to the store but emits NO native audio surface (named refusal)', async () => {
+    const h = await bootWithTracks();
+    const modal = findRailModal(h.host.tree, AudioTrackList);
+    // The picker is POPULATED (fake transport → store → modal), not phantom.
+    expect(modal!.props.tracks).toEqual(GOLDEN_AUDIO_TRACKS);
+    (modal!.props.onSelect as (id: string) => void)('as-2');
+    h.rerender();
+    // Choice is remembered (store round-trip)...
+    expect(mockPlayerStore.currentAudioTrackId).toBe('as-2');
+    // ...but the native player receives NO audio prop — the ONLY track-ish
+    // prop it carries is subtitleUrl. A phantom `audioTrackId`/`audioUrl` on
+    // the native element would mean the refusal was faked away.
+    const player = findPlayer(h.host.tree)!;
+    const nativeAudioProp = Object.keys(player.props).find(
+      (k) => /audio/i.test(k) && k !== 'autoPlay',
+    );
+    expect(nativeAudioProp).toBeUndefined();
+    h.host.unmount();
+  });
+
+  // Rail precedence (named in PlayerScreen): the transcode synth rail OWNS the
+  // subtitle list once the job started; a late playback-info response must not
+  // roll it back to rows describing the container that failed to direct-play.
+  it('a late playback-info does NOT roll back a started transcode subtitle rail; audio still feeds', async () => {
+    let releasePlaybackInfo: (value: unknown) => void = () => {};
+    mockMarkerManager.getPlaybackInfo.mockReturnValue(
+      new Promise((resolve) => {
+        releasePlaybackInfo = resolve;
+      }),
+    );
+    // Transcode carries one signed VTT row so the synth rail is observable.
+    mockTranscodeManager.prepare.mockReturnValue({
+      promise: Promise.resolve({
+        ...LADDER,
+        subtitles: [{ language: 'en', url: 'https://cdn.example/sub_en.vtt?sig=x' }],
+      }),
+      cancel: jest.fn(),
+    });
+    const h = mount();
+    h.render();
+    await flush();
+    h.rerender();
+    // Direct play is up, playback-info still in flight; force the fallback.
+    await triggerTranscode(h);
+    // Now the late wire response lands.
+    releasePlaybackInfo(GOLDEN_PLAYBACK_INFO);
+    await flush();
+    h.rerender();
+
+    // Subtitle rail: still the single synth row (id tx-0), NOT the 2 wire rows.
+    expect(mockPlayerStore.subtitleTracks).toHaveLength(1);
+    expect((mockPlayerStore.subtitleTracks[0] as { id: string }).id).toBe('tx-0');
+    // The synth URL is already ABSOLUTE — the boundary passes it through.
+    const modal = findRailModal(h.host.tree, SubtitleTrackList);
+    (modal!.props.onSelect as (id: string | null) => void)('tx-0');
+    h.rerender();
+    expect(findPlayer(h.host.tree)!.props.subtitleUrl).toBe(
+      'https://cdn.example/sub_en.vtt?sig=x',
+    );
+    // Audio rail: playback-info is its ONLY feeder — it arrives regardless.
+    expect(mockPlayerStore.audioTracks).toEqual(GOLDEN_AUDIO_TRACKS);
+    h.host.unmount();
   });
 });

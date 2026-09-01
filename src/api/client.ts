@@ -55,6 +55,23 @@ const getBaseUrl = (): string => `${getServerRoot()}${API_PREFIX}`;
 export const getApiBaseUrl = (): string => getBaseUrl();
 
 /**
+ * S407: Absolutize a server-relative wire path against the resolved server
+ * root. The playback-info subtitle rows carry a SIGNED PATH
+ * (`/api/v1/media/{id}/subtitles/{ordinal}?exp&sig` — StreamTrackShaper), but
+ * the native players are handed a bare URI (no axios baseURL involved), so a
+ * relative path would never resolve on-device. Rows that are already absolute
+ * (the transcode-synth VTT URLs) pass through untouched. This is the single
+ * choke point for that join — callers pass the raw wire `url`, never a
+ * hand-joined literal.
+ */
+export const absolutizeApiPath = (pathOrUrl: string): string => {
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+    return pathOrUrl;
+  }
+  return `${getServerRoot()}${pathOrUrl}`;
+};
+
+/**
  * Build the same Phlix device + auth headers the axios interceptor attaches,
  * for a manual `fetch`. Reads the access token from AsyncStorage.
  */
