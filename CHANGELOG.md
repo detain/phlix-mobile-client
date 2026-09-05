@@ -5,6 +5,16 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W34 (cs20retag) currency re-pin (manifest provenance → server f35a5742) — 2026-09-05
+
+- **cs#20 currency leg of the combined re-tag wave.** `src/api/test/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `f2e284b3` (regen against server master
+  `f35a5742` — the web-ui `@phlix/ui` v0.99.1 re-pin commit: zero PHP, zero route hunks; previous
+  provenance `2250def2`/`3a253991`). The 400-tuple SET is byte-identical — only provenance moved.
+  The gate's serverSha pin follows to `f35a5742` in `src/api/test/routeManifest.gate.test.ts`
+  (it-title + full-sha assertion); this gate keeps its no-md5 posture. All count pins (400/400,
+  generator string) and coverage pins untouched. No version or install-pin moves in this repo.
+
 ### Changed — W33 (cs19) currency re-pin (manifest provenance → server 3a253991) — 2026-09-05
 
 - **cs#19 currency cascade.** `src/api/test/server-route-manifest.json`
