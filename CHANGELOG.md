@@ -5,6 +5,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W31 (cs18) currency re-pin (manifest provenance → server e74cdc88) — 2026-09-05
+
+- **cs#18 currency cascade.** `src/api/test/server-route-manifest.json`
+  re-vendored verbatim from `@phlix/contracts` master `51ed6cd3` (regen
+  against server master `e74cdc88`; previous provenance `4b620f59`). The
+  400-tuple SET is byte-identical — only provenance moved. The gate's
+  serverSha pin follows to `e74cdc88` in `src/api/test/routeManifest.gate.test.ts`
+  (this gate pins provenance sha, not md5). No coverage-pin move was needed.
+
 ### Changed — W29 (cs17) currency re-pin (manifest provenance → server 4b620f59) — 2026-09-04
 
 - **cs#17 currency cascade.** `src/api/test/server-route-manifest.json`
