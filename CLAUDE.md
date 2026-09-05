@@ -25,11 +25,13 @@ Metro cache reset: `npm start -- --reset-cache`. Android clean: `cd android && .
 
 ## Layout
 
-**Entry**: `index.js` → `src/App.tsx` (wraps `GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
+**Entry**: `index.js` → `src/App.tsx` (wraps `GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`; also boots the hub-relay consumer via `startHubRelayConsumer`/`stopHubRelayConsumer`). `app.json` registers `PhlixMobile`.
 
 See the source tree for the full `src/api/`, `src/stores/`, `src/screens/`, `src/components/`, `src/types/`, `src/services/`, and native module breakdown — the canonical per-file documentation lives inline in this file's original sections and in `@./DEVELOPER.md`.
 
-**`src/components/`** player subdir: `player/{PlayerControls,SeekBar,SkipButton,QualityMenu,SleepTimer,SubtitleTrackList,AudioTrackList}.tsx` — `QualityMenu.tsx` [G3] is the bottom-sheet quality picker (logic in the pure sibling `player/quality.ts`); **`SleepTimer.tsx`** is the sleep-timer picker wired into `PlayerScreen.tsx` (iOS timer support bridged via `ios/LocalPods/PhlixPlayer/PhlixPlayerView.swift` + `PhlixPlayerViewManager.m`); **`SubtitleTrackList.tsx`/`AudioTrackList.tsx`** [P3B-S7] are the subtitle- and audio-track selection lists wired into `PlayerScreen.tsx` and re-exported from `src/components/player/index.ts`. **`src/components/syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx`** [P8-S4] (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` (re-exported from `src/api/index.ts`) and the fan-out coordinator `src/syncplay/SyncPlayService.ts`. **`src/screens/WatchHistoryScreen.tsx`** is the watch-history screen backed by `src/stores/useWatchHistoryStore.ts`, reached from `src/screens/SettingsScreen.tsx`, registered in `src/navigation/RootNavigator.tsx` with params in `src/types/navigation.ts`.
+**`src/components/`** player subdir: `player/{PlayerControls,SeekBar,SkipButton,QualityMenu,SleepTimer,SubtitleTrackList,AudioTrackList}.tsx` — `QualityMenu.tsx` [G3] is the bottom-sheet quality picker (logic in the pure sibling `player/quality.ts`); **`SleepTimer.tsx`** is the sleep-timer picker wired into `PlayerScreen.tsx` (iOS timer support bridged via `ios/LocalPods/PhlixPlayer/PhlixPlayerView.swift` + `PhlixPlayerViewManager.m`); **`SubtitleTrackList.tsx`/`AudioTrackList.tsx`** [P3B-S7] are the subtitle- and audio-track selection lists wired into `PlayerScreen.tsx` and re-exported from `src/components/player/index.ts` — both read the wire rails `usePlayerStore` is fed from `GET /api/v1/media/{id}/playback-info` (subtitles by `label` + `hearing_impaired`; audio by `title ?? language`). **`src/components/syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx`** [P8-S4] (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` (re-exported from `src/api/index.ts`) and the fan-out coordinator `src/syncplay/SyncPlayService.ts`. **`src/screens/WatchHistoryScreen.tsx`** is the watch-history screen backed by `src/stores/useWatchHistoryStore.ts`, reached from `src/screens/SettingsScreen.tsx`, registered in `src/navigation/RootNavigator.tsx` with params in `src/types/navigation.ts`.
+
+**`src/syncplay/` + `src/hub/` + `src/store/`** [S298]: `syncplay/hubRelay.ts` (`openHubRelayConnection`/`closeHubRelayConnection`/`parsePendingCommandFrame`/`buildHubRelayUrl`, `HUB_SYNC_PLAY_PORT = 8804`) and `syncplay/HubRelayConsumer.ts` (`startHubRelayConsumer`/`stopHubRelayConsumer`) are the hub-relay `pending_command` socket; relay tokens come from `src/hub/RelayTokenProvider.ts` (`createHubRelayTokenProvider`), delivered frames park on `src/store/syncplayStore.ts` (`pendingPlayMedia`, `applyPendingPlayMedia`/`consumePendingPlayMedia`), and the consumer navigates through the `navigationRef` created in `src/navigation/RootNavigator.tsx` and re-exported from `src/navigation/index.ts`. Note `src/store/` (singular) is a separate directory from the Zustand `src/stores/`.
 
 > NOTE: This is a condensed regeneration. The full per-file API/store/screen/type documentation is maintained in the repository's committed CLAUDE.md history and `@./DEVELOPER.md`; do not treat this condensed layout as authoritative over those.
 
@@ -41,6 +43,10 @@ See the source tree for the full `src/api/`, `src/stores/`, `src/screens/`, `src
 - **Screens**: wrap in `<SafeContainer edges={['top']}>`, handle `isLoading`/`error` with `<LoadingSpinner fullScreen />` / `<ErrorView onRetry={...}>` / `<EmptyState>`.
 - **Stores**: `create<State>((set, get) => ({...}))`, expose `setX` mutators, async actions wrap in try/catch and set `error`/`isLoading`.
 - **API managers**: classes with async methods returning typed promises, exported as `export const xManager = new XManager(); export default xManager;`.
+- **Wire types come from `@phlix/contracts`** (pinned `github:detain/phlix-contracts#v0.4.5`, alongside `@phlix/syncplay#v0.1.4`): `src/types/playback.ts` re-exports `AudioTrack`/`SubtitleTrack` verbatim rather than declaring a local mirror, and `TranscodeJob`/`TranscodeStatus` carry no `dash_url` — do not re-add it, not even as optional.
+- **Request bodies are snake_case too**: `src/types/parental.ts` uses `start_time`/`end_time`/`days_of_week`/`is_active`/`tag_type`, and `profileId` is a CHAR(36) UUID string (the wire's `profile_id` is mapped on read in `src/api/ParentalControlsManager.ts`).
+- **SyncPlay wire positions are milliseconds** — convert at the send boundary only (`toSyncPlayPositionMs` in `src/screens/PlayerScreen.tsx`); store state and the native player stay in seconds. The HTTP surface is `/syncplay/groups`, never `/syncplay/rooms`.
+- **Server-relative signed paths** (the playback-info subtitle `url`) go through `absolutizeApiPath` from `src/api/client.ts` before reaching a native player — never hand-join a base URL.
 - **AsyncStorage keys**: prefixed `phlix_`.
 - **Time units**: ticks are 100ns (divide by `10000000` for seconds, by `600000000` for minutes).
 - **Navigation params**: declared in `src/types/navigation.ts`.
@@ -48,6 +54,8 @@ See the source tree for the full `src/api/`, `src/stores/`, `src/screens/`, `src
 ## Testing
 
 Jest preset `react-native` (`jest.config.js`). Setup in `jest.setup.js`. Test layout: `src/<dir>/__tests__/<file>.test.ts`. `moduleNameMapper`: `^@/(.*)$` → `<rootDir>/src/$1`.
+
+Route gate: `src/api/test/routeManifest.gate.test.ts` (a `test/` dir, not `__tests__/`) pins every URL this client can put on the wire tuple-exact against `src/api/test/server-route-manifest.json` — a byte-for-byte copy of `@phlix/contracts` `dist/server-route-manifest.json`. Re-vendor that file from contracts and move its `serverSha` pin; never regenerate it from this client.
 
 ```bash
 npm test                                       # run full jest suite

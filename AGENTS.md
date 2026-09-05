@@ -23,15 +23,19 @@ Metro reset: `npm start -- --reset-cache`. Android clean: `cd android && ./gradl
 
 ## Layout
 
-**Entry**: `index.js` → `src/App.tsx` (`GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`). `app.json` registers `PhlixMobile`.
+**Entry**: `index.js` → `src/App.tsx` (`GestureHandlerRootView` + `SafeAreaProvider` + `RootNavigator`; also boots the hub-relay consumer with `startHubRelayConsumer`/`stopHubRelayConsumer`). `app.json` registers `PhlixMobile`.
 
-**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `TranscodeManager.ts` (`startTranscode`/`prepare()`; `prepare()`'s result carries `variants: Rendition[]`, the ABR quality ladder consumed by `PlayerScreen`'s `QualityMenu`) · `SyncPlayManager.ts` (SyncPlay group-watch backend; re-exported from `index.ts`) · `index.ts`.
+**`src/api/`**: `client.ts` (axios, `BASE_URL = 'https://api.phlix.app'`, 30s timeout, auth + 401-refresh interceptors; also exports `absolutizeApiPath` for server-relative signed wire paths handed to a native player) · `AuthManager.ts` · `LibraryManager.ts` · `PlaybackManager.ts` · `TranscodeManager.ts` (`startTranscode`/`prepare()`; `prepare()`'s result carries `variants: Rendition[]`, the ABR quality ladder consumed by `PlayerScreen`'s `QualityMenu`) · `SyncPlayManager.ts` (SyncPlay group-watch backend over the `/syncplay/groups` rails; re-exported from `index.ts`) · `index.ts`. `src/api/test/routeManifest.gate.test.ts` pins every client URL tuple-exact against the vendored `src/api/test/server-route-manifest.json`.
 
-**`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts`. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
+**`src/stores/`** (Zustand): `useAuthStore.ts` · `usePlayerStore.ts` (carries the `audioTracks`/`subtitleTracks` rails and `currentAudioTrackId`/`currentSubtitleTrackId`) · `useLibraryStore.ts` · `useSettingsStore.ts` · `index.ts`. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
 **`src/screens/`**: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
 
 **`src/components/`** syncplay subdir: `syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx` (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` and the fan-out coordinator `src/syncplay/SyncPlayService.ts`.
+
+**`src/syncplay/` + `src/hub/` + `src/store/`**: `syncplay/hubRelay.ts` (`openHubRelayConnection`/`closeHubRelayConnection`/`parsePendingCommandFrame`/`buildHubRelayUrl`, `HUB_SYNC_PLAY_PORT = 8804`) and `syncplay/HubRelayConsumer.ts` (`startHubRelayConsumer`/`stopHubRelayConsumer`) are the hub-relay `pending_command` socket; tokens come from `src/hub/RelayTokenProvider.ts` (`createHubRelayTokenProvider`), delivered frames park on `src/store/syncplayStore.ts` (`pendingPlayMedia`, `applyPendingPlayMedia`/`consumePendingPlayMedia`) and navigate through the `navigationRef` re-exported from `src/navigation/index.ts`. `src/store/` (singular) is a separate directory from the Zustand `src/stores/`.
+
+**Wire contracts**: `@phlix/contracts` (`github:detain/phlix-contracts#v0.4.5`) and `@phlix/syncplay` (`github:detain/phlix-syncplay#v0.1.4`) are the pinned wire source — `src/types/playback.ts` re-exports `AudioTrack`/`SubtitleTrack` verbatim instead of declaring a local mirror, `TranscodeJob`/`TranscodeStatus` carry no `dash_url`, and SyncPlay positions go on the wire in milliseconds (`toSyncPlayPositionMs` in `src/screens/PlayerScreen.tsx`) while state and the native player stay in seconds.
 
 <!-- caliber:managed:pre-commit -->
 ## Before Committing
