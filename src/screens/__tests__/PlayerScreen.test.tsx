@@ -624,6 +624,39 @@ describe('PlayerScreen — S293 SyncPlay send boundaries (seconds → ms)', () =
   });
 });
 
+// ── S441: the INBOUND seek command lands in SECONDS (finish-S293) ──────────
+// The service decodes the wire's ms once (pinned in SyncPlayService.test.ts);
+// from there the whole consumer chain is seconds-native. This harness mounts
+// through the repo's custom HookHost (no reconciler ⇒ no native ref), so the
+// OBSERVABLE seek surface is the seconds state the native `seekTo` is fed —
+// the same value `dispatchPlayerCommand(playerRef, 'seekTo', [cmd.position])`
+// carries at PlayerScreen :264. A raw-ms (42 500) or double-decoded (0.0425)
+// command both turn the 42.5 assertion red.
+describe('PlayerScreen — S441 inbound seek lands as seconds', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+  });
+
+  it('a follow-member seek of 42.5 SECONDS moves the internal clock to 42.5', async () => {
+    const h = await bootDirectPlay();
+
+    // The service mock records every `on(event, handler)` registration.
+    const svcOn = (jest.requireMock('../../syncplay/SyncPlayService') as any)
+      .syncPlayService.on as jest.Mock;
+    const seekHandler = svcOn.mock.calls
+      .filter(([event]) => event === 'onPlaybackCommand')
+      .map(([, handler]) => handler)
+      .pop() as (cmd: unknown) => void;
+    expect(seekHandler).toBeDefined();
+
+    seekHandler({ type: 'seek', position: 42.5, serverTime: Date.now() });
+    h.rerender();
+
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(42.5);
+  });
+});
+
 // ── S407: the track pickers are fed by the REAL playback-info payload ──────
 // The mocked `markerManager.getPlaybackInfo` is the fake wire; every assertion
 // below runs through the real PlayerScreen wiring. The subtitle picker ships

@@ -9,6 +9,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - cs21 — route-manifest currency re-pin to contracts `341fc` (server `e729d`).
 
+### Fixed — S441 relay inbound ms→s conversion at the protocol boundary (finish-S293)
+
+- **Inbound SyncPlay positions no longer land 1000× down the timeline.** S293 moved both SEND
+  boundaries to wire milliseconds, but the receive legs kept consuming the raw ms as seconds:
+  a host's 42 500 ms seek threw the native player to 42 500 s. The decode now happens ONCE at
+  the protocol boundary — new `src/syncplay/wireUnits.ts` `wireMsToSeconds()` applied in
+  `SyncPlayService`'s group-state/play/pause/seek handlers, in the optimistic store writes of
+  `sendPlay/sendPause/sendSeek` (the store's field is SECONDS), and in
+  `SyncPlayManager.mapPlaybackState()` (REST join). `PlayerScreen`'s seek arm and the internal
+  clock stay seconds-native with no unit math of their own. Inbound fixtures rewritten
+  1000×-sensitive both ways (identity and double-decode each turn five named tests red);
+  send-side S293 pins untouched.
+
 ### Changed — W34 (cs20retag) currency re-pin (manifest provenance → server f35a5742) — 2026-09-05
 
 - **cs#20 currency leg of the combined re-tag wave.** `src/api/test/server-route-manifest.json`
