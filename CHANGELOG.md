@@ -5,6 +5,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs21 currency re-pin (manifest provenance → server e729d48a) — 2026-09-06
+
+- cs21 — route-manifest currency re-pin to contracts `341fc` (server `e729d`).
+
 ### Changed — W34 (cs20retag) currency re-pin (manifest provenance → server f35a5742) — 2026-09-05
 
 - **cs#20 currency leg of the combined re-tag wave.** `src/api/test/server-route-manifest.json`
