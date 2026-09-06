@@ -5,6 +5,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs22 currency re-pin (manifest provenance → server e4853f0f) — 2026-09-06
+
+- cs22 — route-manifest currency re-pin to contracts `876d0` (server `e485`).
+
 ### Changed — cs21 currency re-pin (manifest provenance → server e729d48a) — 2026-09-06
 
 - cs21 — route-manifest currency re-pin to contracts `341fc` (server `e729d`).
