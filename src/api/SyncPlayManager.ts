@@ -8,6 +8,7 @@
 // src/api/SyncPlayManager.ts
 import apiClient, { getApiBaseUrl } from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { wireMsToSeconds } from '../syncplay/wireUnits';
 
 /**
  * SyncPlay Room DTOs matching phlix-server API contract.
@@ -67,6 +68,7 @@ export interface SyncPlayMember {
 
 export interface SyncPlayPlaybackState {
   playbackState: 'playing' | 'paused' | 'stopped';
+  /** Playhead in SECONDS — the app-internal unit (S441: wire ms decoded once at the mapper). */
   position: number;
   serverTime: number;
 }
@@ -155,7 +157,9 @@ function mapPlaybackState(raw: RawSyncPlayGroup): SyncPlayPlaybackState {
       : 'stopped';
   return {
     playbackState: state,
-    position: raw.playback_position ?? 0,
+    // S441 — the wire carries MILLISECONDS; decoded ONCE here, so every
+    // consumer of this DTO sees the app-internal unit (SECONDS).
+    position: wireMsToSeconds(raw.playback_position) ?? 0,
     serverTime: raw.last_activity_at ?? Math.floor(Date.now() / 1000),
   };
 }

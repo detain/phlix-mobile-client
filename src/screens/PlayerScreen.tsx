@@ -258,6 +258,9 @@ const PlayerScreen: React.FC = () => {
             playerSetIsPlaying(false);
             break;
           case 'seek':
+            // S441 — `cmd.position` arrives in app-internal SECONDS: the wire's
+            // ms were decoded once at the SyncPlayService boundary, so it feeds
+            // the native `seekTo` (a seconds API) with no unit math here.
             dispatchPlayerCommand(playerRef, 'seekTo', [cmd.position]);
             setCurrentTime(cmd.position);
             playerSetCurrentTime(cmd.position);

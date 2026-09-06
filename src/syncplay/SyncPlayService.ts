@@ -25,6 +25,7 @@
 
 import { useSyncplayStore } from '../store/syncplayStore';
 import { useHubStore } from '../store/hubStore';
+import { wireMsToSeconds } from './wireUnits';
 import {
   SYNCPLAY_MESSAGE_TYPES,
   PROTOCOL_VERSION,
@@ -195,6 +196,7 @@ export interface SyncPlayGroup {
   members: SyncPlayMember[];
   currentMediaId: string | null;
   playbackState: 'playing' | 'paused' | 'stopped';
+  /** Playhead anchor in SECONDS — decoded from the wire's ms at this boundary (S441). */
   playbackPosition: number;
   hostId: string;
   hasPassword: boolean;
@@ -202,6 +204,7 @@ export interface SyncPlayGroup {
 
 export type PlaybackCommand = {
   type: 'play' | 'pause' | 'seek';
+  /** Playhead in SECONDS — the app-internal unit (S441: wire ms decoded once at the handlers). */
   position: number;
   serverTime: number;
 };
@@ -391,6 +394,10 @@ class SyncPlayService {
 
   /**
    * Send a playback play command (host only).
+   *
+   * `position` is WIRE MILLISECONDS (S293: callers convert once via
+   * `toSyncPlayPositionMs`); the frame passes through untouched. The
+   * optimistic store write below records the app-internal SECONDS (S441).
    */
   sendPlay(position: number): void {
     const store = useSyncplayStore.getState();
@@ -410,12 +417,14 @@ class SyncPlayService {
       timestamp: Date.now(),
     });
 
-    // Optimistically update local state
-    useSyncplayStore.getState().updatePlaybackState('playing', position);
+    // Optimistically update local state — the store keeps SECONDS (S441).
+    useSyncplayStore.getState().updatePlaybackState('playing', wireMsToSeconds(position) ?? 0);
   }
 
   /**
    * Send a playback pause command (host only).
+   *
+   * `position` is WIRE MILLISECONDS; the optimistic store write keeps SECONDS (S441).
    */
   sendPause(position: number): void {
     const store = useSyncplayStore.getState();
@@ -435,12 +444,14 @@ class SyncPlayService {
       timestamp: Date.now(),
     });
 
-    // Optimistically update local state
-    useSyncplayStore.getState().updatePlaybackState('paused', position);
+    // Optimistically update local state — the store keeps SECONDS (S441).
+    useSyncplayStore.getState().updatePlaybackState('paused', wireMsToSeconds(position) ?? 0);
   }
 
   /**
    * Send a playback seek command (host only).
+   *
+   * Both positions are WIRE MILLISECONDS; the optimistic store write keeps SECONDS (S441).
    */
   sendSeek(fromPosition: number, toPosition: number): void {
     const store = useSyncplayStore.getState();
@@ -461,10 +472,10 @@ class SyncPlayService {
       timestamp: Date.now(),
     });
 
-    // Optimistically update local state
+    // Optimistically update local state — the store keeps SECONDS (S441).
     useSyncplayStore.getState().updatePlaybackState(
       store.currentGroup.playbackState,
-      toPosition
+      wireMsToSeconds(toPosition) ?? 0
     );
   }
 
@@ -696,7 +707,9 @@ class SyncPlayService {
       members,
       currentMediaId: (groupData.current_media_id as string) ?? null,
       playbackState: ((groupData.playback_state as string) ?? 'stopped') as SyncPlayGroup['playbackState'],
-      playbackPosition: (groupData.playback_position as number) ?? 0,
+      // S441 — the snapshot anchor arrives in WIRE ms; the group (and every
+      // consumer below it) speaks SECONDS.
+      playbackPosition: wireMsToSeconds(groupData.playback_position as number | undefined) ?? 0,
       hostId: (groupData.host_id as string) ?? '',
       hasPassword: (groupData.has_password as boolean) ?? false,
     };
@@ -708,7 +721,8 @@ class SyncPlayService {
   }
 
   private handlePlaybackPlay(msg: WsMessage): void {
-    const position = (msg.position as number) ?? 0;
+    // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
+    const position = wireMsToSeconds(msg.position as number | undefined) ?? 0;
     const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('playing', position);
@@ -716,7 +730,8 @@ class SyncPlayService {
   }
 
   private handlePlaybackPause(msg: WsMessage): void {
-    const position = (msg.position as number) ?? 0;
+    // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
+    const position = wireMsToSeconds(msg.position as number | undefined) ?? 0;
     const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('paused', position);
@@ -724,7 +739,8 @@ class SyncPlayService {
   }
 
   private handlePlaybackSeek(msg: WsMessage): void {
-    const toPosition = (msg.to_position as number) ?? 0;
+    // S441 — `to_position` arrives in MILLISECONDS; store + event get SECONDS.
+    const toPosition = wireMsToSeconds(msg.to_position as number | undefined) ?? 0;
     const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState(

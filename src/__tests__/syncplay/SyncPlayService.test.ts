@@ -546,16 +546,19 @@ describe('SyncPlayService - Playback command receipt', () => {
     const playbackCallback = jest.fn();
     syncPlayService.on('onPlaybackCommand', playbackCallback as any);
 
+    // S441 — WIRE frame in MILLISECONDS; the event (and everything below it)
+    // speaks SECONDS. 25 000 ms must land as 25 s: raw passthrough (25 000) or
+    // a double decode (0.025) both go red.
     MockWebSocket.simulateMessage({
       type: 'syncplay_playback_play',
-      position: 25000,
+      position: 25_000,
       server_time: Date.now(),
     });
 
     expect(playbackCallback).toHaveBeenCalled();
     const call = playbackCallback.mock.calls[0][0];
     expect(call.type).toBe('play');
-    expect(call.position).toBe(25000);
+    expect(call.position).toBe(25);
 
     syncPlayService.off('onPlaybackCommand');
   });
@@ -567,15 +570,17 @@ describe('SyncPlayService - Playback command receipt', () => {
     const playbackCallback = jest.fn();
     syncPlayService.on('onPlaybackCommand', playbackCallback as any);
 
+    // S441 — 30 000 ms on the wire, 30 s out of the boundary.
     MockWebSocket.simulateMessage({
       type: 'syncplay_playback_pause',
-      position: 30000,
+      position: 30_000,
       server_time: Date.now(),
     });
 
     expect(playbackCallback).toHaveBeenCalled();
     const call = playbackCallback.mock.calls[0][0];
     expect(call.type).toBe('pause');
+    expect(call.position).toBe(30);
 
     syncPlayService.off('onPlaybackCommand');
   });
@@ -587,17 +592,103 @@ describe('SyncPlayService - Playback command receipt', () => {
     const playbackCallback = jest.fn();
     syncPlayService.on('onPlaybackCommand', playbackCallback as any);
 
+    // S441 — `to_position` 35 000 ms on the wire becomes a 35 s command.
     MockWebSocket.simulateMessage({
       type: 'syncplay_playback_seek',
-      from_position: 20000,
-      to_position: 35000,
+      from_position: 20_000,
+      to_position: 35_000,
       server_time: Date.now(),
     });
 
     expect(playbackCallback).toHaveBeenCalled();
     const call = playbackCallback.mock.calls[0][0];
     expect(call.type).toBe('seek');
-    expect(call.position).toBe(35000);
+    expect(call.position).toBe(35);
+
+    syncPlayService.off('onPlaybackCommand');
+  });
+
+  /**
+   * S441 — the whole inbound scale contract in one frame-per-leg test.
+   * Each leg is fed a 1000×-sensitive WIRE value and must surface SECONDS
+   * both on the event the screens listen to AND on the store write the
+   * overlay reads: a missing decode lands the raw ms (1000× too far), a
+   * double decode lands 0.0425 — both go red on every assertion below.
+   */
+  it('S441 — ms→s is decoded exactly once at the service boundary (S441MSBOUNDARYX7J3)', () => {
+    const updatePlaybackState = jest.fn();
+    const setCurrentGroup = jest.fn();
+    mockSyncplayStore.getState = jest.fn(() => ({
+      currentGroup: {
+        id: 'sp_abc123',
+        name: 'Test',
+        members: [],
+        currentMediaId: null,
+        playbackState: 'playing' as const,
+        playbackPosition: 0,
+        hostId: 'member-123',
+        hasPassword: false,
+      },
+      isHost: true,
+      isConnected: false,
+      isConnecting: false,
+      timeSyncOffset: 0,
+      timeSyncLatency: 0,
+      timeSyncStable: false,
+      showMemberList: false,
+      error: null,
+      setCurrentGroup,
+      setIsHost: jest.fn(),
+      setIsConnected: jest.fn(),
+      setIsConnecting: jest.fn(),
+      setTimeSyncStatus: jest.fn(),
+      setShowMemberList: jest.fn(),
+      setError: jest.fn(),
+      updatePlaybackState,
+      addMember: jest.fn(),
+      removeMember: jest.fn(),
+      reset: jest.fn(),
+    })) as unknown as typeof mockSyncplayStore.getState;
+
+    syncPlayService.connect('member-123');
+    MockWebSocket.simulateOpen();
+
+    const playbackCallback = jest.fn();
+    syncPlayService.on('onPlaybackCommand', playbackCallback as any);
+
+    updatePlaybackState.mockClear();
+
+    MockWebSocket.simulateMessage({ type: 'syncplay_playback_play', position: 42_500, server_time: Date.now() });
+    expect(playbackCallback.mock.calls[0][0].position).toBe(42.5);
+    expect(updatePlaybackState).toHaveBeenLastCalledWith('playing', 42.5);
+
+    MockWebSocket.simulateMessage({ type: 'syncplay_playback_pause', position: 120_000, server_time: Date.now() });
+    expect(playbackCallback.mock.calls[1][0].position).toBe(120);
+    expect(updatePlaybackState).toHaveBeenLastCalledWith('paused', 120);
+
+    MockWebSocket.simulateMessage({ type: 'syncplay_playback_seek', from_position: 1, to_position: 90_000, server_time: Date.now() });
+    expect(playbackCallback.mock.calls[2][0].position).toBe(90);
+    expect(updatePlaybackState).toHaveBeenLastCalledWith('playing', 90);
+
+    // The group-state snapshot leg: 60 000 ms of anchor → a 60 s group.
+    const groupCallback = jest.fn();
+    syncPlayService.on('onGroupStateUpdate', groupCallback as any);
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_group_state',
+      your_id: 'member-123',
+      group: {
+        id: 'sp_abc123',
+        name: 'Test',
+        members: [],
+        host_id: 'member-123',
+        current_media_id: null,
+        playback_state: 'playing',
+        playback_position: 60_000,
+      },
+    });
+    expect(setCurrentGroup).toHaveBeenLastCalledWith(expect.objectContaining({ playbackPosition: 60 }));
+    expect(groupCallback).toHaveBeenLastCalledWith(expect.objectContaining({ playbackPosition: 60 }));
+    syncPlayService.off('onGroupStateUpdate');
 
     syncPlayService.off('onPlaybackCommand');
   });
