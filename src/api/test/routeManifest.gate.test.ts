@@ -191,9 +191,9 @@ const PER_MODULE_COVERAGE: Record<string, number> = {
 const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0);
 
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server bab33ff2', () => {
+  it('is the contracts artifact derived from phlix-server df6aa8e5', () => {
     // Same provenance strings as @phlix/contracts master dist/server-route-manifest.json.
-    expect(manifest.provenance.serverSha).toBe('bab33ff2707bd74f94b95d8a781908d634583b87');
+    expect(manifest.provenance.serverSha).toBe('df6aa8e5cf577fa4a6fa9d73bcad7e7ec7d4fc4a');
     expect(manifest.provenance.total).toBe(400);
     expect(manifest.routes).toHaveLength(400);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
