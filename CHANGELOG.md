@@ -5,6 +5,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs26 currency re-pin (manifest provenance → server 1e14b539) — 2026-09-08
+
+- cs26 — route-manifest currency re-pin to contracts `97c87f27` (server `1e14b539`); NON-pure: 400→401 tuples, exactly one added (`POST /api/v1/admin/updates/check`, from S273), nothing removed — gate serverSha/total/length pins follow, client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained.
+
 ### Changed — cs25 currency re-pin (manifest provenance → server 2746677e) — 2026-09-08
 
 - cs25 — route-manifest currency re-pin to contracts `e837e31c` (server `2746677e`); 400-tuple SET byte-identical (stripped-md5 `0a4a642c`), gate serverSha pin follows, no-md5 posture retained.
