@@ -5,6 +5,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs28 currency re-pin (manifest provenance → server a5cde27e) — 2026-09-09
+
+- cs28 — route-manifest PURE provenance re-pin to contracts `a1ca39d8` (server `afe54c7c` → `a5cde27e`, route-zero); 401 tuples unchanged, stripped route-content md5 `508a6415` old = new — only provenance moves; gate test-title cite + full serverSha pin `afe54c7c` → `a5cde27e` follow, vendored copy `git hash-object` = contracts dist blob `a6048724` (blob identity); client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained (bytes verified against full-file md5 `0331a2d8`, none pinned).
+
 ### Changed — cs27 currency re-pin (manifest provenance → server afe54c7c) — 2026-09-09
 
 - cs27 — route-manifest PURE provenance re-pin to contracts `28000fa4` (server `afe54c7c`); seven route-zero server merges since `1e14b539` — all 401 tuples byte-identical (stripped route-set md5 `508a6415` old = new), only provenance moves; gate test-title cite + full serverSha pin `1e14b539` → `afe54c7c` follow, vendored copy `git hash-object` = contracts dist blob `81c56ea9` (blob identity); client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained (bytes verified against full-file md5 `5c06306c`, none pinned).
