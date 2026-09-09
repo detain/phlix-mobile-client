@@ -5,6 +5,10 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs30 currency re-pin (manifest provenance → server 32183f5b) — 2026-09-09
+
+- cs#30 — route-manifest PURE provenance re-pin to contracts `767146a8` (server `e15d9543` → `32183f5b`; span re-proven route-zero at the contracts leg — S266 #747 + S171 #748, guard tests/`Router.php`/`Routes/`+`FastPath/` blobs/trees identical, `WebPortalRouter.php` comment-only); 401 tuples unchanged, stripped route-content md5 `508a6415` old = new — only provenance moves; gate test-title cite + full serverSha pin `e15d9543` → `32183f5b` follow, vendored copy `git hash-object` = contracts dist blob `9068173e` (blob identity); client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained (bytes verified against full-file md5 `cb53d53f`, none pinned).
+
 ### Changed — cs29 currency re-pin (manifest provenance → server e15d9543) — 2026-09-09
 
 - cs#29 — route-manifest PURE provenance re-pin to contracts `8697c099` (server `a5cde27e` → `e15d9543`; span re-proven route-zero at the contracts leg — S211 #745 + S114 #746, route-authority blobs/trees identical); 401 tuples unchanged, stripped route-content md5 `508a6415` old = new — only provenance moves; gate test-title cite + full serverSha pin `a5cde27e` → `e15d9543` follow, vendored copy `git hash-object` = contracts dist blob `73b945aa` (blob identity); client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained (bytes verified against full-file md5 `27834ef4`, none pinned).
