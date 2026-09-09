@@ -5,6 +5,15 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs30 era-2 currency re-pin (manifest provenance → server 5986b61d) — 2026-09-09
+
+- Server moved mid-wave (`32183f5b` → `5986b61d`, S210 #749 — docker boot-gate bounds only,
+  route-zero re-proven: Router/Application/guard blobs and Routes/+FastPath/ trees byte-identical).
+  Vendored `server-route-manifest.json` re-vendored byte-identical from `@phlix/contracts` master
+  `57a8528a` (era-2 regen; full-file md5 `cb53d53f` → `045c0984`, blob identity `dd0cbaca` verified
+  against the contracts dist artifact; stripped route-content md5 `508a…` holds — 401 tuples).
+  Gate pins advance in the same commit; counts unchanged.
+
 ### Changed — cs30 currency re-pin (manifest provenance → server 32183f5b) — 2026-09-09
 
 - cs#30 — route-manifest PURE provenance re-pin to contracts `767146a8` (server `e15d9543` → `32183f5b`; span re-proven route-zero at the contracts leg — S266 #747 + S171 #748, guard tests/`Router.php`/`Routes/`+`FastPath/` blobs/trees identical, `WebPortalRouter.php` comment-only); 401 tuples unchanged, stripped route-content md5 `508a6415` old = new — only provenance moves; gate test-title cite + full serverSha pin `e15d9543` → `32183f5b` follow, vendored copy `git hash-object` = contracts dist blob `9068173e` (blob identity); client coverage pins (171 sites / 19 modules) unchanged, no-md5 posture retained (bytes verified against full-file md5 `cb53d53f`, none pinned).
