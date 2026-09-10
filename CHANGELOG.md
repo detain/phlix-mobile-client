@@ -5,6 +5,19 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs34 currency re-pin (manifest provenance → current server tip; untagged regen #21) — 2026-09-10
+
+- PURE provenance re-pin, zero route bytes: vendored
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen #21 against the current
+  phlix-server master tip; purity re-proven before regenerating — the server
+  route-relevant span is empty and both generator-input guard blobs hash
+  identically). 401 `[method, path]` tuples unchanged, the provenance-stripped
+  route-content md5 and the sorted-tuple fence digest measure equal
+  old-vs-new; only serverSha + generatedAt move. Gate pins (it-title cite +
+  full provenance sha) advance in the same commit; mobile carries no md5 pin.
+  Untagged wave: the dependency tag pin stays put.
+
 ### Changed — cs33 currency re-pin (manifest provenance → current server tip; untagged regen #20) — 2026-09-10
 
 - PURE provenance re-pin, zero route bytes: vendored
