@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs39 currency re-pin (PURE provenance regen #26; 402 tuples unchanged; untagged) — 2026-09-11
+
+- **cs#39 currency re-pin cascade (lane cs39).** Vendored
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen #26 against the current
+  phlix-server master tip; purity re-proven before regenerating — the server
+  span since the previous pin is one packaging-and-installation merge
+  confined to the install script, release-process and changelog journals,
+  and one third-party clone pin-guard test, with an empty diff under the
+  route-surface directories, so the stripped route-content digest
+  measures equal old-vs-new and only the provenance sha + generatedAt bytes
+  move). 402 `[method, path]` tuples unchanged. Gate pins advance in the same
+  commit — it-title cite and the full provenance sha — while mobile's own
+  client-scan counts (request sites and distinct tuples derived from this
+  repo's code) stay exactly as pinned. Mobile carries no md5 pin. Untagged
+  wave: the dependency tag pin stays put. Jest baseline holds: 80 suites /
+  1 skipped / 1181 passed.
+
 ### Changed — cs38 currency re-pin (PURE provenance regen #25; 402 tuples unchanged; untagged) — 2026-09-11
 
 - **cs#38 currency re-pin cascade (lane cs38).** Vendored
