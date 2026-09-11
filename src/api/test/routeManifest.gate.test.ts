@@ -191,11 +191,11 @@ const PER_MODULE_COVERAGE: Record<string, number> = {
 const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0);
 
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server 8ba7789c', () => {
+  it('is the contracts artifact derived from phlix-server 67e9eab9', () => {
     // Same provenance strings as @phlix/contracts master dist/server-route-manifest.json.
-    expect(manifest.provenance.serverSha).toBe('8ba7789c2b0206d43efe18e476966303545156ae');
-    expect(manifest.provenance.total).toBe(401);
-    expect(manifest.routes).toHaveLength(401);
+    expect(manifest.provenance.serverSha).toBe('67e9eab966bf0c5e47aaa0053a6917ecab02f7a6');
+    expect(manifest.provenance.total).toBe(402);
+    expect(manifest.routes).toHaveLength(402);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
   });
 });
@@ -216,7 +216,7 @@ describe('S280 route gate — every URL mobile issues is tuple-exact served', ()
     const uniqueTuples = new Set(sites.map((s) => `${s.method} ${s.path}`));
     console.log(
       `[S280 route gate] mobile: ${sites.length} request sites / ${uniqueTuples.size} distinct [method, pathTemplate] tuples ` +
-        `across ${perFile.size} modules — all tuple-exact against the vendored 401-route manifest @ ${manifest.provenance.serverSha}`,
+        `across ${perFile.size} modules — all tuple-exact against the vendored 402-route manifest @ ${manifest.provenance.serverSha}`,
     );
     for (const [file, count] of [...perFile.entries()].sort()) {
       console.log(`  ${file}: ${count}`);
