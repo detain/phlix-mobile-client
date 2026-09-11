@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs35 currency regen (manifest full regen 401 → 402 tuples; untagged) — 2026-09-11
+
+- **cs#35 currency re-pin cascade (lane cs35).** Vendored
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen against the current phlix-server
+  master tip). Genuine full regen, not provenance-only: the server gained one
+  WebPortal route, so the manifest moves 401 → 402 `[method, path]` tuples
+  (Application source count holds, WebPortal source count rises by one, shared
+  overlap unchanged). Gate pins advance in the same commit — it-title cite, full
+  provenance sha, and the provenance.total / routes-length tuple-count
+  assertions — while mobile's own client-scan counts (request sites and distinct
+  tuples derived from this repo's code) stay exactly as pinned because no Mobile
+  request site calls the new server route: the manifest simply becomes a
+  superset. Mobile carries no md5 pin. Untagged wave: the dependency tag pin
+  stays put.
+
+### Prior era snapshot — cs34 currency re-pin (PURE provenance → server 8ba7789c)
+
 ### Changed — cs34 currency re-pin (manifest provenance → current server tip; untagged regen #21) — 2026-09-10
 
 - PURE provenance re-pin, zero route bytes: vendored
