@@ -5,6 +5,39 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs43 currency CONTENT regen (regen #30; 402→404 tuples) + S240 query-param client migration — 2026-09-12
+
+- **cs#43 currency cascade (lane cs43) — this is a CONTENT regen, not a
+  provenance re-pin.** phlix-server S240 merged two ADDITIVE query-param rails
+  (`GET /api/v1/music/artist?name=` and `GET /api/v1/music/album?name=[&artist=]`)
+  alongside the existing legacy `/music/artists/{mbid}` + `/music/albums/{mbid}`
+  path routes, so the vendored route manifest grows **402 → 404 tuples**.
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen #30 against the current
+  phlix-server tip `e96f586d`); the blob is content-identical across the whole
+  estate.
+- **S240 client migration.** `MusicManager.getArtist` and `getAlbum` now call
+  the query-param rails: `/music/artist?name=${encodeURIComponent(name)}` and
+  `/music/album?name=${encodeURIComponent(name)}` (was
+  `/music/artists/${…}` / `/music/albums/${…}`). Mobile's `apiClient.get(url)`
+  takes the whole path as a single literal (base already carries `/api/v1`), so
+  the value rides in the query string, still `encodeURIComponent`-encoded —
+  matching the repo's single-string convention for these detail methods.
+- **Gate moves in the same commit.** `routeManifest.gate.test.ts`: it-title cite
+  and the full `provenance.serverSha` advance to `e96f586d…`, `total`/`routes.length`
+  and the human-readable scan line advance `402 → 404`. Mobile's own client-scan
+  counts are UNCHANGED — the migration only swaps two path templates for two
+  query templates (the `normalizePath` gate strips the query before matching), so
+  `PER_MODULE_COVERAGE['src/api/MusicManager.ts']` stays honestly at **7**; the
+  scan re-measured **171 request sites / 167 distinct tuples across 19 modules,
+  all tuple-exact** against the vendored 404-route manifest. Mobile carries no
+  md5 pin (the fixture md5 is its content identity, not an assertion).
+- **Non-vacuity.** `MusicManager.test.ts` pins the exact new query URLs
+  (`/music/artist?name=AC%2FDC`, `/music/album?name=The%20Dark%20Side%20of%20the%20Moon`);
+  reverting the client to the legacy form turns those two assertions RED
+  (verified). Jest baseline holds at this tip: **80 suites / 1 skipped /
+  1181 passed**; lint 0 errors. Untagged wave — no dependency pin bump.
+
 ### Changed — cs42 currency re-pin (PURE provenance regen #29; 402 tuples unchanged; untagged) — 2026-09-12
 
 - **cs#42 currency re-pin cascade (lane cs42).** Vendored

@@ -46,10 +46,10 @@ class MusicManager {
     return res.artists;
   }
 
-  // GET /api/v1/music/artists/{name} → { artist }  ({name} = artist NAME)
+  // GET /api/v1/music/artist?name={name} → { artist }  ({name} = artist NAME)
   async getArtist(name: string): Promise<Artist> {
     const res = await apiClient.get<{ artist: Artist }>(
-      `/music/artists/${encodeURIComponent(name)}`
+      `/music/artist?name=${encodeURIComponent(name)}`
     );
     return res.artist;
   }
@@ -60,10 +60,10 @@ class MusicManager {
     return res.albums;
   }
 
-  // GET /api/v1/music/albums/{name} → { album }  ({name} = album NAME)
+  // GET /api/v1/music/album?name={name} → { album }  ({name} = album NAME)
   async getAlbum(name: string): Promise<Album> {
     const res = await apiClient.get<{ album: Album }>(
-      `/music/albums/${encodeURIComponent(name)}`
+      `/music/album?name=${encodeURIComponent(name)}`
     );
     return res.album;
   }
