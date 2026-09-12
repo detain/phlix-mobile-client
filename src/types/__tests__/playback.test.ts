@@ -18,6 +18,7 @@ import type {
   Marker,
   Chapter,
   PlaybackInfo,
+  Rendition,
   TranscodeJob,
   TranscodeStatus,
   PlaybackSession,
@@ -380,7 +381,7 @@ describe('playback types', () => {
     });
 
     it('declares the track rails as REQUIRED wire-typed members (S407 both-direction pin)', () => {
-      // Same gate style as the dash_url absence pin: the EXECUTING check is
+      // Same gate style as the dash_url presence pin: the EXECUTING check is
       // `npm run typecheck` (jest transpiles types away).
       // Direction 1 — the keys exist at all (an absent key is a wire bug the
       // server cannot ship: MediaItemController.php :340-341).
@@ -406,6 +407,7 @@ describe('playback types', () => {
         job_id: 'job-1',
         master_url: 'https://server/transcode/job-1/master.m3u8',
         hls_url: 'https://server/transcode/job-1/playlist.m3u8',
+        dash_url: null,
         status: 'encoding',
         reused: false,
         subtitles: [],
@@ -421,6 +423,7 @@ describe('playback types', () => {
         job_id: 'job-2',
         master_url: 'https://server/transcode/job-2/master.m3u8',
         hls_url: 'https://server/transcode/job-2/playlist.m3u8',
+        dash_url: 'https://server/dash/job-2/manifest.mpd?sig=b',
         status: 'ready',
         reused: true,
         subtitles: [],
@@ -439,6 +442,7 @@ describe('playback types', () => {
         playlist_ready: false,
         progress: 45,
         master_url: 'https://server/transcode/job-1/master.m3u8',
+        dash_url: null,
         subtitles: [],
       };
       expect(status.progress).toBe(45);
@@ -453,29 +457,49 @@ describe('playback types', () => {
         playlist_ready: true,
         progress: 100,
         master_url: 'https://server/transcode/job-1/master.m3u8',
+        dash_url: 'https://server/dash/job-1/manifest.mpd?sig=c',
         subtitles: [],
       };
       expect(status.status).toBe('ready');
       expect(status.playlist_ready).toBe(true);
     });
 
-    it('declares no dash_url on either transcode shape (S11 absence pin)', () => {
-      // phlix-server S11 removed `dash_url` from every transcode payload: real
-      // DASH is unbuilt (S56-S60), so `/dash/{job}/manifest.mpd` always 404'd.
-      // `@phlix/contracts` v0.4.0 dropped it from TranscodeStartResponse /
-      // TranscodeStatusResponse; these local copies followed.
+    it('declares dash_url on both transcode shapes, absent on Rendition (S325 / S11-tail presence pin) — S11TAILFIXX9Q7', () => {
+      // phlix-server S59 restored what S11 removed: real DASH shipped, and the
+      // `dash_url` key is back on every transcode payload — signed
+      // `/dash/{job}/manifest.mpd` when the job published a manifest, null
+      // otherwise (an mpegts job — the S60 rollback — and jobs created before
+      // the flip). `@phlix/contracts` re-declared it REQUIRED (`string | null`,
+      // key ALWAYS present) at v0.4.4 (S325 fold-in); this local mirror follows.
       //
-      // `Exact<…, false>` rather than a bare assignability check, so re-adding
-      // the member as `dash_url?: string` is just as RED as `dash_url: string`.
-      // The four fixtures above only prove the REQUIRED form is gone; they stay
-      // green against the optional form.
-      expect(assertExact<Exact<HasKey<TranscodeJob, 'dash_url'>, false>>(true)).toBe(true);
-      expect(assertExact<Exact<HasKey<TranscodeStatus, 'dash_url'>, false>>(true)).toBe(true);
+      // `Exact<…, true>` rather than a bare assignability check, so re-declaring
+      // the member as `dash_url?: string | null` is just as RED as removing it.
+      // The fixtures above model both wire arms (null and populated).
+      expect(assertExact<Exact<HasKey<TranscodeJob, 'dash_url'>, true>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<TranscodeStatus, 'dash_url'>, true>>(true)).toBe(true);
+      // Null-admittance: a `dash_url: string` (or `string | undefined`)
+      // declaration breaks this tie — the server ALWAYS sends the key and it is
+      // nullable, both halves are pinned.
+      expect(
+        assertExact<Exact<null extends TranscodeJob['dash_url'] ? true : false, true>>(true),
+      ).toBe(true);
+      expect(
+        assertExact<Exact<null extends TranscodeStatus['dash_url'] ? true : false, true>>(true),
+      ).toBe(true);
+      // Required, NOT optional: `keyof` includes optional members, so HasKey
+      // alone cannot see `dash_url?:` — but an optional property's indexed
+      // access widens to `string | null | undefined` and breaks this Exact tie
+      // (same anti-optional gate as the S407 rails above).
+      expect(assertExact<Exact<TranscodeJob['dash_url'], string | null>>(true)).toBe(true);
+      expect(assertExact<Exact<TranscodeStatus['dash_url'], string | null>>(true)).toBe(true);
 
-      // Counterweight: the helper must be capable of reporting `true`, else the
-      // two assertions above would pass against literally any type.
+      // Counterweights: the helper must be capable of reporting `true`, else the
+      // two presence assertions above would pass against literally any type —
+      // and `Rendition` (re-exported verbatim from contracts) must stay
+      // dash-free, so a blanket "add it everywhere" edit is also RED.
       expect(assertExact<Exact<HasKey<TranscodeJob, 'master_url'>, true>>(true)).toBe(true);
       expect(assertExact<Exact<HasKey<TranscodeStatus, 'master_url'>, true>>(true)).toBe(true);
+      expect(assertExact<Exact<HasKey<Rendition, 'dash_url'>, false>>(true)).toBe(true);
     });
   });
 

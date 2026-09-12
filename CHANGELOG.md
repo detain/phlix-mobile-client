@@ -5,6 +5,28 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — S11-tail dash_url reconciliation: local transcode types mirror the wire truth again (contracts pin #v0.4.5 → #v0.4.6) — 2026-09-12
+
+- **Premise inversion (lane s11tail).** phlix-server S59 restored `dash_url`
+  on every transcode payload and `@phlix/contracts` re-declared it REQUIRED
+  (`string | null`, key ALWAYS present — signed `/dash/{job}/manifest.mpd` when
+  the job published a manifest, null for an mpegts job or pre-S60 jobs) at
+  v0.4.4 (S325 fold-in). The local v0.4.0-era mirror in `src/types/playback.ts`
+  still asserted the opposite ("deliberately NO dash_url — do not re-add"),
+  falsifying the wire. `TranscodeJob`/`TranscodeStatus` now carry
+  `dash_url: string | null`; the absence pin in
+  `src/types/__tests__/playback.test.ts` is flipped to a presence pin
+  (key-present + null-admittance + anti-optional Exact gates + Rendition
+  counterweight), typed fixtures model both wire arms, and the stale "no
+  dash_url" prose is corrected in AGENTS.md, CLAUDE.md,
+  `.claude/rules/api-managers.md`, `.claude/rules/testing.md`,
+  `TranscodeManager.ts` and `TranscodeManager.test.ts`. Contracts pin advances
+  `#v0.4.5` → `#v0.4.6` (lock resolved-sha
+  `97bcda069efa2bba3591f1143a000aec8fefae15`). Verification:
+  `tsc --noEmit` green; red-green proven both ways (optionalising the key
+  turns the pin RED, removing it turns pin AND fixtures RED); jest baseline
+  holds: 80 suites / 1 skipped / 1181 passed.
+
 ### Changed — cs41 currency re-pin (PURE provenance regen #28; 402 tuples unchanged; untagged) — 2026-09-12
 
 - **cs#41 currency re-pin cascade (lane cs41).** Vendored
