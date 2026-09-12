@@ -87,7 +87,7 @@ export interface Chapter {
  * both keys (`MediaItemController::getPlaybackInfo()` json at :340-341, rows
  * shaped by `StreamTrackShaper::audioTracks()/subtitleTracks()` — verified at
  * server `01340633`). An absent key is a wire bug, not an option — same
- * required-if-server-sends logic as the `dash_url` absence pin below, pinned
+ * required-if-server-sends logic as the `dash_url` presence pin below, pinned
  * in both directions in `src/types/__tests__/playback.test.ts`. The row types
  * are the playback.ts WIRE pair (S404 ruling), never the `Stream*` DB mirror.
  */
@@ -119,28 +119,43 @@ export interface TranscodeSubtitle {
 }
 
 /**
+ * S11-tail contract stamp — an erased type-level string literal marking the
+ * `dash_url` reconciliation (absence pin → presence pin) in this file and its
+ * test. Code-resident by design; carries no runtime footprint.
+ */
+export type DashUrlContractStamp = 'S11TAILFIXX9Q7';
+
+/**
  * `POST /api/v1/media/{id}/transcode` response. `master_url`/`hls_url` are
  * ABSOLUTE signed URLs.
  *
- * ⚠ There is deliberately NO `dash_url`. phlix-server stopped emitting it in
- * S11 because real DASH is unbuilt (tracked as S56-S60), so the advertised
- * `/dash/{job}/manifest.mpd` always 404'd — declaring it handed this client a
- * compile-time guarantee of a field that is `undefined` at runtime, which is
- * strictly worse than omitting it. `@phlix/contracts` v0.4.0 dropped it from
- * `TranscodeStartResponse` for the same reason; this local copy follows.
+ * NOTE (S11-tail, 2026-09): these two transcode shapes stay a LOCAL MIRROR,
+ * not a re-export, because consumers narrowed them deliberately — `subtitles`
+ * is the `{language, url}` pair the player actually reads (narrower than
+ * contracts' `TranscodeSubtitleTrack` rows) and `variants` tolerates a legacy
+ * pre-ABR server (contracts requires the key). The re-export rule in
+ * `.claude/rules/api-managers.md` binds shapes mirrored VERBATIM; a mirrored
+ * shape must still mirror the TRUTH, which is what this reconciliation
+ * restores.
  *
- * Do not re-add it, not even as an optional member: an optional key invites
- * every consumer to keep testing for something that is never sent. When DASH
- * actually ships it comes back as a REQUIRED field, in lockstep with the
- * server. The absence is pinned at the type level by
- * `src/types/__tests__/playback.test.ts` ("declares no dash_url on either
- * transcode shape") — `tsc --noEmit` is what kills a re-add; jest transpiles
- * without type-checking and stays green.
+ * `dash_url` (contracts S325 fold-in at v0.4.4): phlix-server S59 restored
+ * what S11 removed. The key is ALWAYS present, `string | null` — a signed
+ * `/dash/{job}/manifest.mpd` when the job actually published a manifest, null
+ * otherwise (an mpegts job — the S60 rollback — and jobs created before S60
+ * flipped the shipped default to fmp4, whose manifest `manifest.mpd` never
+ * existed). `@phlix/contracts` re-declared it required on
+ * `TranscodeStartResponse`/`TranscodeStatusResponse`; this local mirror follows.
+ *
+ * The PRESENCE is pinned at the type level by
+ * `src/types/__tests__/playback.test.ts` ("declares dash_url on both transcode
+ * shapes") — `tsc --noEmit` is what kills a removal or an optionalisation;
+ * jest transpiles without type-checking and stays green.
  */
 export interface TranscodeJob {
   job_id: string;
   master_url: string;
   hls_url: string;
+  dash_url: string | null;
   status: TranscodeStatusValue;
   reused: boolean;
   subtitles: TranscodeSubtitle[];
@@ -156,7 +171,10 @@ export interface TranscodeJob {
 /**
  * `GET /api/v1/transcode/{jobId}/status` response. `progress` is 0-100.
  *
- * ⚠ No `dash_url` here either — see {@link TranscodeJob}.
+ * `dash_url` is present here too — same `string | null` contract as
+ * {@link TranscodeJob.dash_url}. Server `TranscodeController::status()` signs
+ * `dashManifestUrl($jobId)` on every reply (null unless the job published a
+ * `manifest.mpd`); no `hls_url` on this endpoint (master_url only).
  */
 export interface TranscodeStatus {
   job_id: string;
@@ -165,6 +183,7 @@ export interface TranscodeStatus {
   playlist_ready: boolean;
   progress: number;
   master_url: string;
+  dash_url: string | null;
   subtitles: TranscodeSubtitle[];
   /** Same ABR ladder as {@link TranscodeJob.variants} (server A7). */
   variants?: Rendition[] | null;

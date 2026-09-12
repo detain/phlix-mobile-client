@@ -19,15 +19,17 @@ jest.mock('../client', () => ({
 
 const mockedClient = apiClient as jest.Mocked<typeof apiClient>;
 
-// NOTE: no `dash_url` — phlix-server stopped emitting it in S11 (real DASH is
-// unbuilt, S56-S60), so a fixture carrying it would be modelling a payload the
-// server never sends. The type-level pin lives in
+// NOTE: `dash_url` is `string | null` on the wire and ALWAYS present (server
+// S59 restored what S11 removed; contracts v0.4.4+ requires the key) — the
+// fixture bases below model the null arm (mpegts-era job), signed overrides
+// model the populated arm. The type-level presence pin lives in
 // `src/types/__tests__/playback.test.ts`; these fixtures are deliberately
 // loosely typed, so they cannot enforce it themselves.
 const makeJob = (over: Partial<Record<string, unknown>> = {}) => ({
   job_id: 'job-1',
   master_url: 'https://srv/hls/job-1/master.m3u8?sig=a',
   hls_url: 'https://srv/hls/job-1/master.m3u8?sig=a',
+  dash_url: null,
   status: 'encoding',
   reused: false,
   subtitles: [],
@@ -41,6 +43,7 @@ const makeStatus = (over: Partial<Record<string, unknown>> = {}) => ({
   playlist_ready: false,
   progress: 0,
   master_url: 'https://srv/hls/job-1/master.m3u8?sig=a',
+  dash_url: null,
   subtitles: [],
   ...over,
 });
