@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — cs42 currency re-pin (PURE provenance regen #29; 402 tuples unchanged; untagged) — 2026-09-12
+
+- **cs#42 currency re-pin cascade (lane cs42).** Vendored
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from
+  `@phlix/contracts` master (untagged regen #29 against the current
+  phlix-server master tip; purity re-proven before regenerating — the server
+  span since the previous pin is four commits of SyncPlay bridge/worker/room
+  and WebSocket plumbing work, a catalog-pin bump and an AGENTS.md theming
+  paragraph, with an empty diff on the two route-bearing guard-constant
+  files, so the stripped route-content digest measures equal old-vs-new and
+  only the provenance sha + generatedAt bytes move). 402 `[method, path]`
+  tuples unchanged. Gate pins advance in the same commit — it-title cite and
+  the full provenance sha — while mobile's own client-scan counts (request
+  sites and distinct tuples derived from this repo's code) stay exactly as
+  pinned. Mobile carries no md5 pin. Untagged wave: the dependency tag pin
+  stays put. Jest baseline holds at this tip: 80 suites / 1 skipped /
+  1181 passed.
+
 ### Changed — S11-tail dash_url reconciliation: local transcode types mirror the wire truth again (contracts pin #v0.4.5 → #v0.4.6) — 2026-09-12
 
 - **Premise inversion (lane s11tail).** phlix-server S59 restored `dash_url`
