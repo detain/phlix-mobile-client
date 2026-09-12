@@ -71,10 +71,10 @@ describe('MusicManager', () => {
     expect(result).toEqual([sampleArtist]);
   });
 
-  it('getArtist GETs /music/artists/{name} (encoded) and unwraps .artist', async () => {
+  it('getArtist GETs /music/artist?name= (encoded) and unwraps .artist', async () => {
     mockedClient.get.mockResolvedValue({ artist: sampleArtist });
     const result = await musicManager.getArtist('AC/DC');
-    expect(mockedClient.get).toHaveBeenCalledWith('/music/artists/AC%2FDC');
+    expect(mockedClient.get).toHaveBeenCalledWith('/music/artist?name=AC%2FDC');
     expect(result).toEqual(sampleArtist);
   });
 
@@ -85,11 +85,11 @@ describe('MusicManager', () => {
     expect(result).toEqual([sampleAlbum]);
   });
 
-  it('getAlbum GETs /music/albums/{name} (encoded) and unwraps .album', async () => {
+  it('getAlbum GETs /music/album?name= (encoded) and unwraps .album', async () => {
     mockedClient.get.mockResolvedValue({ album: sampleAlbum });
     const result = await musicManager.getAlbum('The Dark Side of the Moon');
     expect(mockedClient.get).toHaveBeenCalledWith(
-      '/music/albums/The%20Dark%20Side%20of%20the%20Moon'
+      '/music/album?name=The%20Dark%20Side%20of%20the%20Moon'
     );
     expect(result).toEqual(sampleAlbum);
   });
