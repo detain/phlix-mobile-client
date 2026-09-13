@@ -5,6 +5,25 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W83 (cs44): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
+
+- **cs#44 currency cascade (lane cs44) — PROVENANCE-only, not a content regen.**
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export, and `routeManifest.gate.test.ts`
+  advances its it-title cite and full `provenance.serverSha` to the current
+  phlix-server master tip in the same commit. The server span since the previous
+  pin is bundle-only: no route-registration file and nothing under the server's
+  `include/` or `src/` moved, so the `[method, path]` tuples are byte-for-byte
+  identical and `total`/`routes.length`/unique all HOLD at 404 (the dynamic
+  human-readable scan line self-derives the new sha). Only the embedded provenance
+  moves, which rotates the vendored blob while the described route surface is
+  unchanged. Mobile's own client-scan counts (`PER_MODULE_COVERAGE`, the 404-era
+  figures) are HELD — no client request site moved this wave. The post-S240
+  `MusicManager` query-param migration is untouched. No survival-token home in this
+  repo — the wave token lives in its two verified code homes. `package-lock.json`
+  churn (if any) is reclassification-only; the change is the fixture + the gate
+  test.
+
 ### Changed — cs43 currency CONTENT regen (regen #30; 402→404 tuples) + S240 query-param client migration — 2026-09-12
 
 - **cs#43 currency cascade (lane cs43) — this is a CONTENT regen, not a
@@ -14,8 +33,8 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   path routes, so the vendored route manifest grows **402 → 404 tuples**.
   `src/api/test/server-route-manifest.json` re-vendored byte-identical from
   `@phlix/contracts` master (untagged regen #30 against the current
-  phlix-server tip `e96f586d`); the blob is content-identical across the whole
-  estate.
+   phlix-server tip of the era); the blob is content-identical across the whole
+   estate.
 - **S240 client migration.** `MusicManager.getArtist` and `getAlbum` now call
   the query-param rails: `/music/artist?name=${encodeURIComponent(name)}` and
   `/music/album?name=${encodeURIComponent(name)}` (was
@@ -24,7 +43,7 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the value rides in the query string, still `encodeURIComponent`-encoded —
   matching the repo's single-string convention for these detail methods.
 - **Gate moves in the same commit.** `routeManifest.gate.test.ts`: it-title cite
-  and the full `provenance.serverSha` advance to `e96f586d…`, `total`/`routes.length`
+   and the full `provenance.serverSha` advance to the era tip, `total`/`routes.length`
   and the human-readable scan line advance `402 → 404`. Mobile's own client-scan
   counts are UNCHANGED — the migration only swaps two path templates for two
   query templates (the `normalizePath` gate strips the query before matching), so
