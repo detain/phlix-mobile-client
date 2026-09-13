@@ -5,6 +5,26 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W85 (cs45): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
+
+- **cs#45 currency cascade (lane cs45) — PROVENANCE-only, not a content regen.**
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export (untagged regen #32), and
+  `routeManifest.gate.test.ts` advances its it-title cite and full
+  `provenance.serverSha` to the current phlix-server master tip in the same
+  commit. The server span since the previous pin is bundle-only: no
+  route-registration file and nothing under the server's `include/` or `src/`
+  moved, so the `[method, path]` tuples are byte-for-byte identical and
+  `total`/`routes.length`/unique all HOLD at 404 (the dynamic human-readable
+  scan line self-derives the new sha). Only the embedded provenance moves, which
+  rotates the vendored blob while the described route surface is unchanged.
+  Mobile's own client-scan counts (`PER_MODULE_COVERAGE`, the 404-era figures)
+  are HELD — no client request site moved this wave. The post-S240
+  `MusicManager` query-param migration is untouched. No survival-token home in
+  this repo — the wave token lives in its two verified code homes.
+  `package-lock.json` unmoved (pin already at the `#v0.4.7` tag); the change is
+  the fixture + the gate test.
+
 ### Changed — W83 (cs44): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
 
 - **cs#44 currency cascade (lane cs44) — PROVENANCE-only, not a content regen.**
