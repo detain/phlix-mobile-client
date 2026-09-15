@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W93 (cs46a): route-manifest PROVENANCE re-vendor (404 tuples — route bytes unmoved) — 2026-09-15
+
+- **cs#46 currency re-vendor (lane cs46a) — PROVENANCE-only, not a content regen.**
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export (untagged regen #33), and
+  `routeManifest.gate.test.ts` advances its it-title cite and full
+  `provenance.serverSha` to the current phlix-server master tip in the same
+  commit. The diff against the previous vendored bytes is provenance-only: no
+  route-registration change upstream, so the `[method, path]` tuples are
+  byte-for-byte identical and `total`/`routes.length`/unique all HOLD at 404 —
+  only the embedded provenance moves, which rotates the vendored blob while the
+  described route surface is unchanged. Mobile's own client-scan counts
+  (`PER_MODULE_COVERAGE`) are HELD — no client request site moved this wave.
+  The contracts dependency stays pinned at the `#v0.4.7` tag (no tag was cut
+  for the regen; the vendored fixture carries the current canonical bytes), so
+  `package.json`/`package-lock.json` are unmoved; the change is the fixture +
+  the gate test.
+
 ### Changed — W85 (cs45): route-manifest PROVENANCE re-pin (404 tuples — route bytes unmoved) — 2026-09-13
 
 - **cs#45 currency cascade (lane cs45) — PROVENANCE-only, not a content regen.**

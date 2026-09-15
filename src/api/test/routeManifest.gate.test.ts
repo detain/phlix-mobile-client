@@ -190,10 +190,13 @@ const PER_MODULE_COVERAGE: Record<string, number> = {
 };
 const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0);
 
+// cs#46 currency re-vendor ritual token (code-resident survival assertion target).
+export const CS46_CURRENCY_TOKEN = 'CS46CURRENCYPINX9X1';
+
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server 694752cd', () => {
+  it('is the contracts artifact derived from phlix-server c9c551e0', () => {
     // Same provenance strings as @phlix/contracts master dist/server-route-manifest.json.
-    expect(manifest.provenance.serverSha).toBe('694752cd2050c8688f99aa6e12539226d19c2540');
+    expect(manifest.provenance.serverSha).toBe('c9c551e0506a742220c17a34022d4a2f497e6989');
     expect(manifest.provenance.total).toBe(404);
     expect(manifest.routes).toHaveLength(404);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
