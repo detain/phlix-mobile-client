@@ -194,11 +194,11 @@ const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0
 export const CS46_CURRENCY_TOKEN = 'CS46CURRENCYPINX9X1';
 
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server c9c551e0', () => {
+  it('is the contracts artifact derived from phlix-server 730e55b7', () => {
     // Same provenance strings as @phlix/contracts master dist/server-route-manifest.json.
-    expect(manifest.provenance.serverSha).toBe('c9c551e0506a742220c17a34022d4a2f497e6989');
-    expect(manifest.provenance.total).toBe(404);
-    expect(manifest.routes).toHaveLength(404);
+    expect(manifest.provenance.serverSha).toBe('730e55b7d3ad44a155f6b46374a9f6c463792840');
+    expect(manifest.provenance.total).toBe(410);
+    expect(manifest.routes).toHaveLength(410);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
   });
 });
@@ -219,7 +219,7 @@ describe('S280 route gate — every URL mobile issues is tuple-exact served', ()
     const uniqueTuples = new Set(sites.map((s) => `${s.method} ${s.path}`));
     console.log(
       `[S280 route gate] mobile: ${sites.length} request sites / ${uniqueTuples.size} distinct [method, pathTemplate] tuples ` +
-        `across ${perFile.size} modules — all tuple-exact against the vendored 404-route manifest @ ${manifest.provenance.serverSha}`,
+        `across ${perFile.size} modules — all tuple-exact against the vendored 410-route manifest @ ${manifest.provenance.serverSha}`,
     );
     for (const [file, count] of [...perFile.entries()].sort()) {
       console.log(`  ${file}: ${count}`);
