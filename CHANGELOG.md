@@ -5,6 +5,24 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — W111 (cs47b): route-manifest CONTENT re-vendor (404→410 tuples) — 2026-09-17
+
+- **cs#47 currency re-vendor (lane cs47b) — CONTENT regen, not provenance-only.**
+  `src/api/test/server-route-manifest.json` re-vendored byte-identical from the
+  `@phlix/contracts` canonical master export (untagged regen #34), and
+  `routeManifest.gate.test.ts` advances its it-title cite, full
+  `provenance.serverSha`, the `total`/`routes.length` pins and the scan log's
+  tuple wording in the same commit. This span IS a route change upstream — the
+  quick-connect device-pairing endpoints and consent-gated client telemetry —
+  so the union rises from 404 to 410 tuples (Application guard count 367→373;
+  WebPortal 48 and shared 11 hold); route-content bytes move alongside the
+  provenance lines. Mobile's own client-scan counts (`PER_MODULE_COVERAGE`) are
+  HELD — no request site moved; mobile issues nothing against the new surface.
+  No md5 currency pin exists in this repo by design. The contracts dependency
+  stays pinned at the `#v0.4.7` tag (no tag was cut for the regen), so
+  `package.json`/`package-lock.json` are unmoved; the change is the fixture +
+  the gate test + this bullet.
+
 ### Changed — W93 (cs46a): route-manifest PROVENANCE re-vendor (404 tuples — route bytes unmoved) — 2026-09-15
 
 - **cs#46 currency re-vendor (lane cs46a) — PROVENANCE-only, not a content regen.**
