@@ -5,6 +5,34 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — contracts re-pin: `#v0.4.7` → `#v0.5.0` (error-code-registry tag; additive) — 2026-09-23
+
+- **Hygiene pin bump (lane: contracts-repin-v0.5.0).** Advances the
+  `@phlix/contracts` pin to the live `v0.5.0` tag (contracts PR #77, the estate
+  error-code registry; tag peels to commit `8ef65d30be42623765c29ced34fc86d8ab3c51b5`,
+  recorded as the lock `resolved` sha), clearing this repo's MASTER-pin row of
+  the hub ui-pin-skew gate (hub PR #317 grades all four pinner repos' pins
+  against live contracts tags). The tag is purely additive over `#v0.4.7`:
+  new `src/errors.ts` / `dist/errors.d.ts` / `dist/error-codes.json` re-exported
+  from the index; no existing export moved. Mobile imports only wire types,
+  `AUTO_QUALITY`, the `X_PHLIX_*` header constants + `buildPhlixHeaders`, and the
+  tick helpers — none touched — so this is zero code churn (the errors registry
+  is AVAILABLE to mobile, not yet consumed by this lane). The `dist/phlix-contracts.js`
+  bundle also carries the cs#47 route-manifest CONTENT regen (404→410 tuples,
+  regen #34, folded between the tags): the v0.5.0 `dist/server-route-manifest.json`
+  is byte-identical to the fixture cs#47 vendored, so the S280 gate's provenance
+  assertions (`730e55b7…`, total 410) hold against both the vendored copy and the
+  now-installed artifact.
+  **Version-field skew, documented (windows lockwalk precedent):** the `v0.5.0`
+  tag's own `package.json` `version` field still reads `0.4.7` (deliberate estate
+  skew — the field lags the tag), so npm keeps writing `"version": "0.4.7"` in
+  `package-lock.json`'s `@phlix/contracts` entry. Pin identity is the package
+  spec ref (`#v0.5.0`) plus the lock `resolved` commit sha (`8ef65d30…`); the
+  field is derived data, not the pin, and no check in this repo asserts on it.
+  Verification: `tsc --noEmit` 0 errors; eslint 0 errors; jest 80 suites /
+  1 skipped / 1181 passed — baseline held exactly (same figures as the
+  `#v0.4.6` era anchor above).
+
 ### Changed — W111 (cs47b): route-manifest CONTENT re-vendor (404→410 tuples) — 2026-09-17
 
 - **cs#47 currency re-vendor (lane cs47b) — CONTENT regen, not provenance-only.**
