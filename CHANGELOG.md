@@ -5,6 +5,35 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — contracts re-pin: `#v0.5.0` → `#v0.5.1` (W1b registry-expansion tag; additive) — 2026-09-23
+
+- **Hygiene pin bump (lane: contracts-repin-v0.5.1).** Advances the
+  `@phlix/contracts` pin to the live `v0.5.1` tag (contracts PR #78, the W1b
+  error-registry expansion — 202 codes / 37 domains, +55 dotted codes over
+  `v0.5.0`, every one re-verified file:line against server `838da686` and hub
+  `c023a341`). The annotated tag object peels to merge commit
+  `e3c14f07e8927224978a921e1f79406629ceb6c5`, recorded as the lock `resolved`
+  sha, keeping this repo's MASTER-pin row current against live contracts tags
+  for the hub ui-pin-skew gate. The tag is strictly additive over `#v0.5.0`:
+  only the errors surface grows (`src/errors.ts`, `dist/errors.d.ts`,
+  `dist/error-codes.json` — now carried IN the tag — and the rebuilt bundle);
+  no code removed, renamed or re-parented, and no existing export moved.
+  `dist/server-route-manifest.json` is byte-identical between the tags, so the
+  S280 route gate's provenance assertions (`730e55b7…`, total 410) hold
+  unchanged against the newly-installed artifact. Mobile imports only wire
+  types, `AUTO_QUALITY`, the `X_PHLIX_*` header constants + `buildPhlixHeaders`,
+  and the tick/format helpers — none touched — so this is zero code churn
+  (the expanded registry remains AVAILABLE to mobile, not yet consumed).
+  **Version-field skew, documented (windows lockwalk precedent):** the `v0.5.1`
+  tag's own `package.json` `version` field still reads `0.4.7` (deliberate estate
+  skew — the field lags the tag), so `package-lock.json`'s `@phlix/contracts`
+  entry keeps `"version": "0.4.7"`. Pin identity is the package spec ref
+  (`#v0.5.1`) plus the lock `resolved` commit sha (`e3c14f07…`); the field is
+  derived data, not the pin, and no check in this repo asserts on it.
+  Verification: `tsc --noEmit` 0 errors; eslint 0 errors; jest 80 suites /
+  1 skipped / 1181 passed — baseline held exactly (same figures as the
+  `#v0.5.0` entry below).
+
 ### Changed — contracts re-pin: `#v0.4.7` → `#v0.5.0` (error-code-registry tag; additive) — 2026-09-23
 
 - **Hygiene pin bump (lane: contracts-repin-v0.5.0).** Advances the
