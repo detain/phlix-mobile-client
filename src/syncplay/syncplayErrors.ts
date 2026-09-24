@@ -23,7 +23,7 @@
 //
 // COVERAGE: every member of the contracts `SyncPlayErrorCode` union —
 // the 12 legacy SCREAMING_SNAKE codes the server emits in `error_code` today
-// (verified at phlix-server f8cba60c: SyncPlayManager::sendError +
+// (verified at phlix-server 8dc17418: SyncPlayManager::sendError +
 // MessageHandler via Messages::error), the 7 dotted `syncplay.*` twins (4
 // already on the wire at the group-limit / join-validation sites; 3 reserved
 // for the Wave-2 cutover — the registry's own rule is "clients localize them

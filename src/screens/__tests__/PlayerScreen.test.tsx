@@ -801,7 +801,7 @@ describe('PlayerScreen — S407 track pickers fed by playback-info', () => {
 // nothing when the room failed. Doctrine: the stable wire CODE decides the
 // sentence (syncplayErrors catalog), the server's English text is fallback,
 // and the Alert is the repo's transient-feedback idiom (cf. the access /
-// stream-limit arms at PlayerScreen :428/:545). The harness's mocked service
+// stream-limit arms in PlayerScreen). The harness's mocked service
 // records every `on(event, handler)`, so we invoke the REAL registered
 // handler and assert the REAL Alert the component fires.
 describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () => {
