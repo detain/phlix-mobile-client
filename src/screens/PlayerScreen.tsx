@@ -48,6 +48,7 @@ import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import type { PlaybackEvent } from '../native/types';
 import { syncPlayService } from '../syncplay/SyncPlayService';
+import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
 
@@ -271,6 +272,11 @@ const PlayerScreen: React.FC = () => {
 
     syncPlayService.on('onError', (code, message) => {
       console.warn(`SyncPlay error [${code}]: ${message}`);
+      // Error-code-first doctrine: surface the failure to the viewer through
+      // the repo's transient-feedback idiom (Alert, as used by the access /
+      // stream-limit arms above). The catalog picks the sentence from the
+      // stable wire code; the server's English text is only a fallback.
+      Alert.alert('SyncPlay Error', describeSyncPlayError(code, message));
     });
 
     syncPlayService.connect(memberId);

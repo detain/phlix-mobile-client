@@ -216,6 +216,12 @@ type WsMessage = {
   [key: string]: unknown;
 };
 
+/** Parse a wire field into a usable string at the boundary; anything else
+ * (number, object, missing) becomes undefined so `??` chains fall through. */
+function wireString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface SyncPlayServiceEvents {
@@ -779,8 +785,12 @@ class SyncPlayService {
   }
 
   private handleErrorMsg(msg: WsMessage): void {
-    const code = (msg.error_code as string) ?? 'UNKNOWN';
-    const message = (msg.message as string) ?? 'Unknown error';
+    // phlix-syncplay SPEC read order: `error_code` (Messages::error) first,
+    // then the legacy `code` (SyncPlayManager::sendError), then the sentinel.
+    // `code` is parsed, not cast: a non-string wire value must not poison the
+    // event signature (doctrine: boundary parses, internals trust).
+    const code = wireString(msg.error_code) ?? wireString(msg.code) ?? 'UNKNOWN';
+    const message = wireString(msg.message) ?? 'Unknown error';
 
     this.events.onError?.(code, message);
   }

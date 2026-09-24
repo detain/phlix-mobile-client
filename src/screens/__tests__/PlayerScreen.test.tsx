@@ -31,6 +31,7 @@
 // wiring (feed → store → picker props / native `subtitleUrl` prop).
 
 import { AUTO_QUALITY } from '@phlix/contracts';
+import { Alert as RNAlert } from 'react-native';
 import type { AudioTrack, SubtitleTrack } from '../../types/playback';
 import { SubtitleTrackList } from '../../components/player/SubtitleTrackList';
 import { AudioTrackList } from '../../components/player/AudioTrackList';
@@ -792,5 +793,76 @@ describe('PlayerScreen — S407 track pickers fed by playback-info', () => {
     // Audio rail: playback-info is its ONLY feeder — it arrives regardless.
     expect(mockPlayerStore.audioTracks).toEqual(GOLDEN_AUDIO_TRACKS);
     h.host.unmount();
+  });
+});
+
+// ── W5: SyncPlay errors are USER-VISIBLE (code → catalog → Alert) ─────────
+// Before this lane the onError handler was console.warn-only — the viewer saw
+// nothing when the room failed. Doctrine: the stable wire CODE decides the
+// sentence (syncplayErrors catalog), the server's English text is fallback,
+// and the Alert is the repo's transient-feedback idiom (cf. the access /
+// stream-limit arms at PlayerScreen :428/:545). The harness's mocked service
+// records every `on(event, handler)`, so we invoke the REAL registered
+// handler and assert the REAL Alert the component fires.
+describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () => {
+  let alertSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    alertSpy = jest.spyOn(RNAlert, 'alert').mockImplementation(() => {});
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    alertSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  function grabErrorHandler(): (code: string, message: string) => void {
+    const svcOn = (jest.requireMock('../../syncplay/SyncPlayService') as any)
+      .syncPlayService.on as jest.Mock;
+    const handler = svcOn.mock.calls
+      .filter(([event]) => event === 'onError')
+      .map(([, fn]) => fn)
+      .pop() as (code: string, message: string) => void;
+    expect(handler).toBeDefined();
+    return handler;
+  }
+
+  it('renders the CATALOG sentence for a mapped code — catalog beats server text', async () => {
+    await bootDirectPlay();
+    grabErrorHandler()('NOT_HOST', 'Only the host can control playback');
+
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Only the room host can do that.');
+    // Dev diagnostics stay (console.warn kept on purpose), user visibility is NEW.
+    expect(warnSpy).toHaveBeenCalledWith('SyncPlay error [NOT_HOST]: Only the host can control playback');
+  });
+
+  it('renders PROTOCOL_VERSION_MISMATCH copy for the upgrade family', async () => {
+    await bootDirectPlay();
+    grabErrorHandler()('PROTOCOL_VERSION_MISMATCH', 'server protocol 2 > client 1');
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'SyncPlay Error',
+      'Please update the Phlix app — this server speaks a newer SyncPlay protocol.'
+    );
+  });
+
+  it('degrades to the server message for an unknown code', async () => {
+    await bootDirectPlay();
+    grabErrorHandler()('FUTURE_SERVER_CODE', 'Brand new failure the app predates');
+
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Brand new failure the app predates');
+  });
+
+  it('degrades to the generic sentence when neither code nor message helps', async () => {
+    await bootDirectPlay();
+    grabErrorHandler()('UNKNOWN', 'Unknown error');
+
+    // 'UNKNOWN' is the service sentinel: it behaves like an unmapped code and
+    // shows the service's own last-resort text rather than rendering a key.
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Unknown error');
   });
 });

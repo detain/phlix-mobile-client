@@ -742,6 +742,66 @@ describe('SyncPlayService - Error handling', () => {
     syncPlayService.off('onError');
   });
 
+  // W5 — SPEC read order: `error_code` (Messages::error) first, then the
+  // legacy `code` (SyncPlayManager::sendError), then the 'UNKNOWN' sentinel.
+  it('reads error_code ahead of a present legacy code field', () => {
+    syncPlayService.connect('member-123');
+    MockWebSocket.simulateOpen();
+
+    const errorCallback = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_error',
+      error_code: 'syncplay.group_full',
+      code: 'JOIN_FAILED',
+      message: 'Group is full',
+    });
+
+    expect(errorCallback).toHaveBeenCalledWith('syncplay.group_full', 'Group is full');
+
+    syncPlayService.off('onError');
+  });
+
+  it('falls back to the legacy code field when error_code is absent', () => {
+    syncPlayService.connect('member-123');
+    MockWebSocket.simulateOpen();
+
+    const errorCallback = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_error',
+      code: 'NOT_HOST',
+      message: 'Only the host can control playback',
+    });
+
+    expect(errorCallback).toHaveBeenCalledWith('NOT_HOST', 'Only the host can control playback');
+
+    syncPlayService.off('onError');
+  });
+
+  it("uses the 'UNKNOWN' sentinel when neither code field carries a string", () => {
+    syncPlayService.connect('member-123');
+    MockWebSocket.simulateOpen();
+
+    const errorCallback = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+
+    // Non-string junk must not poison the (code: string) event signature —
+    // the boundary parses, it does not cast.
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_error',
+      error_code: 422,
+      code: { nested: true },
+      message: 'transport hiccup',
+    });
+
+    expect(errorCallback).toHaveBeenCalledWith('UNKNOWN', 'transport hiccup');
+
+    syncPlayService.off('onError');
+  });
+
   it('should ignore malformed JSON messages without throwing', () => {
     syncPlayService.connect('member-123');
     MockWebSocket.simulateOpen();
