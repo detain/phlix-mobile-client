@@ -273,9 +273,10 @@ const PlayerScreen: React.FC = () => {
     syncPlayService.on('onError', (code, message) => {
       console.warn(`SyncPlay error [${code}]: ${message}`);
       // Error-code-first doctrine: surface the failure to the viewer through
-      // the repo's transient-feedback idiom (Alert, as used by the access /
-      // stream-limit arms above). The catalog picks the sentence from the
-      // stable wire code; the server's English text is only a fallback.
+      // the repo's transient-feedback idiom (Alert, as used by the access-
+      // schedule / stream-limit denial arms in this file). The catalog
+      // picks the sentence from the stable wire code; the server's English
+      // text is only a fallback.
       Alert.alert('SyncPlay Error', describeSyncPlayError(code, message));
     });
 
