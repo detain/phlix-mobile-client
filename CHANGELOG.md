@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — contracts re-pin: `#v0.5.1` → `#v0.5.2` (version-alignment release; manifest-only, additive) — 2026-09-25
+
+- **Hygiene pin bump (lane: contracts-repin-v0.5.2).** Advances the
+  `@phlix/contracts` pin to the live `v0.5.2` tag (contracts PR #83). The
+  annotated tag object peels to merge commit
+  `7afb6a9171c33c18a2303716516572a4dfc405d9`, recorded as the lock `resolved`
+  sha, keeping this repo's MASTER-pin row current against live contracts tags
+  for the hub ui-pin-skew gate.
+- **Version-field skew ENDS at this tag (new truth, supersedes the skew note
+  in the `#v0.5.1` entry below).** `v0.5.2` is precisely the release that
+  aligns the lagging `package.json` `version` field `0.4.7` → `0.5.2` —
+  contracts' own CHANGELOG states this honestly ("version-field alignment
+  ONLY … registry content untouched"). The lock entry's `"version"` therefore
+  moves `0.4.7` → `0.5.2` and the field now agrees with the pinned tag for the
+  first time since `v0.5.0` shipped ahead of it.
+- **Manifest-only, zero code churn, proven from the tags.** `git diff
+  v0.5.1..v0.5.2` in contracts is tooling/docblock/CI work only (#79 CI
+  freshness gates + honest test claims, #80 `server.not_found` reuse-target
+  docblock, #81 the third `src/errors.ts` coordinate re-sweep +
+  `npm run verify:cites` tripwire, #82 `.gitattributes` LF shield):
+  `dist/error-codes.json` is **byte-identical** across the tags — md5
+  `b919685d3816940fc76f2f67c9b9eee2`, census holds at 202 codes / 37 domains —
+  `dist/errors.d.ts` is declaration-surface identical once comments are
+  stripped (verified programmatically, comments-only churn), the package
+  `version` + a dev-only `verify:cites` script are the sole `package.json`
+  changes, and no `prepare`/`postinstall` script exists to perturb installs.
+  `dist/server-route-manifest.json` is untouched between the tags, so the S280
+  route gate's provenance assertions (`730e55b7…`, total 410) hold unchanged
+  against the newly-installed artifact. Mobile imports only wire types,
+  `AUTO_QUALITY`, the `X_PHLIX_*` header constants + `buildPhlixHeaders`, and
+  the tick/format helpers — none touched — so this remains zero code churn
+  (the registry stays AVAILABLE to mobile, not consumed).
+  Verification: `tsc --noEmit` 0 errors; eslint 0 errors (2 pre-existing
+  warnings); jest 81 suites / 1 skipped / 1196 passed — the post-#100 baseline
+  held exactly (re-derived on pristine master before the pin edits).
+
 ### Changed — contracts re-pin: `#v0.5.0` → `#v0.5.1` (W1b registry-expansion tag; additive) — 2026-09-23
 
 - **Hygiene pin bump (lane: contracts-repin-v0.5.1).** Advances the
