@@ -1,0 +1,36 @@
+# =============================================================================
+# EOL shield — normalise all text to LF in the working tree (windows #46 class)
+# =============================================================================
+# Rationale (estate hygiene campaign, 2026-09-25; mirrors the phlix-windows-client
+# PR #46 precedent and the tizen/ui/contracts/hub/roku/console shields):
+#
+# If any windows-latest CI job ever lands on this repo, git's autocrlf line
+# endings (or a machine-level core.autocrlf=true) can silently convert
+# working-tree text files to CRLF at checkout. Exposed surfaces:
+#
+#  1. src/api/test/server-route-manifest.json — the S280 client route gate
+#     (src/api/test/routeManifest.gate.test.ts) declares it "a byte-for-byte
+#     copy of @phlix/contracts dist/server-route-manifest.json (provenance:
+#     server sha inside)" with tuple-exact matching and PINNED per-module
+#     coverage counts derived by scanning this repo's TS sources at test time.
+#     CRLF checkout bytes violate the byte-for-byte law and perturb the scanner.
+#  2. android/gradle/wrapper/gradle-wrapper.jar — committed binary; guarded.
+#  3. android/gradlew.bat — the UPSTREAM Gradle wrapper script, committed
+#     CRLF-by-design (94 CR, 0 bare LF; vendored verbatim from gradle). It is
+#     frozen with `-text` so neither checkout nor commit ever converts it:
+#     cmd.exe batch semantics expect CRLF, and byte-freezing keeps a future
+#     `gradlew wrapper` regeneration diff-clean. This is deliberate — NOT an
+#     oversight: it is the only non-binary blob in the repo carrying CR bytes.
+#
+# `* text=auto eol=lf` forces LF working-tree bytes on every OTHER text file
+# on every platform regardless of core.autocrlf; git detects text vs binary by
+# content (NUL heuristic), so binaries never convert. All remaining committed
+# text blobs are already pure LF (2026-09-25 census @b122961c: 336 tracked
+# blobs, CR only in the jar, the guarded .bat, nothing else), so
+# renormalisation is a guaranteed no-op and this file FROZE the invariant.
+# =============================================================================
+* text=auto eol=lf
+# Gradle wrapper jar: committed binary, never EOL-converted.
+*.jar binary
+# Upstream Gradle wrapper scripts: byte-frozen as committed (CRLF by design).
+*.bat -text
