@@ -8,6 +8,7 @@
 // src/api/AuthManager.ts
 import apiClient from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../services/SecureStorage';
 import { getDeviceId } from './deviceIdentity';
 
 export interface User {
@@ -116,20 +117,23 @@ class AuthManager {
   }
 
   private async saveCredentials(data: LoginResponse): Promise<void> {
-    await AsyncStorage.setItem('access_token', data.access_token);
-    await AsyncStorage.setItem('refresh_token', data.refresh_token);
+    // Tokens go to the vault (keychain); only the non-secret user profile
+    // stays in AsyncStorage. (audit M1 — the old code wrote both JWTs as
+    // plaintext AsyncStorage keys.)
+    await secureStorage.storeTokens(data.access_token, data.refresh_token);
     await AsyncStorage.setItem('user', JSON.stringify(data.user));
   }
 
   // Logout: the REST API has no required logout (legacy /auth/logout is the
   // browser cookie flow). Just clear local credentials.
   async logout(): Promise<void> {
-    await AsyncStorage.multiRemove(['access_token', 'refresh_token', 'user']);
+    await secureStorage.clearTokens();
+    await AsyncStorage.removeItem('user');
   }
 
   // Check if user is authenticated
   async isAuthenticated(): Promise<boolean> {
-    const token = await AsyncStorage.getItem('access_token');
+    const token = await secureStorage.getAccessToken();
     return !!token;
   }
 

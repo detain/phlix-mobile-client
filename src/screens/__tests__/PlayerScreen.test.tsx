@@ -189,6 +189,11 @@ jest.mock('../../api/client', () => ({
     pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')
       ? pathOrUrl
       : `https://srv.test${pathOrUrl}`,
+  // useAuthStore.ts wires these at import time (M2/M3 plumbing) — the factory
+  // must export them or the store module crashes this suite.
+  apiErrorMessage: (error: { response?: { data?: { error?: string } }; message?: string }, fallback: string) =>
+    error?.response?.data?.error ?? error?.message ?? fallback,
+  onAuthInvalidated: jest.fn(() => () => undefined),
 }));
 
 jest.mock('../../store/syncplayStore', () => {
@@ -199,7 +204,12 @@ jest.mock('../../store/syncplayStore', () => {
     error: null,
     updatePlaybackState: jest.fn(),
   };
-  return { __state: state, useSyncplayStore: (sel: (s: unknown) => unknown) => sel(state) };
+  // Real zustand hooks also carry .getState (PlayerScreen's effect gate reads
+  // the snapshot imperatively) — mirror that surface here.
+  const hook = Object.assign((sel: (s: unknown) => unknown) => sel(state), {
+    getState: () => state,
+  });
+  return { __state: state, useSyncplayStore: hook };
 });
 
 jest.mock('../../api/PlaybackManager', () => ({ playbackManager: { getStreamUrl: jest.fn() } }));
@@ -211,6 +221,7 @@ jest.mock('../../services/DownloadService', () => ({
 jest.mock('../../syncplay/SyncPlayService', () => ({
   syncPlayService: {
     on: jest.fn(),
+    off: jest.fn(),
     connect: jest.fn(),
     disconnect: jest.fn(),
     sendPlay: jest.fn(),
@@ -864,5 +875,55 @@ describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () =
     // 'UNKNOWN' is the service sentinel: it behaves like an unmapped code and
     // shows the service's own last-resort text rather than rendering a key.
     expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Unknown error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Audit H4 + M5 — identity and socket gating
+// ---------------------------------------------------------------------------
+
+describe('PlayerScreen — H4/M5 room-gated connect with authenticated identity', () => {
+  // The REAL zustand store is used (only its client.ts deps are mocked), so
+  // setState drives exactly what the effect reads via getState().
+  const { useAuthStore } = require('../../stores/useAuthStore') as {
+    useAuthStore: { setState: (s: object) => void; getState: () => { user: unknown } };
+  };
+  const svc = () =>
+    (jest.requireMock('../../syncplay/SyncPlayService') as any)
+      .syncPlayService as { connect: jest.Mock };
+
+  afterEach(() => {
+    mockSyncplayStore.currentGroup = null;
+    useAuthStore.setState({ user: null, isAuthenticated: false, error: null });
+  });
+
+  it('does NOT open the socket when no group is active (M5: mount ≠ join)', async () => {
+    useAuthStore.setState({ user: { id: 'u-9', username: 'bob' }, isAuthenticated: true });
+    mockSyncplayStore.currentGroup = null;
+
+    await bootDirectPlay();
+
+    expect(svc().connect).not.toHaveBeenCalled();
+  });
+
+  it('stays silent while signed out even if a stale group lingers (H4: no fabricated id)', async () => {
+    useAuthStore.setState({ user: null, isAuthenticated: false });
+    mockSyncplayStore.currentGroup = { id: 'sp_room9', name: 'Room', members: [], hostId: 'u-9' };
+
+    await bootDirectPlay();
+
+    expect(svc().connect).not.toHaveBeenCalled();
+  });
+
+  it('connects with the AUTHENTICATED USER ID — never a fabricated mobile_* (H4)', async () => {
+    useAuthStore.setState({ user: { id: 'u-9', username: 'bob' }, isAuthenticated: true });
+    mockSyncplayStore.currentGroup = { id: 'sp_room9', name: 'Room', members: [], hostId: 'u-9' };
+
+    await bootDirectPlay();
+
+    expect(svc().connect).toHaveBeenCalledTimes(1);
+    const claimedIdentity = String(svc().connect.mock.calls[0][0]);
+    expect(claimedIdentity).toBe('u-9'); // JWT subject, not itemId-derived
+    expect(claimedIdentity).not.toMatch(/^mobile_/);
   });
 });

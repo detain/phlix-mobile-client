@@ -8,12 +8,17 @@
 // src/api/__tests__/AuthManager.test.ts
 import { authManager } from '../AuthManager';
 import apiClient from '../client';
+import { secureStorage } from '../../services/SecureStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 jest.mock('../client');
 jest.mock('../deviceIdentity', () => ({
   getDeviceId: jest.fn(async () => 'device-uuid-1'),
 }));
+
+const keychainMock = jest.requireMock('react-native-keychain') as {
+  __resetKeychainMock: () => void;
+};
 
 const mockedClient = apiClient as jest.Mocked<typeof apiClient>;
 
@@ -28,10 +33,12 @@ const tokenEnvelope = {
 describe('AuthManager', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
+    keychainMock.__resetKeychainMock();
+    secureStorage.__resetMigrationLatchForTests();
     await AsyncStorage.clear();
   });
 
-  it('login POSTs /auth/login with body + X-Device-Id header and persists tokens', async () => {
+  it('login POSTs /auth/login with body + X-Device-Id header and persists tokens to the vault', async () => {
     mockedClient.post.mockResolvedValue(tokenEnvelope);
 
     const res = await authManager.login('https://srv', 'bob', 'pw');
@@ -42,8 +49,13 @@ describe('AuthManager', () => {
       { headers: { 'X-Device-Id': 'device-uuid-1' } }
     );
     expect(res.token_type).toBe('Bearer');
-    expect(await AsyncStorage.getItem('access_token')).toBe('acc');
-    expect(await AsyncStorage.getItem('refresh_token')).toBe('ref');
+    // M1 — the JWTs land in the keychain vault, NOT plaintext AsyncStorage.
+    expect(await secureStorage.getAccessToken()).toBe('acc');
+    expect(await secureStorage.getRefreshToken()).toBe('ref');
+    expect(await AsyncStorage.getItem('access_token')).toBeNull();
+    expect(await AsyncStorage.getItem('refresh_token')).toBeNull();
+    // Only the non-secret user profile is a plaintext key.
+    expect(JSON.parse((await AsyncStorage.getItem('user')) as string).username).toBe('bob');
     // No `server` is persisted from the response.
     expect(await AsyncStorage.getItem('server')).toBeNull();
   });
@@ -59,7 +71,7 @@ describe('AuthManager', () => {
       { headers: { 'X-Device-Id': 'device-uuid-1' } }
     );
     expect(res).toEqual({ status: 'pending', message: 'awaiting approval' });
-    expect(await AsyncStorage.getItem('access_token')).toBeNull();
+    expect(await secureStorage.getAccessToken()).toBeNull();
   });
 
   it('register saves tokens when the token envelope is returned', async () => {
@@ -67,7 +79,7 @@ describe('AuthManager', () => {
 
     await authManager.register('https://srv', 'bob', 'b@x.com', 'pw');
 
-    expect(await AsyncStorage.getItem('access_token')).toBe('acc');
+    expect(await secureStorage.getAccessToken()).toBe('acc');
   });
 
   it('refresh POSTs /auth/refresh with the refresh token', async () => {
@@ -88,12 +100,21 @@ describe('AuthManager', () => {
   });
 
   it('logout clears local credentials only (no network logout)', async () => {
-    await AsyncStorage.setItem('access_token', 'acc');
-    await AsyncStorage.setItem('refresh_token', 'ref');
+    // Seed the vault the way a real login does (tokens now live in keychain).
+    await secureStorage.storeTokens('acc', 'ref');
 
     await authManager.logout();
 
     expect(mockedClient.post).not.toHaveBeenCalled();
-    expect(await AsyncStorage.getItem('access_token')).toBeNull();
+    expect(await secureStorage.getAccessToken()).toBeNull();
+    expect(await secureStorage.getRefreshToken()).toBeNull();
+  });
+
+  it('isAuthenticated follows the vault across logout', async () => {
+    await secureStorage.storeTokens('acc', 'ref');
+    expect(await authManager.isAuthenticated()).toBe(true);
+
+    await authManager.logout();
+    expect(await authManager.isAuthenticated()).toBe(false);
   });
 });

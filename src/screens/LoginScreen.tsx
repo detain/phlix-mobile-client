@@ -21,11 +21,29 @@ import {
 import { SafeContainer } from '../components/layout';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { apiErrorMessage } from '../api/client';
 import { webAuthnService } from '../services/WebAuthnService';
 import {
   cleanUsername,
   webauthnErrorMessage,
 } from './webauthn/webauthnHelpers';
+
+/**
+ * Normalize a hand-typed server address (audit M6).
+ *
+ * Scheme-less input defaults to **https** — mirroring the hub's
+ * `HubAuthService.normalizeHubUrl` ("ensure https") — so a missed prefix can
+ * never silently downgrade a remote connection to cleartext. Plaintext http
+ * stays reachable by EXPLICIT opt-in (typing `http://` yourself, e.g. a LAN
+ * lab box); it is never the implicit outcome.
+ */
+function normalizeServerUrl(rawUrl: string): string {
+  const url = rawUrl.trim();
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return `https://${url}`;
+  }
+  return url;
+}
 
 const LoginScreen: React.FC = () => {
   const [serverUrl, setServerUrl] = useState('');
@@ -71,9 +89,7 @@ const LoginScreen: React.FC = () => {
     // login — the server URL is an input, not part of the response).
     let url = serverUrl.trim();
     if (url !== '') {
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `http://${url}`;
-      }
+      url = normalizeServerUrl(url);
       useSettingsStore.getState().setServerUrl(url);
     }
 
@@ -94,17 +110,19 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
-    // Add protocol if missing
-    let url = serverUrl.trim();
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `http://${url}`;
-    }
+    // Scheme-less input goes https (audit M6 — cleartext http only by explicit
+    // opt-in). See {@link normalizeServerUrl}.
+    const url = normalizeServerUrl(serverUrl);
 
     try {
       setError(null);
       await login(url, username, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      // The store already parsed the server's contract `{ error, code }` body;
+      // read it through the SAME parser here (audit M2) so the viewer sees the
+      // real reason ("Invalid credentials (auth.invalid_credentials)") instead
+      // of axios' transport string.
+      setError(apiErrorMessage(err, 'Login failed'));
     }
   };
 

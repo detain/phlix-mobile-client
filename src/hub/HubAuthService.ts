@@ -29,7 +29,19 @@ interface SignInResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
-  user_id: string;
+  /**
+   * The hub's `createAuthResponse()` returns the identity as a nested
+   * `user: { id, username, email, ... }` object — NOT a top-level `user_id`.
+   * The old code destructured a `user_id` that was never on the wire, so
+   * `HubSession.userId` was always `undefined` (audit M4) and SettingsScreen
+   * rendered "Signed in as {undefined}". `user` is optional only for
+   * type-safety against older hubs; {@link resolveUserId} fails loud when a
+   * sign-in truly yields no identity.
+   */
+  user?: { id?: string } & Record<string, unknown>;
+  claims?: { sub?: string } & Record<string, unknown>;
+  /** Legacy spelling some early hub builds carried; read only as a fallback. */
+  user_id?: string;
 }
 
 interface ListServersResponse {
@@ -57,6 +69,27 @@ export class HubAuthService {
   }
 
   /**
+   * Pull the caller's identity out of a hub auth response at the boundary.
+   *
+   * The current hub (`AuthController::loginJson`/`refreshJson` →
+   * `createAuthResponse`) nests it as `user.id`; `claims.sub` (the JWT subject)
+   * is the equivalent authority, and `user_id` is a legacy top-level spelling.
+   * Parse in that order and fail loud when none is present: a session with no
+   * id silently renders "Signed in as {undefined}" downstream (audit M4),
+   * which is worse than an explicit error at sign-in.
+   */
+  private resolveUserId(data: SignInResponse): string {
+    const userId =
+      (typeof data.user?.id === 'string' && data.user.id !== '' ? data.user.id : undefined) ??
+      (typeof data.claims?.sub === 'string' && data.claims.sub !== '' ? data.claims.sub : undefined) ??
+      (typeof data.user_id === 'string' && data.user_id !== '' ? data.user_id : undefined);
+    if (userId === undefined) {
+      throw new Error('Hub sign-in response carried no user identity');
+    }
+    return userId;
+  }
+
+  /**
    * Sign in to the hub with username/password.
    * Returns a HubSession with access/refresh tokens.
    */
@@ -75,13 +108,13 @@ export class HubAuthService {
       }
     );
 
-    const { access_token, refresh_token, expires_in, user_id } = response.data;
+    const { access_token, refresh_token, expires_in } = response.data;
 
     return {
       accessToken: access_token,
       refreshToken: refresh_token,
       expiresAt: Math.floor(Date.now() / 1000) + expires_in,
-      userId: user_id,
+      userId: this.resolveUserId(response.data),
     };
   }
 
@@ -98,13 +131,13 @@ export class HubAuthService {
       }
     );
 
-    const { access_token, refresh_token, expires_in, user_id } = response.data;
+    const { access_token, refresh_token, expires_in } = response.data;
 
     return {
       accessToken: access_token,
       refreshToken: refresh_token,
       expiresAt: Math.floor(Date.now() / 1000) + expires_in,
-      userId: user_id,
+      userId: this.resolveUserId(response.data),
     };
   }
 

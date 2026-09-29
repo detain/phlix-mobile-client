@@ -13,19 +13,43 @@
  * Implements NTP-style time synchronization and handles all SyncPlay
  * protocol messages with the server.
  *
- * ## TimeSync Protocol
+ * ## Transport law (audit H1/M7)
+ *
+ * The endpoint is resolved by `syncplay/wsEndpoint.ts`: the DIRECT lane is the
+ * server's dedicated `:8097` WS listener with the JWT in the `?token=` query
+ * (handshake rejected pre-101 without it), the RELAY lane is the hub's
+ * `:8804/syncplay/{server_id}` with the `bearer, <token>` subprotocol (S237 —
+ * query refused). Neither role plays on the HTTP API port, and nothing here
+ * hand-builds those URLs a second time.
+ *
+ * ## Identity law (audit H4, SPEC §9)
+ *
+ * The server derives every member identity from the connection's JWT subject
+ * and IGNORES client-claimed `member_id` fields (S289). The authoritative
+ * "who am I in this group" answer arrives as `your_id` on the group_state
+ * frame — the service keeps it (`yourId`) and compares host ids against it, so
+ * host gating works no matter what string the screens pass in.
+ *
+ * ## TimeSync Protocol (SPEC §5, server TimeSync.php)
  *
  * 1. Client sends syncplay_time_ping with local timestamp t1
- * 2. Server responds with syncplay_time_pong containing t1, t2 (server receive),
- *    t3 (server response time)
- * 3. Client computes: offset = (t2 - t1 - (t3 - t2)) / 2
- * 4. Rolling average of last OFFSET_SAMPLE_COUNT samples
+ * 2. Server replies syncplay_time_pong with `{client_time: t1, server_time: t2}`
+ *    — the pong carries NO separate t3; the server's compute law treats the
+ *    response time as equal to the receive time, so t3 = t2 and rtt = t4 − t1.
+ * 3. Client computes: offset = t2 − t1 + rtt/2
+ * 4. Rolling average of last OFFSET_SAMPLE_COUNT samples (rtt < 0 or above
+ *    MAX_ACCEPTABLE_RTT is rejected, SPEC §5)
  * 5. adjustedTime = Date.now() + averageOffset
  */
 
 import { useSyncplayStore } from '../store/syncplayStore';
 import { useHubStore } from '../store/hubStore';
 import { wireMsToSeconds } from './wireUnits';
+import {
+  resolveSyncPlayWsEndpoint,
+  type SyncPlayWsEndpoint,
+} from './wsEndpoint';
+import { hashGroupPassword } from './sha256';
 import {
   SYNCPLAY_MESSAGE_TYPES,
   PROTOCOL_VERSION,
@@ -43,6 +67,16 @@ import type { SyncPlayMessageType } from '@phlix/syncplay';
 // ---------------------------------------------------------------------------
 
 const MSG = SYNCPLAY_MESSAGE_TYPES;
+
+// ---------------------------------------------------------------------------
+// Reconnect ladder (audit M5) — mirrors the capped ladder of
+// `src/syncplay/hubRelay.ts` and adds equal jitter so two clients that lost
+// the same network do not stampede the listener in lockstep.
+// ---------------------------------------------------------------------------
+
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // TimeSync - NTP-style clock offset calculation
@@ -85,7 +119,11 @@ class TimeSync {
       weightSum += weight;
     }
 
-    return Math.round(weightedSum / Math.max(1, weightSum));
+    // Each weight is positive (1 / max(1, rtt)), so weightSum > 0 whenever a
+    // sample exists. Dividing by max(1, weightSum) here silently crushed every
+    // realistic sample (rtt ≈ 50-100 ms ⇒ weightSum ≈ 0.01-0.02) toward zero —
+    // a single 90 ms offset read back as 1 ms. Plain weighted mean it is.
+    return Math.round(weightedSum / weightSum);
   }
 
   /**
@@ -133,13 +171,16 @@ class TimeSync {
    *
    * @param t1 Client send time (ms)
    * @param t2 Server receive time (ms)
-   * @param t3 Server response time (ms)
+   * @param t3 Server response time (ms) — the server pong law makes this t2
    * @param t4 Client receive time (ms)
    */
   addSample(t1: number, t2: number, t3: number, t4: number): void {
     const rtt = t4 - t1 - (t3 - t2);
 
-    if (rtt > MAX_ACCEPTABLE_RTT) {
+    // SPEC §5 (audit LOW): a negative rtt means the clocks moved backwards
+    // mid-exchange (NTP step, suspend/resume); a sample above the ceiling is
+    // transport noise. Both must be REJECTED, never averaged in.
+    if (!Number.isFinite(rtt) || rtt < 0 || rtt > MAX_ACCEPTABLE_RTT) {
       return;
     }
 
@@ -222,6 +263,12 @@ function wireString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
+/** Parse a wire field into a finite number at the boundary (undefined for
+ * strings, objects, NaN/Infinity — the same parse-not-cast doctrine). */
+function wireNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface SyncPlayServiceEvents {
@@ -241,88 +288,65 @@ class SyncPlayService {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private memberId: string = '';
+  /**
+   * The server-issued "you are this member" id (`your_id` on group_state,
+   * sourced from the JWT subject). Authoritative for host comparisons —
+   * `memberId` is only the pre-join placeholder claim. (audit H4)
+   */
+  private yourId: string = '';
   private events: Partial<SyncPlayServiceEvents> = {};
   private connectionState: ConnectionState = 'disconnected';
+  /** Bumped by every explicit connect/disconnect; stale socket callbacks drop. */
+  private connectionGeneration = 0;
+  /** Room to join once the socket opens (connectWithRoom); null = re-join current. */
+  private pendingJoinRoomId: string | null = null;
+  /** Member ids seen in the last group_state — the basis of join/left diffs. */
+  private lastMemberIds = new Set<string>();
+  private reconnectAttempts = 0;
 
   /**
    * Connect to the SyncPlay WebSocket endpoint.
-   * Endpoint is derived from the hub store's effectiveServerUrl.
+   * The endpoint (direct `:8097` + `?token=`, or hub relay `:8804` + bearer
+   * subprotocol) is resolved by `wsEndpoint.ts` from the hub store state.
    */
   connect(memberId: string): void {
-    if (this.ws) {
-      this.disconnect();
-    }
-
     this.memberId = memberId;
-    const serverUrl = this.getWebSocketUrl();
-
-    if (!serverUrl) {
-      this.emit('onConnectionStateChange', 'error');
-      return;
-    }
-
-    this.setConnectionState('connecting');
-
-    try {
-      this.ws = new WebSocket(serverUrl);
-      this.ws.onopen = this.handleOpen.bind(this);
-      this.ws.onclose = this.handleClose.bind(this);
-      this.ws.onerror = this.handleError.bind(this);
-      this.ws.onmessage = (event: any) => this.handleMessage(event);
-    } catch {
-      this.setConnectionState('error');
-    }
+    this.pendingJoinRoomId = null;
+    this.reconnectAttempts = 0;
+    this.startConnection();
   }
 
   /**
-   * Connect to a specific SyncPlay room via provided WebSocket URL.
-   * Used when joining a room via REST API which returns the WebSocket URL.
+   * Connect and join a specific SyncPlay room (created/joined over REST).
+   *
+   * The endpoint is resolved internally — callers MUST NOT hand in a URL:
+   * the transport law (port, token carrier) lives in `wsEndpoint.ts` alone
+   * (audit H1 — the old signature took a `{apiHost}/api/v1/syncplay/ws` URL
+   * built against the HTTP port, which no listener serves).
    */
-  connectWithRoom(roomId: string, sessionId: string, wsUrl: string): void {
-    if (this.ws) {
-      this.disconnect();
-    }
-
+  connectWithRoom(roomId: string, sessionId: string): void {
     this.memberId = sessionId;
-
-    if (!wsUrl) {
-      this.emit('onConnectionStateChange', 'error');
-      return;
-    }
-
-    this.setConnectionState('connecting');
-
-    try {
-      this.ws = new WebSocket(wsUrl);
-      this.ws.onopen = () => {
-        this.setConnectionState('connected');
-        this.startSyncInterval();
-        // Join the room after connecting
-        this.joinGroup(roomId);
-      };
-      this.ws.onclose = this.handleClose.bind(this);
-      this.ws.onerror = this.handleError.bind(this);
-      this.ws.onmessage = (event: any) => this.handleMessage(event);
-    } catch {
-      this.setConnectionState('error');
-    }
+    this.pendingJoinRoomId = roomId;
+    this.reconnectAttempts = 0;
+    this.startConnection();
   }
 
   /**
    * Disconnect from the SyncPlay WebSocket.
    */
   disconnect(): void {
+    this.connectionGeneration++;
     this.stopSyncInterval();
     this.stopReconnect();
 
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-      this.ws = null;
-    }
+    this.closeSocketQuietly();
 
     this.setConnectionState('disconnected');
     this.timeSync.reset();
+    this.yourId = '';
+    this.lastMemberIds.clear();
+    this.pendingJoinRoomId = null;
+    this.reconnectAttempts = 0;
     useSyncplayStore.getState().reset();
   }
 
@@ -339,6 +363,11 @@ class SyncPlayService {
 
   /**
    * Create a new SyncPlay group.
+   *
+   * The group gate goes on the wire as SPEC §4's `password_hash` — the
+   * SHA-256 hex digest — never the plaintext (audit LOW; the server keeps a
+   * legacy plaintext arm, but the hash is the canonical precedence arm and
+   * interoperates with either spelling).
    */
   createGroup(groupName: string, password?: string): void {
     const payload: Record<string, unknown> = {
@@ -350,15 +379,15 @@ class SyncPlayService {
       timestamp: Date.now(),
     };
 
-    if (password !== undefined) {
-      payload.password = password;
+    if (password !== undefined && password !== '') {
+      payload.password_hash = hashGroupPassword(password);
     }
 
     this.send(payload);
   }
 
   /**
-   * Join an existing SyncPlay group.
+   * Join an existing SyncPlay group (see {@link createGroup} on the gate field).
    */
   joinGroup(groupId: string, password?: string): void {
     const payload: Record<string, unknown> = {
@@ -370,8 +399,8 @@ class SyncPlayService {
       timestamp: Date.now(),
     };
 
-    if (password !== undefined) {
-      payload.password = password;
+    if (password !== undefined && password !== '') {
+      payload.password_hash = hashGroupPassword(password);
     }
 
     this.send(payload);
@@ -395,6 +424,7 @@ class SyncPlayService {
     });
 
     useSyncplayStore.getState().setCurrentGroup(null);
+    this.lastMemberIds.clear();
     this.stopSyncInterval();
   }
 
@@ -487,6 +517,12 @@ class SyncPlayService {
 
   /**
    * Report current playback position to the group (periodic, all members).
+   *
+   * SPEC §4/§9.1 shape: a `playback_sync` state report — `position` in WIRE
+   * MILLISECONDS plus the playing flag. The server answers every playback_sync
+   * with a host-stamped rebroadcast (S291), so this frame doubles as the
+   * re-anchor request; the old invented `info { position_report }` payload was
+   * unread by the server.
    */
   reportPosition(position: number): void {
     const store = useSyncplayStore.getState();
@@ -494,14 +530,14 @@ class SyncPlayService {
       return;
     }
 
-    // This is a client-side position report for awareness
-    // (Server may not require it but it's good for group state)
     this.send({
-      type: MSG.INFO,
+      type: MSG.PLAYBACK_SYNC,
       protocol_version: PROTOCOL_VERSION,
       group_id: store.currentGroup.id,
       member_id: this.memberId,
-      data: { position_report: position },
+      position,
+      is_playing: store.currentGroup.playbackState === 'playing',
+      server_time: this.getSynchronizedTime(),
       timestamp: Date.now(),
     });
   }
@@ -544,29 +580,80 @@ class SyncPlayService {
   // Private methods
   // -------------------------------------------------------------------------
 
-  private getWebSocketUrl(): string {
-    const { effectiveServerUrl, connectionMode } = useHubStore.getState();
+  /**
+   * Begin (or restart) a connection: cancel any armed ladder, replace the
+   * live socket, and open asynchronously — the endpoint resolve reads the
+   * token vault, which is a Promise API on both lanes.
+   */
+  private startConnection(): void {
+    this.connectionGeneration++;
+    this.stopSyncInterval();
+    this.stopReconnect();
+    this.closeSocketQuietly();
+    this.setConnectionState('connecting');
 
-    if (!effectiveServerUrl) {
-      return '';
+    const generation = this.connectionGeneration;
+    this.openSocket(generation);
+  }
+
+  /**
+   * Resolve the endpoint and construct the socket.
+   *
+   * Every await boundary re-checks `generation`: a disconnect() or a newer
+   * connect() during the async resolve must drop this attempt, not open a
+   * zombie socket whose callbacks would then drive the shared state machine.
+   */
+  private async openSocket(generation: number): Promise<void> {
+    const { connectionMode, effectiveServerUrl, hubUrl, activeServerId } =
+      useHubStore.getState();
+
+    let endpoint: SyncPlayWsEndpoint | null = null;
+    try {
+      endpoint = await resolveSyncPlayWsEndpoint({
+        connectionMode,
+        effectiveServerUrl,
+        hubUrl,
+        activeServerId,
+        getHubAccessToken: () => useHubStore.getState().session?.accessToken ?? null,
+      });
+    } catch (error) {
+      console.error('SyncPlay: endpoint resolution failed', error);
+    }
+    if (generation !== this.connectionGeneration) {
+      return; // superseded by disconnect()/a newer connect()
+    }
+    if (!endpoint) {
+      // No lane without a credential — both listeners reject unauthenticated
+      // upgrades, so there is nothing to "try anyway" with.
+      this.setConnectionState('error');
+      return;
     }
 
-    // Build WebSocket URL - use ws:// or wss:// based on http/https
-    const protocol = effectiveServerUrl.startsWith('https') ? 'wss' : 'ws';
-
-    if (connectionMode === 'relay') {
-      // Relay mode: connect through hub relay
-      const { hubUrl } = useHubStore.getState();
-      if (!hubUrl) {
-        return '';
-      }
-      const relayBase = hubUrl.replace(/^https?/, protocol);
-      return `${relayBase}/api/v1/relay/syncplay`;
+    try {
+      const ws = endpoint.protocols
+        ? new WebSocket(endpoint.url, endpoint.protocols)
+        : new WebSocket(endpoint.url);
+      ws.onopen = () => this.handleOpen(generation);
+      ws.onclose = () => this.handleClose(generation);
+      ws.onerror = () => this.handleError(generation);
+      ws.onmessage = (event) => this.handleMessage(event);
+      this.ws = ws;
+    } catch {
+      this.setConnectionState('error');
     }
+  }
 
-    // Direct mode
-    const host = effectiveServerUrl.replace(/^https?:\/\//, '');
-    return `${protocol}://${host}/api/v1/syncplay/ws`;
+  /** Close the current socket WITHOUT touching store/timers/state. */
+  private closeSocketQuietly(): void {
+    if (this.ws) {
+      const socket = this.ws;
+      this.ws = null;
+      socket.onopen = null;
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.onmessage = null;
+      socket.close();
+    }
   }
 
   private getMemberName(): string {
@@ -574,9 +661,27 @@ class SyncPlayService {
     return 'Mobile User';
   }
 
+  /**
+   * Serialize and send one frame.
+   *
+   * A frame that cannot go out is LOUD (audit LOW): the old silent drop let
+   * hosts believe their commands had propagated while the socket sat closed.
+   * `SEND_FAILED` flows through the same onError channel the UI already
+   * surfaces, and the socket-not-open case is logged at the boundary.
+   */
   private send(payload: Record<string, unknown>): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    const detail = String(payload.type ?? 'frame');
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      this.events.onError?.('SEND_FAILED', `Socket not open — dropped ${detail}`);
+      return;
+    }
+    try {
       this.ws.send(JSON.stringify(payload));
+    } catch (error) {
+      this.events.onError?.(
+        'SEND_FAILED',
+        `Send of ${detail} failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -602,13 +707,31 @@ class SyncPlayService {
     }
   }
 
+  /**
+   * Capped exponential backoff with equal jitter (mirrors the hubRelay.ts
+   * ladder, ceiling at RECONNECT_MAX_DELAY_MS, self-terminating after
+   * MAX_RECONNECT_ATTEMPTS). The previous fixed 5s uncapped retry hammered the
+   * listener forever behind an outage (audit M5).
+   */
   private scheduleReconnect(): void {
     this.stopReconnect();
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error(
+        `SyncPlay: reconnect budget exhausted after ${MAX_RECONNECT_ATTEMPTS} attempts — reopening needs an explicit connect()`
+      );
+      this.setConnectionState('error');
+      return;
+    }
+    const ceiling = Math.min(
+      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
+      RECONNECT_MAX_DELAY_MS
+    );
+    const delay = Math.round(ceiling / 2 + Math.random() * (ceiling / 2));
+    this.reconnectAttempts += 1;
     this.reconnectTimeout = setTimeout(() => {
-      if (this.memberId) {
-        this.connect(this.memberId);
-      }
-    }, 5000);
+      this.reconnectTimeout = null;
+      this.openSocket(this.connectionGeneration);
+    }, delay);
   }
 
   private stopReconnect(): void {
@@ -618,9 +741,24 @@ class SyncPlayService {
     }
   }
 
-  private handleOpen(): void {
+  private handleOpen(generation: number): void {
+    if (generation !== this.connectionGeneration) {
+      return;
+    }
     this.setConnectionState('connected');
+    this.reconnectAttempts = 0;
+    // SPEC §10.1 (audit M5): every established connection — first or
+    // auto-reconnect — starts in a fresh clock domain. Old offsets measured
+    // against a dead process must not skew the new one.
+    this.timeSync.reset();
     this.startSyncInterval();
+
+    if (this.pendingJoinRoomId !== null) {
+      const roomId = this.pendingJoinRoomId;
+      this.pendingJoinRoomId = null;
+      this.joinGroup(roomId);
+      return;
+    }
 
     // Re-join group if we had one
     const { currentGroup } = useSyncplayStore.getState();
@@ -629,22 +767,48 @@ class SyncPlayService {
     }
   }
 
-  private handleClose(): void {
+  private handleClose(generation: number): void {
+    if (generation !== this.connectionGeneration) {
+      return;
+    }
+    this.ws = null;
     this.setConnectionState('disconnected');
     this.stopSyncInterval();
+    this.timeSync.reset();
+    this.lastMemberIds.clear();
     this.scheduleReconnect();
   }
 
-  private handleError(): void {
+  private handleError(generation: number): void {
+    if (generation !== this.connectionGeneration) {
+      return;
+    }
     this.setConnectionState('error');
   }
 
-  private handleMessage(event: MessageEvent): void {
+  /**
+   * Parse and route one inbound frame.
+   *
+   * Handler errors used to vanish into a single silent catch (audit H2 — a
+   * TypeError inside handleGroupState meant live state NEVER landed and nothing
+   * said so). Both the JSON parse and the routed handler now fail LOUD at the
+   * boundary: logged, and the socket keeps running.
+   *
+   * The event is typed structurally ({ data }) so the DOM MessageEvent and
+   * RN's WebSocketMessageEvent shapes both satisfy the handler.
+   */
+  private handleMessage(event: { data?: unknown }): void {
+    let msg: WsMessage;
     try {
-      const msg: WsMessage = JSON.parse(event.data as string);
+      msg = JSON.parse(String(event.data)) as WsMessage;
+    } catch (error) {
+      console.error('SyncPlay: dropping malformed frame', error);
+      return;
+    }
+    try {
       this.routeMessage(msg);
-    } catch {
-      // Ignore malformed messages
+    } catch (error) {
+      console.error(`SyncPlay: handler for '${String(msg.type)}' threw`, error);
     }
   }
 
@@ -664,6 +828,10 @@ class SyncPlayService {
 
       case MSG.PLAYBACK_SEEK:
         this.handlePlaybackSeek(msg);
+        break;
+
+      case MSG.PLAYBACK_SYNC:
+        this.handlePlaybackSync(msg);
         break;
 
       case MSG.HOST_ELECT:
@@ -687,49 +855,85 @@ class SyncPlayService {
     }
   }
 
+  /**
+   * Apply one authoritative group snapshot.
+   *
+   * Wire law (audit H2/H3, SPEC §4): `members` rides as a DICTIONARY keyed by
+   * member id (an array `for...of` threw on every real snapshot — state never
+   * landed), and the group fields are `group_id`/`group_name`. Member LEFT has
+   * no frame type (SPEC §6): it is diffed out of successive snapshots, so the
+   * old prose sniff on the INFO message is gone.
+   */
   private handleGroupState(msg: WsMessage): void {
     const groupData = msg.group as Record<string, unknown> | undefined;
-    const yourId = msg.your_id as string | undefined;
 
     if (!groupData) {
+      console.error('SyncPlay: group_state frame without a group payload');
       return;
     }
 
-    const members: SyncPlayMember[] = [];
-    const rawMembers = (groupData.members as Array<Record<string, unknown>> | undefined) ?? [];
+    const yourId = wireString(msg.your_id);
+    if (yourId !== undefined) {
+      this.yourId = yourId;
+    }
+    // Pre-first-snapshot fallback: the id we claimed (real user id per H4).
+    const you = this.yourId !== '' ? this.yourId : this.memberId;
 
-    for (const m of rawMembers) {
+    const hostId = wireString(groupData.host_id) ?? '';
+    const members: SyncPlayMember[] = [];
+    const rawMembers = groupData.members;
+    const entries: [string, Record<string, unknown>][] = Array.isArray(rawMembers)
+      ? (rawMembers as Record<string, unknown>[]).map((m, index) => [
+          wireString(m?.id) ?? String(index),
+          m ?? {},
+        ])
+      : Object.entries((rawMembers as Record<string, Record<string, unknown>> | undefined) ?? {});
+
+    for (const [key, raw] of entries) {
+      const id = wireString(raw.id) ?? key;
       members.push({
-        id: m.id as string,
-        name: m.name as string,
-        isHost: m.id === groupData.host_id,
-        joinedAt: (m.joined_at as number) ?? Date.now(),
+        id,
+        name: wireString(raw.name) ?? 'Unknown',
+        isHost: id === hostId,
+        // Wire joined_at is Unix SECONDS; the app model keeps epoch ms.
+        joinedAt: (wireNumber(raw.joined_at) ?? Math.floor(Date.now() / 1000)) * 1000,
       });
     }
 
     const group: SyncPlayGroup = {
-      id: groupData.id as string,
-      name: groupData.name as string,
+      id: wireString(groupData.group_id) ?? wireString(groupData.id) ?? '',
+      name: wireString(groupData.group_name) ?? wireString(groupData.name) ?? '',
       members,
-      currentMediaId: (groupData.current_media_id as string) ?? null,
+      currentMediaId: wireString(groupData.current_media_id) ?? null,
       playbackState: ((groupData.playback_state as string) ?? 'stopped') as SyncPlayGroup['playbackState'],
       // S441 — the snapshot anchor arrives in WIRE ms; the group (and every
       // consumer below it) speaks SECONDS.
-      playbackPosition: wireMsToSeconds(groupData.playback_position as number | undefined) ?? 0,
-      hostId: (groupData.host_id as string) ?? '',
-      hasPassword: (groupData.has_password as boolean) ?? false,
+      playbackPosition: wireMsToSeconds(wireNumber(groupData.playback_position)) ?? 0,
+      hostId,
+      hasPassword: groupData.has_password === true,
     };
 
     useSyncplayStore.getState().setCurrentGroup(group);
-    useSyncplayStore.getState().setIsHost(yourId === group.hostId);
+    useSyncplayStore.getState().setIsHost(you !== '' && you === group.hostId);
+
+    // SPEC §6: a member is gone when a snapshot simply lacks them — emit the
+    // left events from the diff (this replaces the prose `message.includes`
+    // sniff that never matched the server's actual INFO wording pattern).
+    const currentIds = new Set(members.map((m) => m.id));
+    for (const memberId of this.lastMemberIds) {
+      if (!currentIds.has(memberId)) {
+        this.events.onMemberLeft?.(memberId);
+      }
+    }
+    this.lastMemberIds = currentIds;
 
     this.events.onGroupStateUpdate?.(group);
   }
 
   private handlePlaybackPlay(msg: WsMessage): void {
     // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
-    const position = wireMsToSeconds(msg.position as number | undefined) ?? 0;
-    const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
+    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('playing', position);
     this.events.onPlaybackCommand?.({ type: 'play', position, serverTime });
@@ -737,8 +941,8 @@ class SyncPlayService {
 
   private handlePlaybackPause(msg: WsMessage): void {
     // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
-    const position = wireMsToSeconds(msg.position as number | undefined) ?? 0;
-    const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
+    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('paused', position);
     this.events.onPlaybackCommand?.({ type: 'pause', position, serverTime });
@@ -746,8 +950,8 @@ class SyncPlayService {
 
   private handlePlaybackSeek(msg: WsMessage): void {
     // S441 — `to_position` arrives in MILLISECONDS; store + event get SECONDS.
-    const toPosition = wireMsToSeconds(msg.to_position as number | undefined) ?? 0;
-    const serverTime = (msg.server_time as number) ?? this.getSynchronizedTime();
+    const toPosition = wireMsToSeconds(wireNumber(msg.to_position)) ?? 0;
+    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState(
       useSyncplayStore.getState().currentGroup?.playbackState ?? 'paused',
@@ -756,31 +960,57 @@ class SyncPlayService {
     this.events.onPlaybackCommand?.({ type: 'seek', position: toPosition, serverTime });
   }
 
+  /**
+   * Handle the host-stamped `playback_sync` rebroadcast (SPEC §9.1, audit LOW).
+   *
+   * The server answers EVERY playback_sync — including the sender's own
+   * request — with the host's current media, position (WIRE ms) and playing
+   * flag (S291). Followers treat it as a re-anchor command; it is the frame
+   * that keeps drifted members honest, and it used to fall through unrouted.
+   */
+  private handlePlaybackSync(msg: WsMessage): void {
+    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    const isPlaying = msg.is_playing === true;
+    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
+
+    useSyncplayStore.getState().updatePlaybackState(
+      isPlaying ? 'playing' : 'paused',
+      position
+    );
+    this.events.onPlaybackCommand?.({
+      type: isPlaying ? 'play' : 'pause',
+      position,
+      serverTime,
+    });
+  }
+
   private handleHostElect(msg: WsMessage): void {
-    const newHostId = msg.elected_id as string | undefined;
+    const newHostId = wireString(msg.elected_id);
 
     if (newHostId) {
-      useSyncplayStore.getState().setIsHost(newHostId === this.memberId);
+      const you = this.yourId !== '' ? this.yourId : this.memberId;
+      useSyncplayStore.getState().setIsHost(newHostId === you);
       this.events.onHostChanged?.(newHostId);
     }
   }
 
+  /**
+   * INFO frames carry the group's human events. SPEC §6: a member join arrives
+   * with TOP-LEVEL `member_id`/`member_name` (the old code read a nested
+   * `data` object that the server never sends, so join toasts never fired).
+   * Departures are NOT here — they diff out of group_state snapshots.
+   */
   private handleInfo(msg: WsMessage): void {
-    const data = msg.data as Record<string, unknown> | undefined;
-    const memberId = msg.member_id as string | undefined;
+    const memberId = wireString(msg.member_id);
+    const memberName = wireString(msg.member_name);
 
-    if (data?.member_id && data?.member_name) {
+    if (memberId !== undefined && memberName !== undefined) {
       this.events.onMemberJoined?.({
-        id: data.member_id as string,
-        name: data.member_name as string,
+        id: memberId,
+        name: memberName,
         isHost: false,
         joinedAt: Date.now(),
       });
-    }
-
-    // Detect member left from info messages
-    if (memberId && (msg as { message?: string }).message?.includes('left')) {
-      this.events.onMemberLeft?.(memberId);
     }
   }
 
@@ -795,32 +1025,26 @@ class SyncPlayService {
     this.events.onError?.(code, message);
   }
 
+  /**
+   * Complete one NTP sample from the pong.
+   *
+   * The server pong wire is `{client_time, server_time}` ONLY (TimeSync.php) —
+   * its compute law treats the response time t3 as EQUAL to the receive time
+   * t2. Passing `t2 + latency` for t3 (the old code) double-subtracted half
+   * the round trip and skewed every offset (audit LOW).
+   */
   private handleTimePong(msg: WsMessage): void {
-    const t1 = (msg.client_time as number) ?? Date.now();
-    const serverTime = (msg.server_time as number) ?? t1;
+    const t1 = wireNumber(msg.client_time) ?? Date.now();
+    const t2 = wireNumber(msg.server_time) ?? t1;
     const t4 = Date.now();
 
-    // The server's pong carries client_time (t1) and server_time (the server
-    // receive time, t2). There is no separate t3, so we pass t3 == t2 + latency.
-    // rtt = t4 - t1; latency = rtt/2. The accepted offset is derived inside
-    // TimeSync.addSample from the same quad.
-    const rtt = t4 - t1;
-    const latency = rtt / 2;
-
-    this.timeSync.addSample(t1, serverTime, serverTime + latency, t4);
+    this.timeSync.addSample(t1, t2, t2, t4);
 
     this.events.onTimeSyncUpdate?.({
       offset: this.timeSync.getOffset(),
       latency: this.timeSync.getLatency(),
       isStable: this.timeSync.isStable(),
     });
-  }
-
-  private emit<K extends keyof SyncPlayServiceEvents>(event: K, ...args: Parameters<SyncPlayServiceEvents[K]>): void {
-    const handler = this.events[event];
-    if (handler) {
-      (handler as (...args: Parameters<SyncPlayServiceEvents[K]>) => void)(...args);
-    }
   }
 }
 

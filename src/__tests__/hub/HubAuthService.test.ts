@@ -30,7 +30,7 @@ describe('HubAuthService', () => {
           access_token: 'hub-access-token',
           refresh_token: 'hub-refresh-token',
           expires_in: 3600,
-          user_id: 'user-123',
+          user: { id: 'user-123' },
         },
       };
 
@@ -61,7 +61,7 @@ describe('HubAuthService', () => {
           access_token: 'token',
           refresh_token: 'refresh',
           expires_in: 3600,
-          user_id: 'user-123',
+          user: { id: 'user-123' },
         },
       };
 
@@ -81,7 +81,7 @@ describe('HubAuthService', () => {
           access_token: 'token',
           refresh_token: 'refresh',
           expires_in: 3600,
-          user_id: 'user-123',
+          user: { id: 'user-123' },
         },
       };
 
@@ -102,6 +102,50 @@ describe('HubAuthService', () => {
         service.signIn('https://hub.example.com', 'baduser', 'badpass')
       ).rejects.toThrow('Network error');
     });
+
+    // M4 — identity resolution law. The hub's createAuthResponse() nests the
+    // row as `user: { id, ... }`; these pins guard the parse order and the
+    // fail-loud arm (the old code read a top-level `user_id` that was never on
+    // the wire and silently stored `undefined`, blanking SettingsScreen).
+    it('falls back to claims.sub when the response carries no user object', async () => {
+      mockPost.mockResolvedValueOnce({
+        data: {
+          access_token: 'a',
+          refresh_token: 'r',
+          expires_in: 60,
+          claims: { sub: 'claim-sub-9' },
+        },
+      });
+
+      const result = await service.signIn('https://hub.example.com', 'u', 'p');
+
+      expect(result.userId).toBe('claim-sub-9');
+    });
+
+    it('accepts the legacy top-level user_id as last resort', async () => {
+      mockPost.mockResolvedValueOnce({
+        data: {
+          access_token: 'a',
+          refresh_token: 'r',
+          expires_in: 60,
+          user_id: 'legacy-1',
+        },
+      });
+
+      const result = await service.signIn('https://hub.example.com', 'u', 'p');
+
+      expect(result.userId).toBe('legacy-1');
+    });
+
+    it('fails loud when the response carries no identity at all', async () => {
+      mockPost.mockResolvedValueOnce({
+        data: { access_token: 'a', refresh_token: 'r', expires_in: 60 },
+      });
+
+      await expect(
+        service.signIn('https://hub.example.com', 'u', 'p')
+      ).rejects.toThrow('Hub sign-in response carried no user identity');
+    });
   });
 
   describe('refresh', () => {
@@ -111,7 +155,7 @@ describe('HubAuthService', () => {
           access_token: 'new-access-token',
           refresh_token: 'new-refresh-token',
           expires_in: 7200,
-          user_id: 'user-123',
+          user: { id: 'user-123' },
         },
       };
 

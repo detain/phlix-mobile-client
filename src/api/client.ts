@@ -6,11 +6,11 @@
  */
 
 // src/api/client.ts
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import Config from 'react-native-config';
 import { Platform } from 'react-native';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { secureStorage } from '../services/SecureStorage';
 import {
   buildPhlixHeaders,
   type DeviceType,
@@ -73,10 +73,10 @@ export const absolutizeApiPath = (pathOrUrl: string): string => {
 
 /**
  * Build the same Phlix device + auth headers the axios interceptor attaches,
- * for a manual `fetch`. Reads the access token from AsyncStorage.
+ * for a manual `fetch`. Reads the access token from the vault (keychain).
  */
 export const buildRequestHeaders = async (): Promise<Record<string, string>> => {
-  const token = await AsyncStorage.getItem('access_token');
+  const token = await secureStorage.getAccessToken();
   return buildPhlixHeaders({
     deviceId: getCachedDeviceId(),
     deviceName: getDeviceName(),
@@ -96,6 +96,59 @@ let activeSessionId: string | undefined;
 /** Set (or clear) the active session id used for the `X-Phlix-Session-ID` header. */
 export const setActiveSessionId = (id: string | null | undefined): void => {
   activeSessionId = id ?? undefined;
+};
+
+// ── Auth-failure plumbing (audit M2/M3) ─────────────────────────────────────
+
+/**
+ * Contract-error bodies: both the server (`AuthController`) and the hub
+ * (`Response::error`) answer failures with `{ error: <human message>, code:
+ * <stable machine code> }`. axios only ever surfaces "Request failed with
+ * status code 4xx", so WITHOUT parsing this body the UI shows transport noise
+ * instead of the reason the server actually gave. Returns the server sentence
+ * (plus the code in parentheses when present), and only falls back to the
+ * Error message / caller fallback when the body carries nothing usable.
+ */
+export const apiErrorMessage = (error: unknown, fallback: string): string => {
+  const body = (error as AxiosError<{ error?: unknown; code?: unknown }> | undefined)?.response
+    ?.data;
+  const message = typeof body?.error === 'string' && body.error !== '' ? body.error : undefined;
+  const code = typeof body?.code === 'string' && body.code !== '' ? body.code : undefined;
+  if (message !== undefined) {
+    return code !== undefined ? `${message} (${code})` : message;
+  }
+  // Axios errors are `instanceof Error`, but re-thrown JSON (RN fetch paths)
+  // arrives as a plain `{ message }` object — accept either shape.
+  const thrown = (error as { message?: unknown } | undefined)?.message;
+  if (typeof thrown === 'string' && thrown !== '') {
+    return thrown;
+  }
+  return fallback;
+};
+
+type AuthInvalidatedListener = () => void;
+const authInvalidatedListeners = new Set<AuthInvalidatedListener>();
+
+/**
+ * Register a listener fired when the refresh flow proves the session dead
+ * (refresh call failed → tokens cleared). The auth store subscribes so the
+ * Zustand state drops to signed-out together with the credential wipe —
+ * clearing tokens while `isAuthenticated` stayed true was audit M3. Returns an
+ * unsubscribe function.
+ */
+export const onAuthInvalidated = (listener: AuthInvalidatedListener): (() => void) => {
+  authInvalidatedListeners.add(listener);
+  return () => authInvalidatedListeners.delete(listener);
+};
+
+const notifyAuthInvalidated = (): void => {
+  for (const listener of [...authInvalidatedListeners]) {
+    try {
+      listener();
+    } catch (error) {
+      console.error('ApiClient: auth-invalidated listener threw', error);
+    }
+  }
 };
 
 class ApiClient {
@@ -122,7 +175,7 @@ class ApiClient {
         // Re-resolve base URL so a runtime server change takes effect.
         config.baseURL = getBaseUrl();
 
-        const token = await AsyncStorage.getItem('access_token');
+        const token = await secureStorage.getAccessToken();
         const deviceHeaders = buildPhlixHeaders({
           deviceId: getCachedDeviceId(),
           deviceName: getDeviceName(),
@@ -156,8 +209,12 @@ class ApiClient {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return this.client(originalRequest);
           } catch (refreshError) {
-            // Logout user
-            await AsyncStorage.multiRemove(['access_token', 'refresh_token']);
+            // Refresh proved the session dead: wipe the vault and tell the
+            // auth store so `isAuthenticated` drops with the credentials
+            // (audit M3 — clearing tokens while the store stayed logged-in
+            // left the UI in a phantom-authenticated state).
+            await secureStorage.clearTokens();
+            notifyAuthInvalidated();
             return Promise.reject(refreshError);
           }
         }
@@ -174,7 +231,7 @@ class ApiClient {
     }
 
     this.refreshPromise = (async () => {
-      const refreshToken = await AsyncStorage.getItem('refresh_token');
+      const refreshToken = await secureStorage.getRefreshToken();
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
@@ -186,10 +243,9 @@ class ApiClient {
 
       const { access_token, refresh_token: newRefreshToken } = response.data;
 
-      await AsyncStorage.setItem('access_token', access_token);
-      if (newRefreshToken) {
-        await AsyncStorage.setItem('refresh_token', newRefreshToken);
-      }
+      // The vault holds the pair atomically; a rotation that omits a new
+      // refresh token re-presents the current one rather than dropping it.
+      await secureStorage.storeTokens(access_token, newRefreshToken || refreshToken);
 
       return access_token;
     })();

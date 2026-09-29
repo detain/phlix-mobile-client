@@ -73,6 +73,33 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 // Mock react-native-config (build-time env shim — no native binding under jest)
 jest.mock('react-native-config', () => ({}));
 
+// In-memory react-native-keychain stand-in: the token vault (services/
+// SecureStorage.ts) reads/writes generic passwords per service; tests drive it
+// through the same API and reset it via __resetKeychainMock(). getGenericPassword
+// resolves `false` for an empty slot, exactly like the native module.
+jest.mock('react-native-keychain', () => {
+  const store = new Map();
+  const serviceOf = (options) => (options && options.service) || '__default__';
+  return {
+    __esModule: true,
+    getGenericPassword: jest.fn(async (options) => {
+      const value = store.get(serviceOf(options));
+      if (value === undefined) {
+        return false;
+      }
+      return { service: serviceOf(options), username: 'phlix', password: value, storage: 'jest-memory' };
+    }),
+    setGenericPassword: jest.fn(async (username, password, options) => {
+      store.set(serviceOf(options), password);
+      return true;
+    }),
+    resetGenericPassword: jest.fn(async (options) => store.delete(serviceOf(options))),
+    ACCESS_CONTROL: { BIOMETRY_ANY: 'BiometryAny' },
+    ACCESSIBLE: { WHEN_PASSCODE_SET_THIS_DEVICE_ONLY: 'WhenPasscodeSetThisDeviceOnly' },
+    __resetKeychainMock: () => store.clear(),
+  };
+});
+
 // Mock axios
 jest.mock('axios', () => {
   const mockInstance = {

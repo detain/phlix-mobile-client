@@ -28,6 +28,7 @@ import { markerManager } from '../api/MarkerManager';
 import type { PrepareHandle } from '../api/TranscodeManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { StreamInfo, SubtitleTrack, Marker } from '../types/playback';
 import type { QualitySelection, Rendition } from '@phlix/contracts';
 import { AUTO_QUALITY } from '@phlix/contracts';
@@ -238,10 +239,15 @@ const PlayerScreen: React.FC = () => {
     dispatchPlayerCommand(playerRef, 'startPiP');
   };
 
-  // SyncPlay effect - connect and listen for commands
+  // SyncPlay effect - attach command/error listeners and (only when a group
+  // exists) keep the socket warm for this item.
   useEffect(() => {
-    // Generate a simple member ID (in real app, use user ID from auth)
-    const memberId = `mobile_${itemId}`;
+    // Real authenticated identity (audit H4): the server derives membership
+    // from the JWT subject and answers group_state with `your_id`; the old
+    // fabricated `mobile_${itemId}` string could NEVER match the host id, so
+    // mobile users were permanently non-host. `yourId` in the service is
+    // authoritative once a snapshot lands; this is the pre-snapshot claim.
+    const memberId = useAuthStore.getState().user?.id ?? '';
 
     // Set up SyncPlay event handlers
     syncPlayService.on('onPlaybackCommand', (cmd) => {
@@ -280,9 +286,17 @@ const PlayerScreen: React.FC = () => {
       Alert.alert('SyncPlay Error', describeSyncPlayError(code, message));
     });
 
-    syncPlayService.connect(memberId);
+    // Gate (audit M5): opening a player is not joining a group. The socket
+    // must ONLY exist while a SyncPlay group is active — group join/create
+    // connect through `SyncPlayModal` → `connectWithRoom`. Previously every
+    // mount dialed the SyncPlay listener for a roomless session.
+    if (memberId !== '' && useSyncplayStore.getState().currentGroup !== null) {
+      syncPlayService.connect(memberId);
+    }
 
     return () => {
+      syncPlayService.off('onPlaybackCommand');
+      syncPlayService.off('onError');
       syncPlayService.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

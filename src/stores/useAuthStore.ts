@@ -8,6 +8,7 @@
 // src/stores/useAuthStore.ts
 import { create } from 'zustand';
 import { authManager, User } from '../api/AuthManager';
+import { apiErrorMessage, onAuthInvalidated } from '../api/client';
 import { useSettingsStore } from './useSettingsStore';
 
 interface AuthState {
@@ -48,8 +49,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     } catch (error) {
+      // Surface the server's contract error (`{ error, code }` body), not the
+      // axios transport string (audit M2).
       set({
-        error: error instanceof Error ? error.message : 'Login failed',
+        error: apiErrorMessage(error, 'Login failed'),
         isLoading: false,
       });
       throw error;
@@ -99,3 +102,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setUser: (user) => set({ user }),
 }));
+
+// M3 — when the API client's refresh flow proves the session dead it wipes the
+// vault and fires this. Drop the store to signed-out TOO: previously the token
+// removal left `isAuthenticated` true, so the UI kept rendering authenticated
+// screens while every request 401'd. This runs once per process (the client is
+// a module singleton), so no unsubscribe is retained.
+onAuthInvalidated(() => {
+  useAuthStore.setState({
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: 'Your session expired. Please sign in again.',
+  });
+});

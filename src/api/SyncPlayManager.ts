@@ -7,7 +7,8 @@
 
 // src/api/SyncPlayManager.ts
 import apiClient, { getApiBaseUrl } from './client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../services/SecureStorage';
+import { buildDirectSyncPlayWsUrl } from '../syncplay/wsEndpoint';
 import { wireMsToSeconds } from '../syncplay/wireUnits';
 
 /**
@@ -225,20 +226,28 @@ class SyncPlayManager {
 
   /**
    * Get WebSocket URL for real-time SyncPlay connection.
-   * WS /api/v1/syncplay/{roomId}?token=JWT
+   * WS ws(s)://{serverHost}:8097/api/v1/syncplay/ws?token=JWT
+   *
+   * ⚠ Transport law (audit H1): the SyncPlay upgrade is served by the
+   * dedicated `:8097` socket listener, NOT the HTTP API port — a URL built on
+   * the API base never reaches it, and the handshake is rejected pre-101
+   * without the `?token=` JWT (WebSocketServer.php + SyncPlayAuthMiddleware).
+   * The single builder is `syncplay/wsEndpoint.buildDirectSyncPlayWsUrl`, so
+   * port + query-carrier law lives in exactly one place.
    *
    * ⚠ Transport note (S280): the WebSocket upgrade is served by the SyncPlay
    * socket server, NOT the HTTP router whose routes `server-route-manifest.json`
    * pins — this URL is deliberately outside the route gate, alongside the
-   * `SyncPlayService` `/syncplay/ws` and hub-relay `:8804` shapes.
+   * `SyncPlayService` endpoint and hub-relay `:8804` shapes.
    */
-  async getWebSocketUrl(roomId: string): Promise<string> {
-    const token = await AsyncStorage.getItem('access_token');
-    const baseUrl = getApiBaseUrl();
-    const wsBase = baseUrl.startsWith('https')
-      ? baseUrl.replace('https', 'wss')
-      : baseUrl.replace('http', 'ws');
-    return `${wsBase}/syncplay/${roomId}?token=${token ?? ''}`;
+  async getWebSocketUrl(_roomId: string): Promise<string> {
+    const token = await secureStorage.getAccessToken();
+    if (!token) {
+      return '';
+    }
+    // buildDirectSyncPlayWsUrl keeps only the HOST of this base — the SyncPlay
+    // listener answers on its own port, never the API root's.
+    return buildDirectSyncPlayWsUrl(getApiBaseUrl(), token);
   }
 }
 

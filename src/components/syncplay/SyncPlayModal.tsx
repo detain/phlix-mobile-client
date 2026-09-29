@@ -82,9 +82,11 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         password: password || undefined,
       });
 
-      // Connect to the WebSocket with the room
-      const wsUrl = await syncPlayManager.getWebSocketUrl(result.roomId);
-      syncPlayService.connectWithRoom(result.roomId, result.sessionId, wsUrl);
+      // Open the SyncPlay socket — the transport (port + token carrier) is
+      // resolved inside the service by `syncplay/wsEndpoint.ts`; the modal has
+      // no business building WS URLs (audit H1: the old {apiHost}/…/ws URL
+      // pointed at the HTTP port and carried no token).
+      syncPlayService.connectWithRoom(result.roomId, result.sessionId);
 
       setRoomName('');
       setPassword('');
@@ -103,9 +105,8 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
     try {
       const result = await syncPlayManager.joinRoom(roomId, roomPassword);
 
-      // Connect to the WebSocket with the room
-      const wsUrl = await syncPlayManager.getWebSocketUrl(roomId);
-      syncPlayService.connectWithRoom(roomId, result.sessionId, wsUrl);
+      // Open the socket (endpoint resolved internally — see handleCreateRoom).
+      syncPlayService.connectWithRoom(roomId, result.sessionId);
 
       onClose();
     } catch (err) {

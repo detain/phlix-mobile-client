@@ -22,6 +22,23 @@ jest.mock('../../api/AuthManager', () => ({
 
 jest.mock('../useSettingsStore');
 
+// useAuthStore imports apiErrorMessage/onAuthInvalidated from the API client;
+// importing the REAL client here would boot ApiClient against the auto-mocked
+// settings store (getState() undefined). Stub the two helpers with the same
+// shape the client exports.
+jest.mock('../../api/client', () => ({
+  apiErrorMessage: (
+    error: { response?: { data?: { error?: string; code?: string } }; message?: string },
+    fallback: string,
+  ) => {
+    const msg = error?.response?.data?.error;
+    const code = error?.response?.data?.code;
+    if (msg && code) return `${msg} (${code})`;
+    return msg ?? error?.message ?? fallback;
+  },
+  onAuthInvalidated: jest.fn(() => () => undefined),
+}));
+
 const mockedAuthManager = authManager as jest.Mocked<typeof authManager>;
 const mockedSettingsStore = useSettingsStore as jest.Mocked<typeof useSettingsStore>;
 
