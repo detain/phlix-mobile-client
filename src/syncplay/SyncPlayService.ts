@@ -16,10 +16,15 @@
  * ## Transport law (audit H1/M7)
  *
  * The endpoint is resolved by `syncplay/wsEndpoint.ts`: the DIRECT lane is the
- * server's dedicated `:8097` WS listener with the JWT in the `?token=` query
- * (handshake rejected pre-101 without it), the RELAY lane is the hub's
- * `:8804/syncplay/{server_id}` with the `bearer, <token>` subprotocol (S237 —
- * query refused). Neither role plays on the HTTP API port, and nothing here
+ * server's dedicated `:8097` WS listener (handshake rejected pre-101 without a
+ * JWT) and the RELAY lane is the hub's `:8804/syncplay/{server_id}`. Both
+ * lanes carry their credential in the `Sec-WebSocket-Protocol: bearer, <jwt>`
+ * subprotocol — direct per the dual-carrier TARGET law (phlix-server
+ * 424c14d0, `docs/dev/WEBSOCKET_AUTH_CARRIERS.md`), relay per hub S237 — and
+ * NEVER in the URL (estate policy WEBSOCKET_URL_QUERY_REFUSED). `openSocket`
+ * constructs with the two-value `new WebSocket(url, protocols)` shape RN
+ * supports natively (in-repo proof: hubRelay.ts dials `:8804` exactly this
+ * way). Neither role plays on the HTTP API port, and nothing here
  * hand-builds those URLs a second time.
  *
  * INTERIM POSTURE (reviewer follow-up #1, 2026-09-29): the RELAY lane is
@@ -323,10 +328,10 @@ class SyncPlayService {
 
   /**
    * Connect to the SyncPlay WebSocket endpoint.
-   * The endpoint (direct `:8097` + `?token=`, or hub relay `:8804` + bearer
-   * subprotocol) is resolved by `wsEndpoint.ts` from the hub store state.
-   * Relay mode currently fails loud before dialing — interim refusal, see
-   * `openSocket`.
+   * The endpoint (direct `:8097` or hub relay `:8804`, both with the bearer
+   * subprotocol carrier) is resolved by `wsEndpoint.ts` from the hub store
+   * state. Relay mode currently fails loud before dialing — interim refusal,
+   * see `openSocket`.
    */
   connect(memberId: string): void {
     this.memberId = memberId;

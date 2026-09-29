@@ -7,10 +7,12 @@
 
 // src/__tests__/syncplay/wsEndpoint.test.ts
 /**
- * Endpoint-builder law (audit H1/M7):
+ * Endpoint-builder law (audit H1/M7, carrier flip phlix-server 424c14d0):
  *
- * - direct lane  → `ws(s)://{host}:8097/...?token=<JWT>` (dedicated listener,
- *   query carrier, port overridable via PHLIX_SYNCPLAY_WS_PORT);
+ * - direct lane  → `ws(s)://{host}:8097/...` location + `['bearer', <JWT>]`
+ *   subprotocol (dual-carrier TARGET carrier — NEVER a query token; estate
+ *   policy WEBSOCKET_URL_QUERY_REFUSED; port overridable via
+ *   PHLIX_SYNCPLAY_WS_PORT);
  * - relay lane   → `ws(s)://{hubHost}:8804/syncplay/{server_id}` with the
  *   `['bearer', <relayToken>]` subprotocol and NEVER a query token (S237);
  * - no lane without its credential — the builders refuse, they do not dial
@@ -61,16 +63,21 @@ const relaySource = (overrides: Partial<SyncPlayWsSource> = {}): SyncPlayWsSourc
 });
 
 describe('buildDirectSyncPlayWsUrl — direct transport law', () => {
-  it('dials the dedicated :8097 listener with the query token, dropping the API port', () => {
-    expect(buildDirectSyncPlayWsUrl('https://home.lan:32400', 'jwt.abc'))
-      .toBe('wss://home.lan:8097/api/v1/syncplay/ws?token=jwt.abc');
-    expect(buildDirectSyncPlayWsUrl('http://192.168.1.7:8096', 'jwt.abc'))
-      .toBe('ws://192.168.1.7:8097/api/v1/syncplay/ws?token=jwt.abc');
+  it('builds the :8097 listener location, dropping the API port', () => {
+    expect(buildDirectSyncPlayWsUrl('https://home.lan:32400'))
+      .toBe('wss://home.lan:8097/api/v1/syncplay/ws');
+    expect(buildDirectSyncPlayWsUrl('http://192.168.1.7:8096'))
+      .toBe('ws://192.168.1.7:8097/api/v1/syncplay/ws');
   });
 
-  it('URI-encodes the credential (no assumption that JWTs are URL-safe)', () => {
-    expect(buildDirectSyncPlayWsUrl('https://home.lan', 'a+b/c=d.e'))
-      .toBe('wss://home.lan:8097/api/v1/syncplay/ws?token=a%2Bb%2Fc%3Dd.e');
+  it('carries NO credential in the URL (bearer-subprotocol flip, 424c14d0)', () => {
+    // The builder's signature no longer even accepts a token — the pin is
+    // that nothing query-shaped survives in the output, so a regression that
+    // re-introduces `?token=` (in any encoding) reddens here.
+    const url = buildDirectSyncPlayWsUrl('https://home.lan');
+    expect(url).toBe('wss://home.lan:8097/api/v1/syncplay/ws');
+    expect(url).not.toContain('token=');
+    expect(url).not.toContain('?');
   });
 
   it('honours PHLIX_SYNCPLAY_WS_PORT and rejects malformed overrides', () => {
@@ -78,8 +85,8 @@ describe('buildDirectSyncPlayWsUrl — direct transport law', () => {
     try {
       config.PHLIX_SYNCPLAY_WS_PORT = '9123';
       expect(syncPlayWsPort()).toBe(9123);
-      expect(buildDirectSyncPlayWsUrl('https://home.lan', 't'))
-        .toBe('wss://home.lan:9123/api/v1/syncplay/ws?token=t');
+      expect(buildDirectSyncPlayWsUrl('https://home.lan'))
+        .toBe('wss://home.lan:9123/api/v1/syncplay/ws');
 
       config.PHLIX_SYNCPLAY_WS_PORT = 'not-a-port';
       expect(syncPlayWsPort()).toBe(SYNCPLAY_WS_DEFAULT_PORT);
@@ -105,13 +112,16 @@ describe('resolveSyncPlayWsEndpoint', () => {
     __resetRelayTokenProvidersForTests();
   });
 
-  it('direct: reads the server JWT from the vault and returns the :8097 URL', async () => {
+  it('direct: reads the server JWT from the vault and returns :8097 + bearer carrier', async () => {
     mockSecureStorage.getAccessToken.mockResolvedValue('vault-jwt');
 
     const endpoint = await resolveSyncPlayWsEndpoint(directSource());
 
+    // Dual-carrier TARGET law (phlix-server 424c14d0): exact two-entry offer,
+    // credential out of the URL entirely.
     expect(endpoint).toEqual({
-      url: 'wss://192.168.1.100:8097/api/v1/syncplay/ws?token=vault-jwt',
+      url: 'wss://192.168.1.100:8097/api/v1/syncplay/ws',
+      protocols: ['bearer', 'vault-jwt'],
     });
   });
 

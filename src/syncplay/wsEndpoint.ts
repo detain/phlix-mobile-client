@@ -13,14 +13,24 @@
  * Two lanes exist and they are NOT interchangeable:
  *
  * - **Direct** — the server's dedicated SyncPlay WebSocket listener on
- *   `:8097` (`phlix-server/config/server.php`, `WebSocketServer`). Its
- *   handshake (`onWebSocketConnect` → `SyncPlayAuthMiddleware`) reads the JWT
- *   from the `?token=` QUERY parameter and rejects the upgrade pre-101 without
- *   it; the HTTP API port has no WS upgrade at all, so the old
- *   `{apiHost}/api/v1/syncplay/ws` build never reached a listener. The worker
- *   does not inspect the path — only host, port, and token matter — but the
- *   documented path is kept for readability. Query-carrier is CURRENT :8097
- *   law; the bearer-subprotocol is the HUB relay's law (below), not this one.
+ *   `:8097` (`phlix-server/config/server.php`, `WebSocketServer`). The
+ *   handshake (`onWebSocketConnect` → `SyncPlayAuthMiddleware`) rejects the
+ *   upgrade pre-101 without a JWT; the HTTP API port has no WS upgrade at
+ *   all, so the old `{apiHost}/api/v1/syncplay/ws` build never reached a
+ *   listener. The worker does not inspect the path — only host, port, and
+ *   credential matter — but the documented path is kept for readability.
+ *   Carrier law (phlix-server 424c14d0, `docs/dev/WEBSOCKET_AUTH_CARRIERS.md`
+ *   + `SyncPlayAuthMiddleware::resolveHandshakeToken()`): the server is in
+ *   TRANSITIONAL DUAL-CARRIER state — priority 1 is the
+ *   `Sec-WebSocket-Protocol: bearer, <jwt>` subprotocol (TARGET), priority 2
+ *   the legacy `?token=` query (RETIRING). This client ships the TARGET: the
+ *   token travels as the second `WebSocket` constructor value, NEVER in the
+ *   URL (estate policy WEBSOCKET_URL_QUERY_REFUSED — keeping credentials off
+ *   URLs also keeps them out of access/proxy logs and handshake diagnostics).
+ *   The server echoes the `bearer` marker on the 101 (S355-style gate), so
+ *   strict WHATWG-style clients complete the handshake. In-repo proof that
+ *   RN's global WebSocket honours the 2-arg constructor: `hubRelay.ts:256`
+ *   dials `:8804` with `['bearer', token]` against the real hub today.
  * - **Relay** — the hub's `:8804/syncplay/{server_id}` relay
  *   (`SyncPlayRelayWorker`, S237): the token travels in the
  *   `Sec-WebSocket-Protocol: bearer, <token>` subprotocol and query-string
@@ -50,7 +60,13 @@ export const SYNCPLAY_WS_DEFAULT_PORT = 8097;
 /** A resolved WebSocket connect target: URL plus optional subprotocol offer. */
 export interface SyncPlayWsEndpoint {
   url: string;
-  /** `Sec-WebSocket-Protocol` values for the upgrade (relay lane only). */
+  /**
+   * Second `WebSocket` constructor value — the `Sec-WebSocket-Protocol` offer
+   * for the upgrade. BOTH lanes carry their credential here (`['bearer',
+   * <jwt>]`): direct per phlix-server 424c14d0 dual-carrier TARGET law, relay
+   * per hub S237. Absent only if a lane ever dials unauthenticated, which the
+   * resolvers refuse.
+   */
   protocols?: string[];
 }
 
@@ -104,19 +120,24 @@ function hostOf(baseUrl: string): string {
 }
 
 /**
- * Direct-mode URL: `ws(s)://{host}:{syncplayPort}/api/v1/syncplay/ws?token=<JWT>`.
+ * Direct-mode LOCATION: `ws(s)://{host}:{syncplayPort}/api/v1/syncplay/ws`.
  *
- * The token is URI-encoded (JWTs are base64url + dots, so this is a no-op in
- * practice, but an endpoint builder must not assume its credential is
- * URL-safe). Exported for tests.
+ * Deliberately carries NO credential. Since phlix-server 424c14d0 the `:8097`
+ * handshake takes the JWT in the `bearer, <jwt>` subprotocol (priority-1
+ * TARGET carrier of the transitional dual-carrier law; `?token=` is the
+ * RETIRING legacy lane — see `docs/dev/WEBSOCKET_AUTH_CARRIERS.md` and
+ * `SyncPlayAuthMiddleware::resolveHandshakeToken()`). The client ships the
+ * target: this builder owns host/port/path, `resolveSyncPlayWsEndpoint`
+ * attaches `protocols: ['bearer', <jwt>]`, and the estate policy
+ * WEBSOCKET_URL_QUERY_REFUSED is satisfied — a credential never reaches a
+ * URL, hence never a log line upstream of the app. Exported for tests.
  */
 export function buildDirectSyncPlayWsUrl(
   serverRoot: string,
-  token: string,
   port: number = syncPlayWsPort()
 ): string {
   const scheme = wsScheme(serverRoot);
-  return `${scheme}://${hostOf(serverRoot)}:${port}/api/v1/syncplay/ws?token=${encodeURIComponent(token)}`;
+  return `${scheme}://${hostOf(serverRoot)}:${port}/api/v1/syncplay/ws`;
 }
 
 // One relay-token provider per (hub, server) — the provider caches the minted
@@ -171,7 +192,13 @@ export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promi
   if (!serverJwt) {
     return null;
   }
-  return { url: buildDirectSyncPlayWsUrl(source.effectiveServerUrl, serverJwt) };
+  // Dual-carrier TARGET law (phlix-server 424c14d0): bearer subprotocol
+  // carrier, never a query token — same offer shape the relay lane above and
+  // hubRelay.ts:256 already ship.
+  return {
+    url: buildDirectSyncPlayWsUrl(source.effectiveServerUrl),
+    protocols: ['bearer', serverJwt],
+  };
 }
 
 /** Test seam: drop the cached relay-token providers (module-level cache). */

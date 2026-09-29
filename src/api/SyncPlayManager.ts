@@ -225,15 +225,22 @@ class SyncPlayManager {
   }
 
   /**
-   * Get WebSocket URL for real-time SyncPlay connection.
-   * WS ws(s)://{serverHost}:8097/api/v1/syncplay/ws?token=JWT
+   * Get the WebSocket LOCATION for real-time SyncPlay connections.
+   * WS ws(s)://{serverHost}:8097/api/v1/syncplay/ws — credential-free by law.
    *
-   * ⚠ Transport law (audit H1): the SyncPlay upgrade is served by the
-   * dedicated `:8097` socket listener, NOT the HTTP API port — a URL built on
-   * the API base never reaches it, and the handshake is rejected pre-101
-   * without the `?token=` JWT (WebSocketServer.php + SyncPlayAuthMiddleware).
-   * The single builder is `syncplay/wsEndpoint.buildDirectSyncPlayWsUrl`, so
-   * port + query-carrier law lives in exactly one place.
+   * ⚠ Transport law (audit H1, carrier flip phlix-server 424c14d0): the
+   * SyncPlay upgrade is served by the dedicated `:8097` socket listener, NOT
+   * the HTTP API port — a URL built on the API base never reaches it, and the
+   * handshake is rejected pre-101 without a JWT (WebSocketServer.php +
+   * SyncPlayAuthMiddleware). The JWT travels in the
+   * `Sec-WebSocket-Protocol: bearer, <jwt>` subprotocol (TARGET carrier; the
+   * legacy `?token=` query lane is retiring and this client no longer emits
+   * it — estate policy WEBSOCKET_URL_QUERY_REFUSED). This accessor therefore
+   * returns only the location; a usable dial needs the second constructor
+   * value — get it via `syncplay/wsEndpoint.resolveSyncPlayWsEndpoint` (which
+   * returns `{url, protocols}`) and `new WebSocket(url, protocols)`.
+   * The single location builder is `syncplay/wsEndpoint.buildDirectSyncPlayWsUrl`,
+   * so host + port + path law lives in exactly one place.
    *
    * ⚠ Transport note (S280): the WebSocket upgrade is served by the SyncPlay
    * socket server, NOT the HTTP router whose routes `server-route-manifest.json`
@@ -243,11 +250,11 @@ class SyncPlayManager {
   async getWebSocketUrl(_roomId: string): Promise<string> {
     const token = await secureStorage.getAccessToken();
     if (!token) {
-      return '';
+      return ''; // no credential → no usable lane, whatever the location is
     }
     // buildDirectSyncPlayWsUrl keeps only the HOST of this base — the SyncPlay
     // listener answers on its own port, never the API root's.
-    return buildDirectSyncPlayWsUrl(getApiBaseUrl(), token);
+    return buildDirectSyncPlayWsUrl(getApiBaseUrl());
   }
 }
 

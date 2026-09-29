@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — syncplay direct lane: `?token=` query carrier → bearer subprotocol (client flip, phlix-server 424c14d0) — 2026-09-29
+
+- The server's `:8097` handshake now ships the TRANSITIONAL DUAL-CARRIER law
+  (phlix-server `SyncPlayAuthMiddleware::resolveHandshakeToken()` +
+  `docs/dev/WEBSOCKET_AUTH_CARRIERS.md`): priority 1 is the
+  `Sec-WebSocket-Protocol: bearer, <jwt>` subprotocol (TARGET), priority 2 the
+  legacy `?token=` query (RETIRING), with the 101 echoing the `bearer` marker
+  so strict clients complete. This client flips to the TARGET, per the
+  retirement table's `mobile wsEndpoint.ts direct lane` row:
+  `buildDirectSyncPlayWsUrl` is now a credential-FREE location builder
+  (`ws(s)://{host}:{port}/api/v1/syncplay/ws`, port/path law unchanged) and
+  `resolveSyncPlayWsEndpoint` returns the direct lane as
+  `{url, protocols: ['bearer', <serverJwt>]}`. `SyncPlayService.openSocket`
+  needed no code change — it already constructs
+  `new WebSocket(endpoint.url, endpoint.protocols)` whenever the descriptor
+  carries protocols (the relay lane's shape since 3288b55; in-repo proof RN's
+  global WebSocket honours the 2-arg form: `hubRelay.ts` dials `:8804` with
+  `['bearer', token]` against the real hub). The relay refusal guard stays
+  first, untouched.
+- **Log-leak removal:** the JWT no longer exists in the connect URL, so it
+  cannot surface in any URL-bearing surface — the app's RN network inspector /
+  dev-tool request logs, upstream access/proxy logs, or future handshake
+  diagnostics. Verified the app itself has no explicit `console.*` site
+  dumping `endpoint.url` (`SyncPlayService` logs carry no URL material), and
+  the test mock's `lastUrl` pin now asserts a credential-free string.
+- `SyncPlayManager.getWebSocketUrl` (legacy accessor, no in-app caller) keeps
+  its vault gate and returns the location only; its docblock states the dial
+  law and points consumers at `resolveSyncPlayWsEndpoint`.
+- Tests: direct URL-shape pins re-anchored credential-free + exact
+  `['bearer', <jwt>]` offer asserted on first dial (wsEndpoint unit +
+  service-level `MockWebSocket.lastProtocols`), a negative pin reddens any
+  regression re-introducing `token=`/query in the builder output, the
+  reconnect ladder additionally pins the carrier riding EVERY redial, and the
+  vault-empty / no-server-root refusals keep dialling nothing. Relay-lane
+  builder pins and the interim relay refusal unaffected.
+  Gates: `tsc --noEmit` clean, eslint clean, jest 1243 pass + 1 pre-skip
+  (baseline).
+
 ### Changed — syncplay relay lane: interim fail-loud refusal (reviewer follow-ups #1/#2) — 2026-09-29
 
 - **#1 Relay dialect mismatch:** the hub's `:8804/syncplay/{server_id}` relay

@@ -11,7 +11,8 @@
  *
  * Tests cover:
  * - Connection lifecycle over the REAL transport law (direct `:8097` +
- *   `?token=`; the relay lane is refused up front — interim dialect guard,
+ *   `['bearer', <jwt>]` subprotocol carrier — phlix-server 424c14d0 flip, no
+ *   query token; the relay lane is refused up front — interim dialect guard,
  *   reviewer follow-up #1 — endpoint resolution is async (token vault), so
  *   assertions pump microtasks before inspecting the constructed socket).
  * - Group-state parsing with HONEST wire shapes: `members` as a DICTIONARY
@@ -230,17 +231,17 @@ describe('SyncPlayService - Connection', () => {
     syncPlayService.off('onConnectionStateChange');
   });
 
-  it('dials the dedicated :8097 listener with the JWT query token (H1)', async () => {
+  it('dials the dedicated :8097 listener with the bearer subprotocol carrier (H1, 424c14d0 flip)', async () => {
     syncPlayService.connect('member-123');
     await pump();
 
     expect(MockWebSocket.instance).not.toBeNull();
-    expect(MockWebSocket.lastUrl).toBe(
-      `wss://192.168.1.100:8097/api/v1/syncplay/ws?token=${DIRECT_JWT}`
-    );
-    // Direct lane = query carrier (current :8097 law), NOT the bearer
-    // subprotocol — that belongs to the hub relay only.
-    expect(MockWebSocket.lastProtocols).toBeNull();
+    // Credential-free location: the JWT left the URL (dual-carrier TARGET
+    // law, phlix-server 424c14d0 / docs/dev/WEBSOCKET_AUTH_CARRIERS.md).
+    expect(MockWebSocket.lastUrl).toBe('wss://192.168.1.100:8097/api/v1/syncplay/ws');
+    // Exact two-entry offer — marker first, credential second — the same
+    // carrier law hubRelay.ts already dials :8804 with.
+    expect(MockWebSocket.lastProtocols).toEqual(['bearer', DIRECT_JWT]);
   });
 
   it('relay mode FAILS LOUD — dialect guard dials nothing, mints nothing (reviewer #1)', async () => {
@@ -355,9 +356,8 @@ describe('SyncPlayService - Connection', () => {
   it('connectWithRoom joins the room on open — no caller-supplied URL', async () => {
     syncPlayService.connectWithRoom('sp_room7', 'member-123');
     await pump();
-    expect(MockWebSocket.lastUrl).toBe(
-      `wss://192.168.1.100:8097/api/v1/syncplay/ws?token=${DIRECT_JWT}`
-    );
+    expect(MockWebSocket.lastUrl).toBe('wss://192.168.1.100:8097/api/v1/syncplay/ws');
+    expect(MockWebSocket.lastProtocols).toEqual(['bearer', DIRECT_JWT]);
 
     MockWebSocket.simulateOpen();
 
@@ -402,6 +402,9 @@ describe('SyncPlayService - Reconnect ladder', () => {
     jest.advanceTimersByTime(1);
     await pump();
     expect(MockWebSocket.builds).toBe(2);
+    // The redial re-resolves the endpoint, so the bearer carrier must ride
+    // EVERY attempt, not just the first (424c14d0 two-value constructor).
+    expect(MockWebSocket.lastProtocols).toEqual(['bearer', DIRECT_JWT]);
 
     // Drop #2 → attempt 2 ceiling 2000 ms · ¾ = 1500 ms.
     MockWebSocket.simulateClose();
