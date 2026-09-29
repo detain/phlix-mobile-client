@@ -5,6 +5,30 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — syncplay relay lane: interim fail-loud refusal (reviewer follow-ups #1/#2) — 2026-09-29
+
+- **#1 Relay dialect mismatch:** the hub's `:8804/syncplay/{server_id}` relay
+  speaks its own bare room vocabulary (`group_join`, `playback_*`,
+  `time_sync` in; `room_state` out — phlix-hub `SyncPlayRelayWorker::
+  handleTextFrame`), not the server's `syncplay_*` typed frames this client
+  sends. A relay socket connected, then every frame fell through the hub's
+  default arm — group watch silently no-opped. `SyncPlayService.openSocket`
+  now refuses relay mode up front (before the relay-token mint and before any
+  `WebSocket` construction): `onError('RELAY_NOT_SUPPORTED', <clear
+  sentence>)` + terminal `error` state, no ladder. The `wsEndpoint.ts`
+  S237-law relay builder (URL + `['bearer', token]` carrier) stays wired and
+  test-pinned for the day hub dialect bridging lands — delete the guard then.
+- **#2 `hashGroupPassword` guard honesty:** the docblock promised a non-empty
+  guard the function lacked (the call sites guarded). The guard now lives in
+  the function as a fail-loud throw on `''` (signature unchanged; existing
+  call-site omission guards make it unreachable today — it is the tripwire
+  for future callers), and the call sites carry the omission-law comments.
+- Tests: relay refusal pinned (zero `WebSocket` builds, zero token-provider
+  creation, exact sentence via the exported `RELAY_UNSUPPORTED_MESSAGE`,
+  terminal `error` state) on both `connect` and `connectWithRoom`;
+  `hashGroupPassword('')` throw pinned. Gates: `tsc --noEmit` clean, eslint
+  clean, jest suite green.
+
 ### Changed — contracts re-pin: `#v0.5.1` → `#v0.5.2` (version-alignment release; manifest-only, additive) — 2026-09-25
 
 - **Hygiene pin bump (lane: contracts-repin-v0.5.2).** Advances the

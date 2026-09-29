@@ -187,10 +187,18 @@ export function sha256Hex(input: string): string {
 /**
  * Hash a SyncPlay group password into the SPEC §4 `password_hash` wire field.
  *
- * Guard clause (Early Exit): only non-empty strings hash — an absent password
- * must never arrive as the hash-of-empty-string, which the server would read
- * as a SET (empty) group gate.
+ * Guard clause (Early Exit, review follow-up #2): an empty password THROWS.
+ * `sha256Hex('')` is a perfectly valid digest, but on the wire a
+ * hash-of-empty-string reads as a SET (empty) group gate — so the omission
+ * decision ("no password → omit the field") belongs to the callers
+ * (`createGroup`/`joinGroup` guard it today) and this throw is the fail-loud
+ * tripwire for any future caller that forgets to.
  */
 export function hashGroupPassword(password: string): string {
+  if (password === '') {
+    throw new Error(
+      'hashGroupPassword: refusing to hash an empty password — omit the password_hash field instead'
+    );
+  }
   return sha256Hex(password);
 }

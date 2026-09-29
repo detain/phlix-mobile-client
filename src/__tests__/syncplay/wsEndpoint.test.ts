@@ -94,6 +94,12 @@ describe('buildDirectSyncPlayWsUrl — direct transport law', () => {
 });
 
 describe('resolveSyncPlayWsEndpoint', () => {
+  // STATUS (reviewer follow-up #1, 2026-09-29): SyncPlayService currently
+  // REFUSES the relay lane up front (hub bare-room dialect vs the client's
+  // syncplay_* frames — see the interim guard in openSocket). The relay cases
+  // below keep pinning the BUILDER law so it is proven-ready for the day hub
+  // dialect bridging lands; the service-level refusal is pinned in
+  // SyncPlayService.test.ts.
   beforeEach(() => {
     jest.clearAllMocks();
     __resetRelayTokenProvidersForTests();

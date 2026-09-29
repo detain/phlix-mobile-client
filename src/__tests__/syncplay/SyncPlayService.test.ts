@@ -11,9 +11,9 @@
  *
  * Tests cover:
  * - Connection lifecycle over the REAL transport law (direct `:8097` +
- *   `?token=`; relay `:8804` + bearer subprotocol) — endpoint resolution is
- *   async (token vault), so assertions pump microtasks before inspecting the
- *   constructed socket.
+ *   `?token=`; the relay lane is refused up front — interim dialect guard,
+ *   reviewer follow-up #1 — endpoint resolution is async (token vault), so
+ *   assertions pump microtasks before inspecting the constructed socket).
  * - Group-state parsing with HONEST wire shapes: `members` as a DICTIONARY
  *   keyed by member id, `group_id`/`group_name`, `your_id` identity (H2/H3/H4).
  * - Frame-TYPE dispatch for joins (top-level INFO fields) and departures
@@ -24,10 +24,14 @@
  */
 
 import { createHash } from 'crypto';
-import { syncPlayService } from '../../syncplay/SyncPlayService';
+import {
+  syncPlayService,
+  RELAY_UNSUPPORTED_MESSAGE,
+} from '../../syncplay/SyncPlayService';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { useHubStore } from '../../store/hubStore';
 import { secureStorage } from '../../services/SecureStorage';
+import { createHubRelayTokenProvider } from '../../hub/RelayTokenProvider';
 import { __resetRelayTokenProvidersForTests } from '../../syncplay/wsEndpoint';
 
 // ---------------------------------------------------------------------------
@@ -111,6 +115,7 @@ jest.mock('../../hub/RelayTokenProvider', () => ({
 const mockHubStore = useHubStore as jest.MockedObject<typeof useHubStore>;
 const mockSyncplayStore = useSyncplayStore as jest.MockedObject<typeof useSyncplayStore>;
 const mockSecureStorage = secureStorage as jest.MockedObject<typeof secureStorage>;
+const mockCreateProvider = createHubRelayTokenProvider as unknown as jest.Mock;
 
 const DIRECT_JWT = 'jwt-direct-token';
 
@@ -238,7 +243,7 @@ describe('SyncPlayService - Connection', () => {
     expect(MockWebSocket.lastProtocols).toBeNull();
   });
 
-  it('relay mode dials hub :8804 /syncplay/{server_id} with the bearer subprotocol (M7)', async () => {
+  it('relay mode FAILS LOUD — dialect guard dials nothing, mints nothing (reviewer #1)', async () => {
     setupMocks({
       connectionMode: 'relay',
       hubUrl: 'https://hub.example.com',
@@ -246,13 +251,49 @@ describe('SyncPlayService - Connection', () => {
       session: { accessToken: 'hub-jwt', refreshToken: 'r', expiresAt: 0, userId: 'u' },
     });
 
+    const errorCallback = jest.fn();
+    const stateChange = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+    syncPlayService.on('onConnectionStateChange', stateChange as any);
+
     syncPlayService.connect('member-123');
     await pump();
 
-    expect(MockWebSocket.lastUrl).toBe('wss://hub.example.com:8804/syncplay/srv-9');
-    expect(MockWebSocket.lastProtocols).toEqual(['bearer', 'relay-token-1']);
-    // S237: the relay refuses query tokens — none may leak into the URL.
-    expect(MockWebSocket.lastUrl).not.toContain('token=');
+    // No vacuous socket: the hub :8804 relay speaks its bare room dialect, not
+    // these syncplay_* frames — connecting would silently no-op (the guard in
+    // openSocket refuses until the estate adapter lands).
+    expect(MockWebSocket.builds).toBe(0);
+    expect(MockWebSocket.instance).toBeNull();
+    // Refusal sits BEFORE the endpoint resolve — not even the relay-token mint
+    // (a hub REST round-trip) is attempted for a lane that will not dial.
+    expect(mockCreateProvider).not.toHaveBeenCalled();
+    // One clear user-facing sentence, through the same onError channel the UI
+    // Alerts (describeSyncPlayError renders the message for uncatalogued codes).
+    expect(errorCallback).toHaveBeenCalledWith('RELAY_NOT_SUPPORTED', RELAY_UNSUPPORTED_MESSAGE);
+    expect(stateChange).toHaveBeenLastCalledWith('error');
+
+    syncPlayService.off('onError');
+    syncPlayService.off('onConnectionStateChange');
+  });
+
+  it('relay mode refuses on the join path too (connectWithRoom)', async () => {
+    setupMocks({
+      connectionMode: 'relay',
+      hubUrl: 'https://hub.example.com',
+      activeServerId: 'srv-9',
+      session: { accessToken: 'hub-jwt', refreshToken: 'r', expiresAt: 0, userId: 'u' },
+    });
+
+    const errorCallback = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+
+    syncPlayService.connectWithRoom('sp_room7', 'member-123');
+    await pump();
+
+    expect(MockWebSocket.builds).toBe(0);
+    expect(errorCallback).toHaveBeenCalledWith('RELAY_NOT_SUPPORTED', RELAY_UNSUPPORTED_MESSAGE);
+
+    syncPlayService.off('onError');
   });
 
   it('does NOT open a tokenless socket when the vault is empty', async () => {

@@ -65,4 +65,15 @@ describe('hashGroupPassword', () => {
   it('is the sha256 hex of the password (SPEC §4 password_hash field)', () => {
     expect(hashGroupPassword('secret123')).toBe(sha256Hex('secret123'));
   });
+
+  // Review follow-up #2: the docblock always PROMISED this guard; now the
+  // function delivers it. Empty passwords must never reach the wire as the
+  // hash-of-empty-string (the server reads that as a SET empty gate) —
+  // createGroup/joinGroup omit the field today; this throw is the tripwire
+  // for any future caller that skips the omission guard. (sha256Hex('') above
+  // stays a valid digest — the primitive is correct; only the GATE use-case
+  // forbids it.)
+  it('throws on an empty password instead of producing hash-of-empty-string', () => {
+    expect(() => hashGroupPassword('')).toThrow(/empty password/);
+  });
 });
