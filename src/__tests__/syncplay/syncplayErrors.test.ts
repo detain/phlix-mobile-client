@@ -23,13 +23,16 @@ import {
 
 describe('syncplayErrors — registry coverage', () => {
   it('maps EVERY code in the contracts SyncPlayErrorCode union', () => {
-    // Census anchors: 12 legacy SCREAMING (incl. PROTOCOL_VERSION_MISMATCH)
-    // + 7 dotted twins. A registry bump moves these — and the loop below
+    // Census anchors at contracts v0.5.3: 12 legacy SCREAMING (incl.
+    // PROTOCOL_VERSION_MISMATCH) + 8 dotted twins — the 7th twin era grew to
+    // 8 when v0.5.3 minted the RESERVED `syncplay.queue_limit_exceeded`
+    // (registry 202→204). A registry bump moves these — and the loop below
     // only goes green once syncplayErrors.ts grows the missing sentence
-    // (Record<SyncPlayErrorCode, string> makes omission a compile error too).
+    // (Record<SyncPlayErrorCode, string> makes omission a compile error too;
+    // the v0.5.3 pin arrived exactly that way, TS2741 measured).
     expect(LEGACY_SYNCPLAY_ERROR_CODES).toHaveLength(12);
-    expect(SYNCPLAY_TWIN_ERROR_CODES).toHaveLength(7);
-    expect(SYNCPLAY_ERROR_CODES).toHaveLength(19);
+    expect(SYNCPLAY_TWIN_ERROR_CODES).toHaveLength(8);
+    expect(SYNCPLAY_ERROR_CODES).toHaveLength(20);
 
     for (const code of SYNCPLAY_ERROR_CODES) {
       expect(isMappedSyncPlayCode(code)).toBe(true);

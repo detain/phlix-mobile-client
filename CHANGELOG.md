@@ -5,6 +5,51 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — contracts re-pin: `#v0.5.2` → `#v0.5.3` (registry-expansion release; SyncPlay union 19→20, S280 manifest re-vendored 410→412) — 2026-10-01
+
+- **Pin advanced (lane: contracts-repin-v0.5.3 cascade).** `@phlix/contracts`
+  moves to the `v0.5.3` tag (annotated object `eb90e6d`, peel
+  `430981e3b231a04c9464382642f54c2eeea33c1c` — live-verified), closing the hub
+  S181 flag that had this consumer pinned 1-behind. The committed lock moves
+  surgically (3+/3−: root echo, the contracts node's `version` `0.5.2` →
+  `0.5.3`, its `resolved` peel) — installed content proven against the tag:
+  `dist/error-codes.json` 204 codes (md5 `40c1da48…`), registry additively
+  expanded 202 → 204 (`leaf_hub_id_already_bound` +
+  `syncplay.queue_limit_exceeded`). Note: `npm install` on this lock with local
+  npm 11.21/12.0.2 rewrites 152 of the dependabot-era `devOptional` markers to
+  `dev`; the edit was applied surgically instead, preserving the committed
+  marker style with zero resolution change.
+- **The union grew — measured from red.** `syncplayErrors.ts`'s
+  `Record<SyncPlayErrorCode, string>` is compile-pinned to the CONTRACTS union
+  (not to `@phlix/syncplay` — measured: syncplay `v0.1.5` declares
+  `dependencies: {}`, so it carries no contracts edge and its own surface did
+  not move). Minting the RESERVED `syncplay.queue_limit_exceeded` twin grew
+  `SyncPlayTwinErrorCode` 7 → 8 and `SyncPlayErrorCode` 19 → 20, and the first
+  `tsc` after the pin arrived exactly as designed: `TS2741 Property
+  '"syncplay.queue_limit_exceeded"' is missing`. Fixed by measurement-from-red:
+  one new catalog sentence (queue-cap overflow copy, distinct from the
+  room-count `group_limit_reached` line the server stretches there today) and
+  the header/census prose corrected to the honest era (7 twins LIVE since srv
+  #798 + 1 RESERVED — the stale "4 on wire, 3 reserved for Wave-2" comment
+  predates #798 and is retired). `syncplayErrors.test.ts` census rotates
+  12/7/19 → 12/8/20 by measurement.
+- **S280 route gate re-vendored from the v0.5.3 tag.**
+  `src/api/test/server-route-manifest.json` is now byte-for-byte
+  `git show v0.5.3:dist/server-route-manifest.json` (md5 `91579683…`, 412
+  tuples, provenance serverSha `758f9149…`), superseding the 2026-09-16
+  `730e55b7`/410-era vendoring that had outlived two contracts releases without
+  movement (85bd68e7/32fc7b8 held it because those tags did not touch the
+  manifest; this one did). Gate pins rotated to `758f9149…`/412/412; the
+  per-module client-scan denominators are untouched (client code unchanged) and
+  the S279 tripwires re-measured GREEN against the NEW manifest
+  (`/api/v1/syncplay/rooms` still unserved; ws/relay still pinned out).
+- **Doc prose carried:** `AGENTS.md`/`CLAUDE.md` wire-contract lines advanced to
+  `#v0.5.3` (32fc7b8 precedent).
+- **Gates.** `tsc --noEmit` 0 errors · `eslint` 0 errors / 2 pre-existing
+  warnings · full `jest` — 83 suites, 1243 passed / 1 skipped (baseline
+  1243+1-skip @ bdbe1e1 held exactly; the census changes moved within existing
+  suites, no suite added or dropped).
+
 ### Changed — syncplay direct lane: `?token=` query carrier → bearer subprotocol (client flip, phlix-server 424c14d0) — 2026-09-29
 
 - The server's `:8097` handshake now ships the TRANSITIONAL DUAL-CARRIER law

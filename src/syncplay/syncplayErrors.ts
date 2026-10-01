@@ -22,15 +22,19 @@
 // the value type for a locale map and every call site keeps working.
 //
 // COVERAGE: every member of the contracts `SyncPlayErrorCode` union —
-// the 12 legacy SCREAMING_SNAKE codes the server emits in `error_code` today
-// (verified at phlix-server 8dc17418: SyncPlayManager::sendError +
-// MessageHandler via Messages::error), the 7 dotted `syncplay.*` twins (4
-// already on the wire at the group-limit / join-validation sites; 3 reserved
-// for the Wave-2 cutover — the registry's own rule is "clients localize them
-// now, so the switch needs no client release"), and PROTOCOL_VERSION_MISMATCH
-// inside the legacy set. `Record<SyncPlayErrorCode, string>` makes omission a
-// COMPILE error, and syncplayErrors.test.ts pins the catalog against
-// `SYNCPLAY_ERROR_CODES` so a registry bump without a catalog entry turns red.
+// the 12 legacy SCREAMING_SNAKE codes of the server's `error_code` wire
+// history (verified at phlix-server 8dc17418: SyncPlayManager::sendError +
+// MessageHandler via Messages::error) and the 8 dotted `syncplay.*` twins
+// at contracts v0.5.3 — 7 LIVE on the current server since srv #798 flipped
+// the `_failed` trio, plus `syncplay.queue_limit_exceeded` RESERVED (the
+// queue-cap site at srv SyncPlayManager.php:1230 still stretches
+// `group_limit_reached` until the server's emit-switch lands; the registry's
+// own rule is "clients localize them now, so the switch needs no client
+// release"), and PROTOCOL_VERSION_MISMATCH inside the legacy set.
+// `Record<SyncPlayErrorCode, string>` makes omission a COMPILE error, and
+// syncplayErrors.test.ts pins the catalog against `SYNCPLAY_ERROR_CODES` so a
+// registry bump without a catalog entry turns red — exactly how the 19→20
+// union growth arrived with the v0.5.3 pin (TS2741, measured).
 
 import type { SyncPlayErrorCode } from '@phlix/contracts';
 
@@ -57,7 +61,7 @@ const SYNCPLAY_USER_MESSAGES: Record<SyncPlayErrorCode, string> = {
   PROTOCOL_VERSION_MISMATCH:
     'Please update the Phlix app — this server speaks a newer SyncPlay protocol.',
 
-  // ── Dotted `syncplay.*` twins — 4 emitted today, 3 reserved for Wave-2 ──
+  // ── Dotted `syncplay.*` twins — 7 LIVE since srv #798, 1 RESERVED ──────
   'syncplay.create_failed': 'Could not create the SyncPlay room. Please try again.',
   'syncplay.group_limit_reached':
     'This server has reached its SyncPlay room limit. Try again later.',
@@ -66,6 +70,8 @@ const SYNCPLAY_USER_MESSAGES: Record<SyncPlayErrorCode, string> = {
   'syncplay.invalid_password': 'That password is not correct for this SyncPlay room.',
   'syncplay.group_full': 'That SyncPlay room is full.',
   'syncplay.leave_failed': 'Could not leave the SyncPlay room cleanly. Please try again.',
+  'syncplay.queue_limit_exceeded':
+    "This SyncPlay room's playback queue is full. Try again once it catches up.",
 };
 
 /** True when `code` is a wire value this catalog renders a sentence for. */
