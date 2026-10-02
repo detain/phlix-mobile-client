@@ -27,11 +27,11 @@
  * way). Neither role plays on the HTTP API port, and nothing here
  * hand-builds those URLs a second time.
  *
- * INTERIM POSTURE (reviewer follow-up #1, 2026-09-29): the RELAY lane is
- * refused at `openSocket` before any dial — the hub relay speaks its own bare
- * room dialect, not the server's `syncplay_*` typed frames this client sends,
- * so a connected relay socket would silently no-op. See the guard there for
- * the removal law.
+ * RELAY POSTURE (owner decision #14, phlix-hub cc1e128): the hub's `:8804`
+ * relay now speaks this client's canonical `syncplay_*` catalog — a connection
+ * latches its dialect on its first `syncplay_*` frame and every reply comes
+ * back in it, so relay mode dials for real. The interim refusal guard is
+ * removed; the relay lane and the direct lane share this one state machine.
  *
  * ## Identity law (audit H4, SPEC §9)
  *
@@ -88,17 +88,6 @@ const MSG = SYNCPLAY_MESSAGE_TYPES;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
-
-/**
- * User-facing sentence for the interim relay refusal (reviewer follow-up #1,
- * 2026-09-29). Exported so the refusal tests pin the exact copy through the
- * SAME constant the service raises — the code travels as the onError first
- * argument and the sentence rides second, which `describeSyncPlayError`
- * renders verbatim for codes outside the wire catalog (same arm SEND_FAILED
- * uses).
- */
-export const RELAY_UNSUPPORTED_MESSAGE =
-  'Group Watch is not yet supported over a hub relay connection — switch to a direct connection to your server to use SyncPlay.';
 
 // ---------------------------------------------------------------------------
 // TimeSync - NTP-style clock offset calculation
@@ -330,8 +319,8 @@ class SyncPlayService {
    * Connect to the SyncPlay WebSocket endpoint.
    * The endpoint (direct `:8097` or hub relay `:8804`, both with the bearer
    * subprotocol carrier) is resolved by `wsEndpoint.ts` from the hub store
-   * state. Relay mode currently fails loud before dialing — interim refusal,
-   * see `openSocket`.
+   * state. Both lanes speak the canonical `syncplay_*` catalog (relay: since
+   * phlix-hub cc1e128, owner decision #14).
    */
   connect(memberId: string): void {
     this.memberId = memberId;
@@ -636,24 +625,6 @@ class SyncPlayService {
   private async openSocket(generation: number): Promise<void> {
     const { connectionMode, effectiveServerUrl, hubUrl, activeServerId } =
       useHubStore.getState();
-
-    // ── INTERIM RELAY REFUSAL (reviewer follow-up #1, 2026-09-29) ──────────
-    // The hub's :8804 relay understands its BARE room vocabulary (group_join,
-    // playback_*, time_sync in; room_state out — phlix-hub
-    // SyncPlayRelayWorker::handleTextFrame), NOT the server's `syncplay_*`
-    // typed frames this client speaks. Every frame would hit the hub's default
-    // arm, and nothing relays before a room attaches: the socket would connect
-    // then SILENTLY no-op. Until the estate lands a dialect adapter, fail LOUD
-    // at the earliest seam that knows both the mode and the syncplay intent —
-    // before the relay-token mint, before any construction, and terminal (no
-    // ladder behind a known-dead lane). wsEndpoint's S237-law relay builder
-    // stays wired for the day hub dialect bridging lands; DELETE THIS GUARD
-    // THEN.
-    if (connectionMode === 'relay') {
-      this.events.onError?.('RELAY_NOT_SUPPORTED', RELAY_UNSUPPORTED_MESSAGE);
-      this.setConnectionState('error');
-      return;
-    }
 
     let endpoint: SyncPlayWsEndpoint | null = null;
     try {

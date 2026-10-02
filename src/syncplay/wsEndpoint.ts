@@ -36,13 +36,10 @@
  *   `Sec-WebSocket-Protocol: bearer, <token>` subprotocol and query-string
  *   tokens are refused BY DESIGN. `hubRelay.buildHubRelayUrl` is reused here
  *   rather than re-derived, so the URL law lives in exactly one module.
- *   CURRENT STATUS (reviewer follow-up #1, 2026-09-29): the lane is REFUSED
- *   up front by `SyncPlayService.openSocket` — the hub speaks its bare room
- *   dialect, not the server's `syncplay_*` typed frames, so a relay socket
- *   would connect then silently no-op. This builder stays wired for the day
- *   hub dialect bridging lands; the refusal (and its removal law) lives in
- *   the service guard, so the relay-lane tests here keep pinning the shape
- *   until then.
+ *   STATUS (owner decision #14, phlix-hub cc1e128): the lane is LIVE. The hub
+ *   relay now speaks the canonical `syncplay_*` catalog — it latches a
+ *   connection's dialect on its first `syncplay_*` frame and answers in kind —
+ *   so relay mode dials for real and this builder is the sole URL authority.
  *
  * Port: `PHLIX_SYNCPLAY_WS_PORT` (react-native-config env, same mechanism as
  * `PHLIX_BASE_URL`) overrides the `8097` default for deployments that remap

@@ -12,8 +12,9 @@
  * Tests cover:
  * - Connection lifecycle over the REAL transport law (direct `:8097` +
  *   `['bearer', <jwt>]` subprotocol carrier — phlix-server 424c14d0 flip, no
- *   query token; the relay lane is refused up front — interim dialect guard,
- *   reviewer follow-up #1 — endpoint resolution is async (token vault), so
+ *   query token; the relay lane dials `:8804` with `['bearer', <relay token>]`
+ *   and speaks the canonical catalog since owner decision #14 / phlix-hub
+ *   cc1e128 — endpoint resolution is async (token vault), so
  *   assertions pump microtasks before inspecting the constructed socket).
  * - Group-state parsing with HONEST wire shapes: `members` as a DICTIONARY
  *   keyed by member id, `group_id`/`group_name`, `your_id` identity (H2/H3/H4).
@@ -25,10 +26,7 @@
  */
 
 import { createHash } from 'crypto';
-import {
-  syncPlayService,
-  RELAY_UNSUPPORTED_MESSAGE,
-} from '../../syncplay/SyncPlayService';
+import { syncPlayService } from '../../syncplay/SyncPlayService';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { useHubStore } from '../../store/hubStore';
 import { secureStorage } from '../../services/SecureStorage';
@@ -244,7 +242,7 @@ describe('SyncPlayService - Connection', () => {
     expect(MockWebSocket.lastProtocols).toEqual(['bearer', DIRECT_JWT]);
   });
 
-  it('relay mode FAILS LOUD — dialect guard dials nothing, mints nothing (reviewer #1)', async () => {
+  it('relay mode DIALS the hub :8804 with the bearer subprotocol (owner #14)', async () => {
     setupMocks({
       connectionMode: 'relay',
       hubUrl: 'https://hub.example.com',
@@ -260,24 +258,26 @@ describe('SyncPlayService - Connection', () => {
     syncPlayService.connect('member-123');
     await pump();
 
-    // No vacuous socket: the hub :8804 relay speaks its bare room dialect, not
-    // these syncplay_* frames — connecting would silently no-op (the guard in
-    // openSocket refuses until the estate adapter lands).
-    expect(MockWebSocket.builds).toBe(0);
-    expect(MockWebSocket.instance).toBeNull();
-    // Refusal sits BEFORE the endpoint resolve — not even the relay-token mint
-    // (a hub REST round-trip) is attempted for a lane that will not dial.
-    expect(mockCreateProvider).not.toHaveBeenCalled();
-    // One clear user-facing sentence, through the same onError channel the UI
-    // Alerts (describeSyncPlayError renders the message for uncatalogued codes).
-    expect(errorCallback).toHaveBeenCalledWith('RELAY_NOT_SUPPORTED', RELAY_UNSUPPORTED_MESSAGE);
-    expect(stateChange).toHaveBeenLastCalledWith('error');
+    // The interim refusal guard is GONE (owner decision #14): since phlix-hub
+    // cc1e128 the relay speaks this client's canonical syncplay_* catalog —
+    // the connection latches its dialect on the first syncplay_* frame — so
+    // relay mode resolves the endpoint (minting a relay token) and dials.
+    expect(mockCreateProvider).toHaveBeenCalled();
+    expect(MockWebSocket.builds).toBe(1);
+    // Credential-free URL: the relay token rides the subprotocol offer, never
+    // the query string (:8804 refuses ?token= by design).
+    expect(MockWebSocket.lastUrl).toBe('wss://hub.example.com:8804/syncplay/srv-9');
+    // Exact two-entry offer — marker first, credential second — the same
+    // carrier law hubRelay.ts already dials :8804 with.
+    expect(MockWebSocket.lastProtocols).toEqual(['bearer', 'relay-token-1']);
+    expect(errorCallback).not.toHaveBeenCalled();
+    expect(stateChange).not.toHaveBeenCalledWith('error');
 
     syncPlayService.off('onError');
     syncPlayService.off('onConnectionStateChange');
   });
 
-  it('relay mode refuses on the join path too (connectWithRoom)', async () => {
+  it('relay join path speaks the canonical catalog from the first frame (owner #14)', async () => {
     setupMocks({
       connectionMode: 'relay',
       hubUrl: 'https://hub.example.com',
@@ -291,10 +291,25 @@ describe('SyncPlayService - Connection', () => {
     syncPlayService.connectWithRoom('sp_room7', 'member-123');
     await pump();
 
-    expect(MockWebSocket.builds).toBe(0);
-    expect(errorCallback).toHaveBeenCalledWith('RELAY_NOT_SUPPORTED', RELAY_UNSUPPORTED_MESSAGE);
+    expect(MockWebSocket.builds).toBe(1);
+    expect(MockWebSocket.lastUrl).toBe('wss://hub.example.com:8804/syncplay/srv-9');
+
+    // The open event triggers the pending join — and the frame that leaves is
+    // the CANONICAL syncplay_group_join (the very frame that latches the hub
+    // into canonical dialect, per phlix-hub cc1e128), not a bare group_join.
+    // Search by type: open also starts the sync interval, whose immediate
+    // time_ping may precede the join in the send log.
+    MockWebSocket.simulateOpen();
+    const frame = findSentMessage('syncplay_group_join');
+    expect(frame).toBeDefined();
+    expect(frame!.group_id).toBe('sp_room7');
+    expect(frame!.member_id).toBe('member-123');
+    expect(frame!.member_name).toBe('Mobile User');
+
+    expect(errorCallback).not.toHaveBeenCalled();
 
     syncPlayService.off('onError');
+    syncPlayService.disconnect();
   });
 
   it('does NOT open a tokenless socket when the vault is empty', async () => {
