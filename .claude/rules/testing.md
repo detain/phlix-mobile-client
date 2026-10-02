@@ -19,4 +19,4 @@ paths:
 - Prefix unused `catch` bindings with `_` so `npm run lint` passes (`src/stores/__tests__/useWatchHistoryStore.test.ts`).
 - `collectCoverageFrom` excludes `src/**/*.d.ts` and `src/**/index.ts` barrels — test the underlying module, not the barrel.
 - `src/api/__tests__/deviceIdentity.test.ts` keeps one case skipped (Jest module-caching issue) — leave it skipped rather than "fixing" it.
-- CI (`.github/workflows/test.yml`) runs `npm test -- --passWithNoTests --coverage` and uploads `coverage/lcov.info`; `.eslintignore` keeps `coverage/`, `node_modules/`, `android/`, `ios/` out of `npm run lint`. Third-party actions in `.github/workflows/` are pinned by commit sha, not by tag.
+- CI (`.github/workflows/test.yml`) runs `npm test -- --coverage` and uploads `coverage/lcov.info` — NO `--passWithNoTests` (dropped 2026-10-02 in d938608): the suite is real, so a config/testMatch regression that matches zero tests must exit 1, never green the step vacuously. `.eslintignore` keeps `coverage/`, `node_modules/`, `android/`, `ios/` out of `npm run lint`. Third-party actions in `.github/workflows/` are pinned by commit sha, not by tag.
