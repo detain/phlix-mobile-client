@@ -37,7 +37,10 @@ jobs:
         # without this flag ./coverage/lcov.info is never written and both the
         # Codecov and Codacy steps silently upload nothing while reporting green.
         # (lcov is in jest's default coverageReporters, so no config change is needed.)
-        run: npm test -- --passWithNoTests --coverage
+        # NO --passWithNoTests (estate CI-gate audit 2026-10-02): the suite is
+        # real, so a jest.config/testMatch regression (or a typo'd pattern) that
+        # matches ZERO tests must exit 1 — never green this step vacuously.
+        run: npm test -- --coverage
 
       - name: Upload coverage
         uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238
