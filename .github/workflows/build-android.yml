@@ -9,7 +9,7 @@ on:
 jobs:
   build-android:
     name: Build Android (Debug)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout repository
@@ -47,7 +47,7 @@ jobs:
 
   build-android-release:
     name: Build Android (Release)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     steps:
@@ -93,7 +93,7 @@ jobs:
     # offer a bare, installable .apk). PRs don't reach here (the release build
     # itself is gated to master/main).
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
 
