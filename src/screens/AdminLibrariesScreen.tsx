@@ -275,7 +275,7 @@ const AdminLibrariesScreen: React.FC = () => {
       }
       setEditorVisible(false);
     } catch (err) {
-      Alert.alert('Save failed', errText(err, 'Could not save library.'));
+      Alert.alert('Save failed', errText(err, 'Could not save the library.'));
     } finally {
       setSubmitting(false);
     }
@@ -301,7 +301,7 @@ const AdminLibrariesScreen: React.FC = () => {
                 return rest;
               });
             } catch (err) {
-              Alert.alert('Delete failed', errText(err, 'Could not delete library.'));
+              Alert.alert('Delete failed', errText(err, 'Could not delete the library.'));
             }
           },
         },

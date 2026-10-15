@@ -99,3 +99,49 @@ export function describeSyncPlayError(code: string | undefined, serverMessage?: 
   }
   return GENERIC_ROOM_ERROR;
 }
+
+/** First candidate that is actually a string, else undefined (boundary read). */
+function firstString(...candidates: unknown[]): string | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+/** Shape of the server's REST error envelope (`SyncPlayController` and the
+ * shared router error path): English text under `error`, machine code under
+ * `error_code` ?? `code` when one is minted. All fields `unknown` on purpose —
+ * this is the boundary; every read is type-guarded below. */
+interface SyncPlayRestErrorBody {
+  error_code?: unknown;
+  code?: unknown;
+  error?: unknown;
+  message?: unknown;
+}
+
+/**
+ * Render a THROWN syncplay REST failure (create/join/leave/list on the
+ * `/syncplay/groups` rails) through the same code-first doctrine as the WS
+ * frames.
+ *
+ * `err.message` on an axios failure is transport prose ('Request failed with
+ * status code 400') — rendering it was the R15-10 defect: the viewer saw
+ * HTTP theater while the real reason sat parsed-to-nothing in the response
+ * body. This parser reads the envelope at the boundary —
+ * SPEC code order (`error_code` ?? `code`), server text (`error` ??
+ * `message`) — and hands both to `describeSyncPlayError`, so precedence is
+ * catalog hit > server text > generic fallback, identical to the WS lane.
+ * Anything without a usable body (network error, non-Error throw, malformed
+ * JSON) degrades to the generic sentence; the raw error never surfaces.
+ */
+export function describeSyncPlayRestError(err: unknown): string {
+  const body = (err as { response?: { data?: SyncPlayRestErrorBody } } | null)?.response?.data;
+  if (body === undefined || body === null || typeof body !== 'object') {
+    return describeSyncPlayError(undefined);
+  }
+  const code = firstString(body.error_code, body.code);
+  const serverMessage = firstString(body.error, body.message);
+  return describeSyncPlayError(code, serverMessage);
+}

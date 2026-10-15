@@ -18,6 +18,7 @@ import {
 } from '@phlix/contracts';
 import {
   describeSyncPlayError,
+  describeSyncPlayRestError,
   isMappedSyncPlayCode,
 } from '../../syncplay/syncplayErrors';
 
@@ -90,5 +91,61 @@ describe('describeSyncPlayError — doctrine precedence', () => {
     expect(describeSyncPlayError(undefined, 'frame carried no code')).toBe(
       'frame carried no code'
     );
+  });
+});
+
+describe('describeSyncPlayRestError — REST-envelope doctrine (R15-10)', () => {
+  // The axios failure shape the /syncplay/groups rails actually throw:
+  // transport prose on err.message, the real signal inside response.data.
+  const restFailure = (data: unknown, message = 'Request failed with status code 400') =>
+    Object.assign(new Error(message), { response: { data } });
+
+  it('a catalog code in the body beats the server English text', () => {
+    const err = restFailure({ error: 'Group is full', code: 'syncplay.group_full' });
+    expect(describeSyncPlayRestError(err)).toBe('That SyncPlay room is full.');
+  });
+
+  it("reads the SPEC order: error_code before 'code'", () => {
+    const err = restFailure({
+      error_code: 'syncplay.invalid_password',
+      code: 'syncplay.group_full',
+    });
+    expect(describeSyncPlayRestError(err)).toBe(
+      'That password is not correct for this SyncPlay room.'
+    );
+  });
+
+  it('unknown code degrades to the server error text, like the WS lane', () => {
+    const err = restFailure({ error: 'Group not found', code: 'syncplay.future_code' });
+    expect(describeSyncPlayRestError(err)).toBe('Group not found');
+  });
+
+  it('code-less envelope renders the server error text', () => {
+    const err = restFailure({ error: 'Group name is required' });
+    expect(describeSyncPlayRestError(err)).toBe('Group name is required');
+  });
+
+  it('never surfaces raw err.message — the defect this replaced', () => {
+    const transport = 'Request failed with status code 503';
+    expect(describeSyncPlayRestError(restFailure({}, transport))).toBe(
+      'Something went wrong in the SyncPlay room.'
+    );
+    expect(describeSyncPlayRestError(new Error(transport))).toBe(
+      'Something went wrong in the SyncPlay room.'
+    );
+  });
+
+  it('bodyless and non-Error throws degrade to the generic fallback', () => {
+    const generic = 'Something went wrong in the SyncPlay room.';
+    expect(describeSyncPlayRestError('a bare string')).toBe(generic);
+    expect(describeSyncPlayRestError(undefined)).toBe(generic);
+    expect(describeSyncPlayRestError(null)).toBe(generic);
+    // Non-JSON/html body: axios can hand back a raw string.
+    expect(describeSyncPlayRestError(restFailure('<html>502 Bad Gateway</html>'))).toBe(generic);
+  });
+
+  it('non-string body fields are ignored, not rendered', () => {
+    const err = restFailure({ error: { nested: true }, code: 42 });
+    expect(describeSyncPlayRestError(err)).toBe('Something went wrong in the SyncPlay room.');
   });
 });

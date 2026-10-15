@@ -21,6 +21,7 @@ import {
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
+import { describeSyncPlayRestError } from '../../syncplay/syncplayErrors';
 
 interface SyncPlayModalProps {
   visible: boolean;
@@ -54,7 +55,10 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       const rooms = await syncPlayManager.getPublicRooms();
       setPublicRooms(rooms);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load rooms');
+      // R15-10: user-facing text comes from the error-code catalog, never raw
+      // err.message (axios transport prose). The raw error stays in dev logs.
+      console.warn('[SyncPlayModal] load rooms failed:', err);
+      setError(describeSyncPlayRestError(err));
     } finally {
       setIsLoadingRooms(false);
     }
@@ -92,7 +96,8 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       setPassword('');
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create room');
+      console.warn('[SyncPlayModal] create room failed:', err);
+      setError(describeSyncPlayRestError(err));
     } finally {
       setIsCreating(false);
     }
@@ -110,7 +115,8 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to join room');
+      console.warn('[SyncPlayModal] join room failed:', err);
+      setError(describeSyncPlayRestError(err));
     } finally {
       setIsJoining(false);
     }
