@@ -7,3 +7,9 @@
 
 export { CastButton } from './CastButton';
 export type { CastButtonProps } from './CastButton';
+export { CastSessionPill } from './CastSessionPill';
+export {
+  isCastPillVisible,
+  castPillNavigateParams,
+} from './castPillHelpers';
+export type { CastRouteParams } from './castPillHelpers';

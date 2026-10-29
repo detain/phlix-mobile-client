@@ -48,6 +48,7 @@ import {
   WatchHistoryScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
+import { CastSessionPill } from '../components/cast';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -428,6 +429,9 @@ const RootNavigator = () => {
           </>
         )}
       </Stack.Navigator>
+      {/* M-MOBILE-16: root-level reachability surface for a live cast —
+          renders null unless the store holds an undismissed session. */}
+      <CastSessionPill />
     </NavigationContainer>
   );
 };

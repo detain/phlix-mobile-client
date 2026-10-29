@@ -49,6 +49,7 @@ const CastScreen: React.FC = () => {
   const isDiscovering = useCastStore((s) => s.isDiscovering);
   const discoverError = useCastStore((s) => s.discoverError);
   const activeDevice = useCastStore((s) => s.activeDevice);
+  const activeMedia = useCastStore((s) => s.activeMedia);
   const transport = useCastStore((s) => s.transport);
 
   const discover = useCastStore((s) => s.discover);
@@ -57,6 +58,7 @@ const CastScreen: React.FC = () => {
   const resume = useCastStore((s) => s.resume);
   const seek = useCastStore((s) => s.seek);
   const refreshStatus = useCastStore((s) => s.refreshStatus);
+  const setScreenVisible = useCastStore((s) => s.setScreenVisible);
   const disconnect = useCastStore((s) => s.disconnect);
   const stopAndDisconnect = useCastStore((s) => s.stopAndDisconnect);
 
@@ -69,6 +71,14 @@ const CastScreen: React.FC = () => {
   // AdminLibrariesScreen poll pattern, keyed off refs).
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
+
+  // Publish mount state so the root-mounted CastSessionPill stands down while
+  // this controller is on screen and re-appears on ANY exit (Done link or the
+  // native header back, which always bypassed the in-screen handler).
+  useEffect(() => {
+    setScreenVisible(true);
+    return () => setScreenVisible(false);
+  }, [setScreenVisible]);
 
   // Discover on mount.
   useEffect(() => {
@@ -176,10 +186,12 @@ const CastScreen: React.FC = () => {
     }
   };
 
-  // Back leaves the device PLAYING — disconnect clears the session only.
-  const handleBack = () => {
-    disconnect();
-    clearTimer();
+  // "Done" only closes THIS screen (M-MOBILE-16). The session deliberately
+  // survives in the store: the device keeps playing AND stays controllable —
+  // the cast transport is server-mediated HTTP keyed by device id, so keeping
+  // `activeDevice` is all re-entry needs. The root CastSessionPill becomes the
+  // reachability surface; stopping remains possible from it (re-open → Stop).
+  const handleDone = () => {
     navigation.goBack();
   };
 
@@ -210,8 +222,10 @@ const CastScreen: React.FC = () => {
     return (
       <SafeContainer edges={['top']}>
         <View style={styles.transportContainer}>
+          {/* Session truth, not route params: re-entry can happen from ANY
+              title's detail page while this cast runs another one. */}
           <Text style={styles.transportTitle} numberOfLines={2}>
-            {title ?? 'Now Casting'}
+            {activeMedia?.title ?? 'Now Casting'}
           </Text>
           <Text style={styles.transportDevice}>
             {activeDevice.name} · {backendLabel(backend)}
@@ -267,11 +281,21 @@ const CastScreen: React.FC = () => {
             ) : null}
           </View>
 
-          <TouchableOpacity style={styles.backLink} onPress={handleBack}>
-            <Text style={styles.backLinkText}>
-              Done (leaves {activeDevice.name} playing)
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.sessionLinks}>
+            {/* Explicit detach: forgets the session on the PHONE (the device
+                keeps playing) and returns to the picker — the deliberate,
+                labelled version of what "Done" used to do silently. */}
+            <TouchableOpacity style={styles.backLink} onPress={disconnect}>
+              <Text style={styles.backLinkText}>
+                Switch device (leaves {activeDevice.name} playing)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.backLink} onPress={handleDone}>
+              <Text style={styles.backLinkText}>
+                Done — keep casting to {activeDevice.name}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeContainer>
     );
@@ -450,9 +474,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   backLink: {
-    marginTop: 'auto',
-    paddingVertical: 18,
+    paddingVertical: 14,
     alignItems: 'center',
+  },
+  sessionLinks: {
+    marginTop: 'auto',
+    paddingBottom: 8,
   },
   backLinkText: {
     color: '#888',

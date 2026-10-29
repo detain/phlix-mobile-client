@@ -5,6 +5,70 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the cast controller stays reachable after dismissal — 2026-10-29
+
+- **M-MOBILE-16 (review mobile__gameux M-E).** Re-verified LIVE at HEAD
+  (`6f3f3977`): `CastScreen`'s "Done (leaves X playing)" called
+  `disconnect()`, clearing `activeDevice` from `useCastStore` — and the
+  screen's transport view was that state's ONLY consumer. One dismissal
+  therefore deleted every trace of a live cast: no pill, no entry point, no
+  way to stop from the phone except re-finding the SAME title's detail page
+  (3–4 taps cold). The native header back (the route has `headerShown: true`)
+  never called the handler at all — two exits, two session semantics.
+- **Why retention is honest here, not wishful:** the cast transport is
+  server-mediated HTTP keyed by DEVICE ID (`CastManager.ts` — no native
+  Google Cast SDK anywhere in the dep set). `status/pause/resume/seek/stop`
+  are all re-attachable from the retained `CastDevice` alone, and the server
+  `/status` routes report `active:false` ONLY when their per-(device,user)
+  session map truly has no entry. Re-attachment is real wire capability, not
+  a fabricated control channel; no new dependency was needed.
+- **Cure — the store keeps the session; the screen only closes.** New root-
+  mounted `CastSessionPill` (`src/components/cast/CastSessionPill.tsx`,
+  rendered beside the `Stack.Navigator` in `RootNavigator`): "📡 Casting to
+  {device}" while a session lives and the Cast screen is NOT mounted — tap
+  re-opens the transport view with the STORED session params
+  (`castPillNavigateParams` from `activeMedia`, never the launching route
+  params, so re-entry from a different title can't mislabel the cast). Pure
+  visibility/mapping law lives in `castPillHelpers.ts`. `CastScreen` "Done"
+  becomes `goBack()` only; mount/cleanup publish `screenVisible` (one control
+  surface at a time, and the two exits — Done and native back — now have
+  IDENTICAL semantics by construction). New explicit "Switch device (leaves X
+  playing)" inside the transport view preserves what old Done silently did,
+  as a labelled choice. Stop remains reachable from re-entry for every
+  backend that can serve it (`canStop` gates unchanged).
+- **Lifecycle law (`useCastStore`).** `castTo` now retains `activeMedia`
+  (the re-entry contract). The slot clears ONLY on: explicit switch
+  (`disconnect()`), `stopAndDisconnect()`, or a SERVER-CONFIRMED end —
+  `refreshStatus()` retiring the session on `active:false` so the pill
+  cannot outlive the cast (a status ERROR never retires: fail-safe). The
+  pill owns a 10s status poll while it stands in for the screen (immediate
+  read on becoming visible); `CastScreen`'s 2.5s poll owns it while mounted.
+  Documented residual: session retention is memory-only (no persistence
+  exists in this store family) — an app RESTART still forgets a live cast;
+  the device keeps playing and re-casting from the title page remains the
+  recovery path.
+- **Red→green:** `+3 suites / +24 tests` — measured full serial
+  (`--runInBand`) baseline at HEAD was 87 suites / 1360 pass + 1 skip;
+  this tip is **90 suites / 1384 pass + 1 skip** (1385 total). New
+  `CastScreen.test.tsx` (6), `CastSessionPill.test.tsx` (6),
+  `castPillHelpers.test.ts` (6), `useCastStore` lifecycle describe (+6) —
+  screens/pill run the REAL store state machine through the house hook-host
+  (HTTP manager stubbed only). Mutation probes: restoring
+  `disconnect()`-on-Done reddens exactly the Done law (1); stripping the
+  `active:false` retirement reddens the 3 retirement pins (store/pill/
+  screen); ignoring `screenVisible` in the pill helper reddens its 2 pins.
+- **Venue cure (pre-existing, worktree-proven at HEAD):** a real-timer
+  describe in `SyncPlayService.test.ts` left the singleton's time-sync
+  interval armed past the file's `afterAll`, which deletes the global
+  `WebSocket` shim — the stray tick killed the jest worker at process
+  teardown (`ReferenceError: WebSocket is not defined`) and aborted FULL
+  serial runs. `afterAll` now disconnects the singleton before restoring
+  globals (counts unchanged; exit 0 restored).
+- **Gates:** `tsc --noEmit` 0; `eslint` 0 errors (2 pre-existing
+  `no-unused-disable` warnings in untouched `SleepTimer.tsx`/
+  `PlayerScreen.tsx`); full jest serial as above; `package.json` +
+  `package-lock.json` byte-identical (zero new deps).
+
 ### Fixed — "Auto-play next episode" is wired (the toggle's first reader) — 2026-10-29
 
 - **M-MOBILE-15 (review mobile__gameux).** Re-verified LIVE at HEAD

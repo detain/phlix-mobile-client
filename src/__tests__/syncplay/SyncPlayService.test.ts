@@ -207,6 +207,12 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  // M-MOBILE-16 venue cure: a real-timer describe leaves the singleton's
+  // SYNC_INTERVAL_MS time-sync interval armed; it then fires AFTER this file
+  // deletes the WebSocket global below (ReferenceError: WebSocket is not
+  // defined killing the jest worker at process teardown). Quiesce the
+  // singleton first — every timer it owns is cleared by disconnect().
+  syncPlayService.disconnect();
   // Restore
   delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
 });
