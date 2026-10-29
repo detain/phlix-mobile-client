@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HubSession, HubServer, hubAuthService } from '../hub/HubAuthService';
+import { secureStorage } from '../services/SecureStorage';
 
 export type ConnectionMode = 'direct' | 'relay';
 
@@ -101,6 +102,9 @@ export const useHubStore = create<HubState>((set, get) => ({
       error: null,
     });
     await AsyncStorage.removeItem(HUB_STORAGE_KEY);
+    // The JWT half of the session lives in the vault — sign-out must
+    // wipe it too, not just the metadata blob (M-MOBILE-05).
+    await secureStorage.clearHubTokens();
   },
 
   refreshHubSession: async () => {
@@ -172,7 +176,59 @@ export const useHubStore = create<HubState>((set, get) => ({
         const { hubUrl, session, activeServerId, connectionMode } =
           JSON.parse(data);
         if (hubUrl && session && activeServerId) {
-          const servers = await hubAuthService.listServers(hubUrl, session);
+          // Resolve the JWT pair: vault first. A pre-vault blob carries
+          // them in plaintext inside `session` — migrate on first read
+          // (secure-write BEFORE the sanitized blob replaces it, the
+          // same never-orphan order as SecureStorage.migrateSlot). If
+          // the keychain itself fails, keep using the plaintext pair
+          // in memory and leave the blob in place for a retry; an
+          // existing session is never orphaned.
+          let accessToken: string | null = await secureStorage.getHubAccessToken();
+          let refreshToken: string | null = await secureStorage.getHubRefreshToken();
+          if (!accessToken || !refreshToken) {
+            if (
+              typeof session.accessToken === 'string' &&
+              typeof session.refreshToken === 'string'
+            ) {
+              const legacyAccess: string = session.accessToken;
+              const legacyRefresh: string = session.refreshToken;
+              accessToken = legacyAccess;
+              refreshToken = legacyRefresh;
+              try {
+                await secureStorage.storeHubTokens(legacyAccess, legacyRefresh);
+                await AsyncStorage.setItem(
+                  HUB_STORAGE_KEY,
+                  JSON.stringify({
+                    hubUrl,
+                    session: {
+                      expiresAt: session.expiresAt,
+                      userId: session.userId,
+                    },
+                    activeServerId,
+                    connectionMode,
+                  })
+                );
+              } catch {
+                // Vault write failed — plaintext copy stays for retry.
+              }
+            }
+          }
+          if (!accessToken || !refreshToken) {
+            // No credential on either side (e.g. the OS wiped the
+            // keychain under a sanitized blob): the session is not
+            // usable — wsEndpoint law says "do not open the socket",
+            // never "open without a credential". Sweep the corpse.
+            await AsyncStorage.removeItem(HUB_STORAGE_KEY);
+            await secureStorage.clearHubTokens();
+            return;
+          }
+          const hydrated: HubSession = {
+            accessToken,
+            refreshToken,
+            expiresAt: session.expiresAt,
+            userId: session.userId,
+          };
+          const servers = await hubAuthService.listServers(hubUrl, hydrated);
           const server = servers.find((s) => s.serverId === activeServerId);
           const effectiveServerUrl = resolveEffectiveUrl(
             server ?? null,
@@ -180,7 +236,7 @@ export const useHubStore = create<HubState>((set, get) => ({
           );
           set({
             hubUrl,
-            session,
+            session: hydrated,
             servers,
             activeServerId,
             connectionMode,
@@ -213,7 +269,15 @@ function resolveEffectiveUrl(
 }
 
 /**
- * Persist hub session to AsyncStorage.
+ * Persist hub session.
+ *
+ * The two JWTs go to the keychain vault (dedicated hub slots mirroring
+ * the server ACCESS/REFRESH pair); only the non-secret session envelope
+ * (expiresAt/userId) plus connection metadata stays in AsyncStorage.
+ * This closes the hub lane of audit M1's plaintext-storage class — the
+ * vault module's docblock claims every auth JWT, and hub sign-in mints
+ * its own access+refresh pair (`HubAuthService.HubSession`), which the
+ * old whole-session serialization leaked in the app sandbox.
  */
 async function persistSession(
   hubUrl: string,
@@ -221,9 +285,10 @@ async function persistSession(
   activeServerId: string | null
 ): Promise<void> {
   const { connectionMode } = useHubStore.getState();
+  await secureStorage.storeHubTokens(session.accessToken, session.refreshToken);
   const data = JSON.stringify({
     hubUrl,
-    session,
+    session: { expiresAt: session.expiresAt, userId: session.userId },
     activeServerId,
     connectionMode,
   });

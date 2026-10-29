@@ -203,4 +203,63 @@ describe('SecureStorage (token vault)', () => {
       expect(result).toBe(false);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // M-MOBILE-05 (review mobile__crossfe.md M2): the vault law extends to the
+  // HUB session pair — hub sign-in mints its own access+refresh JWTs and
+  // `store/hubStore.ts` used to persist them plaintext in its AsyncStorage
+  // blob. Hub lanes get their own slots, `.hub.`-namespaced so neither lane
+  // can clobber the other.
+  // ---------------------------------------------------------------------------
+  describe('hub session slots (M-MOBILE-05)', () => {
+    it('storeHubTokens writes the two hub-scoped services — never the server pair, never bare keys', async () => {
+      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+
+      const services = keychainMock.setGenericPassword.mock.calls.map(
+        (call) => (call[2] as { service: string }).service
+      );
+      expect(services).toEqual(
+        expect.arrayContaining([
+          'com.phlix.mobile.hub.access',
+          'com.phlix.mobile.hub.refresh',
+        ])
+      );
+      expect(services).not.toContain('com.phlix.mobile.access');
+      expect(services).not.toContain('com.phlix.mobile.refresh');
+      expect(await AsyncStorage.getItem('access_token')).toBeNull();
+      expect(await AsyncStorage.getItem('refresh_token')).toBeNull();
+    });
+
+    it('hub and server pairs occupy separate slots (one lane cannot read the other)', async () => {
+      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+      expect(await secureStorage.getHubAccessToken()).toBe('hub-a');
+      expect(await secureStorage.getHubRefreshToken()).toBe('hub-r');
+      expect(await secureStorage.getAccessToken()).toBeNull();
+
+      await secureStorage.storeTokens('srv-a', 'srv-r');
+      expect(await secureStorage.getAccessToken()).toBe('srv-a');
+      expect(await secureStorage.getHubAccessToken()).toBe('hub-a');
+    });
+
+    it('clearHubTokens wipes ONLY the hub pair — the server vault survives', async () => {
+      await secureStorage.storeTokens('srv-a', 'srv-r');
+      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+
+      await secureStorage.clearHubTokens();
+
+      expect(await secureStorage.getHubAccessToken()).toBeNull();
+      expect(await secureStorage.getHubRefreshToken()).toBeNull();
+      expect(await secureStorage.getAccessToken()).toBe('srv-a');
+      expect(await secureStorage.getRefreshToken()).toBe('srv-r');
+    });
+
+    it('clearTokens (server sign-out) does not wipe the hub pair', async () => {
+      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+
+      await secureStorage.clearTokens();
+
+      expect(await secureStorage.getHubAccessToken()).toBe('hub-a');
+      expect(await secureStorage.getHubRefreshToken()).toBe('hub-r');
+    });
+  });
 });

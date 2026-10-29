@@ -9,6 +9,7 @@
 import { useHubStore } from '../../store/hubStore';
 import * as HubAuthService from '../../hub/HubAuthService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../../services/SecureStorage';
 
 jest.mock('@react-native-async-storage/async-storage');
 jest.mock('../../hub/HubAuthService');
@@ -407,6 +408,196 @@ describe('hubStore', () => {
       const state = useHubStore.getState();
       expect(state.error).toBe('Network error');
       expect(state.isLoading).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // M-MOBILE-05 (review mobile__crossfe.md M2): the SecureStorage law (audit
+  // M1) originally covered only the SERVER JWT pair — `persistSession` used to
+  // serialize the whole hub session (both hub JWTs included) into the
+  // plaintext AsyncStorage blob under `phlix_hub_session`. The hub lane now
+  // routes through dedicated keychain slots mirroring ACCESS/REFRESH
+  // (`com.phlix.mobile.hub.access` / `.hub.refresh`, src/services/
+  // SecureStorage.ts); the blob keeps only non-secret session envelope +
+  // connection metadata. Pre-vault blobs migrate on first read,
+  // secure-write-before-sanitize (never orphan, same order law as the
+  // vault's migrateSlot). The keychain stand-in is jest.setup.js's in-memory
+  // mock; per-slot values are observed through the vault API itself.
+  // ---------------------------------------------------------------------------
+  describe('hub token vault law (M-MOBILE-05)', () => {
+    const keychainMock = jest.requireMock('react-native-keychain') as {
+      __resetKeychainMock: () => void;
+      setGenericPassword: jest.Mock;
+    };
+
+    const sanitizedEnvelope = (hubUrl = 'https://hub.example.com') =>
+      JSON.stringify({
+        hubUrl,
+        session: { expiresAt: mockSession.expiresAt, userId: mockSession.userId },
+        activeServerId: 'server-2',
+        connectionMode: 'relay',
+      });
+
+    beforeEach(() => {
+      keychainMock.__resetKeychainMock();
+    });
+
+    it('sign-in routes BOTH hub JWTs into dedicated hub vault slots', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      expect(await secureStorage.getHubAccessToken()).toBe('hub-access-token');
+      expect(await secureStorage.getHubRefreshToken()).toBe('hub-refresh-token');
+
+      // Slot names mirror the server pair under the .hub namespace.
+      const services = keychainMock.setGenericPassword.mock.calls.map(
+        (call) => (call[2] as { service: string }).service
+      );
+      expect(services).toEqual(
+        expect.arrayContaining([
+          'com.phlix.mobile.hub.access',
+          'com.phlix.mobile.hub.refresh',
+        ])
+      );
+    });
+
+    it('the AsyncStorage blob never carries JWT material', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      const writes = (AsyncStorage.setItem as jest.Mock).mock.calls;
+      expect(writes.length).toBeGreaterThan(0);
+      const [, payload] = writes[writes.length - 1];
+      const parsed = JSON.parse(payload);
+      expect(parsed.session.accessToken).toBeUndefined();
+      expect(parsed.session.refreshToken).toBeUndefined();
+      // Whole-payload negative pin: neither secret appears ANYWHERE in the
+      // blob (mutation-toothed: reverting persistSession to `session` full
+      // serialization reddens here, not just on the two key checks).
+      expect(payload).not.toContain('hub-access-token');
+      expect(payload).not.toContain('hub-refresh-token');
+      // Envelope metadata survives — this is a move, not a loss.
+      expect(parsed.session.userId).toBe('user-123');
+    });
+
+    it('hub slots never shadow the server vault (lane isolation)', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      // Signing in to the hub must not populate (or clobber) the server pair.
+      expect(await secureStorage.getAccessToken()).toBeNull();
+      expect(await secureStorage.getRefreshToken()).toBeNull();
+    });
+
+    it('pre-vault plaintext blob migrates on first read: secure-write then sanitize', async () => {
+      // Old-shape blob: whole session (tokens inlined) — the era the review
+      // caught. Keychain starts empty (beforeEach reset).
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify({
+          hubUrl: 'https://hub.example.com',
+          session: mockSession,
+          activeServerId: 'server-2',
+          connectionMode: 'relay',
+        })
+      );
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+
+      await useHubStore.getState().loadPersistedState();
+
+      // Vault holds both JWTs…
+      expect(await secureStorage.getHubAccessToken()).toBe('hub-access-token');
+      expect(await secureStorage.getHubRefreshToken()).toBe('hub-refresh-token');
+      // …the blob was rewritten WITHOUT them (write-before-delete order:
+      // the sanitizing setItem is only reached once storeHubTokens settled)…
+      const writes = (AsyncStorage.setItem as jest.Mock).mock.calls;
+      const [, sanitized] = writes[writes.length - 1];
+      expect(sanitized).not.toContain('hub-access-token');
+      expect(sanitized).not.toContain('hub-refresh-token');
+      // …and the session hydrated fully (never orphaned).
+      expect(useHubStore.getState().session).toEqual(mockSession);
+    });
+
+    it('vault-hydrated round trip: sanitized blob + slots restore the full session', async () => {
+      // Relay mode chosen BEFORE sign-in so it lands in the persisted blob.
+      useHubStore.setState({ connectionMode: 'relay' });
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      // Simulate app restart: wipe in-memory state, replay the persisted
+      // (sanitized) blob + the vault.
+      const writes = (AsyncStorage.setItem as jest.Mock).mock.calls;
+      const persistedBlob = writes[writes.length - 1][1];
+      useHubStore.setState({
+        hubUrl: null,
+        session: null,
+        servers: [],
+        activeServerId: null,
+        connectionMode: 'direct',
+        effectiveServerUrl: '',
+      });
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(persistedBlob);
+
+      await useHubStore.getState().loadPersistedState();
+
+      expect(useHubStore.getState().session).toEqual(mockSession);
+      expect(useHubStore.getState().connectionMode).toBe('relay');
+      // signIn auto-selects the first server — server-1, relayed.
+      expect(useHubStore.getState().effectiveServerUrl).toBe(
+        'https://relay.phlix.app/server-1'
+      );
+    });
+
+    it('sign-out wipes the hub vault slots along with the blob', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      await useHubStore.getState().signOutOfHub();
+
+      expect(await secureStorage.getHubAccessToken()).toBeNull();
+      expect(await secureStorage.getHubRefreshToken()).toBeNull();
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('phlix_hub_session');
+    });
+
+    it('unsalvageable session (sanitized blob, empty vault) is swept, not hydrated', async () => {
+      // OS-level keychain wipe under a v2 blob: no credentials anywhere.
+      // Law (wsEndpoint): never open a socket without a credential.
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(sanitizedEnvelope());
+
+      await useHubStore.getState().loadPersistedState();
+
+      expect(useHubStore.getState().session).toBeNull();
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('phlix_hub_session');
+      expect(
+        mockedHubAuthService.hubAuthService.listServers
+      ).not.toHaveBeenCalled();
     });
   });
 });

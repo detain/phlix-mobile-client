@@ -7,14 +7,20 @@
 
 // src/services/SecureStorage.ts
 /**
- * Token vault: the ONLY sanctioned home for the server auth tokens.
+ * Token vault: the ONLY sanctioned home for auth JWTs, server AND hub.
  *
  * Historically this module was dead code and every token read/write went
  * straight to AsyncStorage — plaintext in the app sandbox (audit M1). Both
  * the access and refresh JWTs now live in the OS keychain via
  * `react-native-keychain` (installed, previously unused), and the call sites
  * (`api/client.ts`, `api/AuthManager.ts`, `api/SyncPlayManager.ts`,
- * `syncplay/wsEndpoint.ts`) go through this module.
+ * `syncplay/wsEndpoint.ts`) go through this module. The hub lane was the
+ * hole that stayed open after M1 (review mobile__crossfe M2):
+ * `store/hubStore.ts` serialized the whole hub session — both JWTs included
+ * — into one plaintext AsyncStorage blob. It now routes them through the
+ * hub slots below (`storeHubTokens`/`getHubAccessToken`/
+ * `getHubRefreshToken`/`clearHubTokens`); only non-secret session metadata
+ * stays in the blob.
  *
  * Migration: sessions created before the vault put `access_token` /
  * `refresh_token` in AsyncStorage. The first read of each slot in a process
@@ -31,6 +37,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const SERVICE_NAME = 'com.phlix.mobile';
 const ACCESS_SERVICE = `${SERVICE_NAME}.access`;
 const REFRESH_SERVICE = `${SERVICE_NAME}.refresh`;
+const HUB_ACCESS_SERVICE = `${SERVICE_NAME}.hub.access`;
+const HUB_REFRESH_SERVICE = `${SERVICE_NAME}.hub.refresh`;
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 /** Keychain username half — the password half is the credential itself. */
@@ -132,6 +140,46 @@ class SecureStorage {
     // A pending (or failed-and-cached) migration must not move values the
     // user just revoked; arm a fresh pass over the now-empty legacy keys.
     migrationPromise = null;
+  }
+
+  // ── Hub session vault slots (review mobile__crossfe M2) ──────────────────
+  //
+  // The hub sign-in mints its OWN access+refresh JWT pair (HubSession),
+  // distinct credentials from the server pair above — separate service slots
+  // keep them separate (signing out of the hub must never wipe a server
+  // session, and vice versa). Pre-vault hub sessions kept the pair inside
+  // the `phlix_hub_session` AsyncStorage blob, so the legacy sweep for this
+  // lane is blob-level and lives in `store/hubStore.ts` (loadPersistedState),
+  // not behind the bare-key `migratedOnce` latch above.
+
+  /** Persist a fresh hub JWT pair into the hub vault slots. */
+  async storeHubTokens(accessToken: string, refreshToken: string): Promise<void> {
+    await writeSlot(HUB_ACCESS_SERVICE, accessToken);
+    await writeSlot(HUB_REFRESH_SERVICE, refreshToken);
+  }
+
+  /** The hub access JWT, or null when the vault slot is empty/unreadable. */
+  async getHubAccessToken(): Promise<string | null> {
+    try {
+      return await readSlot(HUB_ACCESS_SERVICE);
+    } catch {
+      return null;
+    }
+  }
+
+  /** The hub refresh JWT, or null when the vault slot is empty/unreadable. */
+  async getHubRefreshToken(): Promise<string | null> {
+    try {
+      return await readSlot(HUB_REFRESH_SERVICE);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Wipe the hub slots only — the server vault and blob keys stay untouched. */
+  async clearHubTokens(): Promise<void> {
+    await Keychain.resetGenericPassword({ service: HUB_ACCESS_SERVICE });
+    await Keychain.resetGenericPassword({ service: HUB_REFRESH_SERVICE });
   }
 
   // ── Biometric gate (unchanged surface) ───────────────────────────────────

@@ -5,6 +5,54 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — hub session JWTs move into the keychain vault (SecureStorage law extended to the hub lane) — 2026-10-29
+
+- **M-MOBILE-05 (review mobile__crossfe.md M2).** Audit M1's token-vault
+  migration genuinely covered only the SERVER pair: `store/hubStore.ts`'s
+  `persistSession` serialized the whole hub session — both hub JWTs
+  (`HubAuthService.HubSession.accessToken`/`refreshToken`, minted by
+  `signIn` and rotated by `refreshHubSession`) — into one plaintext
+  AsyncStorage blob under `phlix_hub_session`, and the relay-token mint read
+  them back from there. Same sandbox-exposure class the vault was built to
+  close, with `SecureStorage.ts`'s "ONLY sanctioned home" docblock
+  overstating coverage.
+- **Shipped:** `SecureStorage` gains hub-scoped slots
+  `com.phlix.mobile.hub.access` / `.hub.refresh` (mirroring the server
+  ACCESS/REFRESH shape) with `storeHubTokens`/`getHubAccessToken`/
+  `getHubRefreshToken`/`clearHubTokens`; `persistSession` routes the pair to
+  the vault and the blob keeps only the non-secret envelope
+  (`expiresAt`/`userId`) + `hubUrl`/`activeServerId`/`connectionMode`;
+  `loadPersistedState` hydrates vault-first and MIGRATES pre-vault plaintext
+  blobs on first read (secure-write BEFORE the sanitized re-persist — the
+  never-orphan order of `migrateSlot`; a keychain failure leaves the blob
+  intact for retry); `signOutOfHub` wipes the hub slots alongside the blob;
+  a sanitized blob with an empty vault (OS keychain wipe) sweeps the
+  unusable session instead of half-hydrating — the wsEndpoint
+  "never open a socket without a credential" law. Lane isolation both
+  ways: hub sign-out cannot clobber server tokens, server sign-out cannot
+  clobber hub tokens.
+- **Relay-URL core class verified STALE at HEAD:** the brief's
+  `/api/v1/relay/syncplay` era-finding was already replaced — `src/syncplay/
+  hubRelay.ts` ships the SPEC wire shape (`ws(s)://<hub-host>:8804/
+  syncplay/<server_id>` at `buildHubRelayUrl` :151-167,
+  `new WebSocket(url, ['bearer', token])` at :256, zero query-string
+  tokens), matching `phlix-syncplay/SPEC.md` §8.4 (hub relay `:8804` —
+  `Sec-WebSocket-Protocol: bearer, <token>` two-entry only, `?token=`
+  refused per S237; JS idiom `new WebSocket(url, ['bearer', token])`)
+  and the hub/server S298-era law; the crossfe review itself lists it
+  as INFO-shipped. No
+  relay-URL change was needed; this lane pins the persistence half.
+- **Tests:** +11 (7 `hubStore` vault-law cases incl. blob-content negative
+  pin, migration round trip, lane isolation, sign-out wipe, corpse sweep; 4
+  `SecureStorage` hub-slot cases). Red-from-parent: 9 of 11 fail at parent
+  HEAD (the 10th — vault-agnostic round trip — passes by design, its teeth
+  live in the blob-content pins). Mutations killed inside the fix: blob
+  re-serialization of the full session → `blob never carries JWT material`
+  red; sign-out clear stripped → wipe test red; migration strip → migrate
+  red AND the pre-existing legacy-blob restore test red (proven, restored).
+  Full suite serial 85 files / 1292 pass / 1 skip (parent 1281+1, +11
+  exact); `tsc --noEmit` 0; eslint 0 on all four files.
+
 ### Changed — contracts re-pin: `#v0.5.2` → `#v0.5.3` (registry-expansion release; SyncPlay union 19→20, S280 manifest re-vendored 410→412) — 2026-10-01
 
 - **Pin advanced (lane: contracts-repin-v0.5.3 cascade).** `@phlix/contracts`
