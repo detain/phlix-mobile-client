@@ -79,6 +79,28 @@ export function isMappedSyncPlayCode(code: string): code is SyncPlayErrorCode {
   return Object.prototype.hasOwnProperty.call(SYNCPLAY_USER_MESSAGES, code);
 }
 
+// ── Local refusal codes — direct-lane minted-host pin (review mobile__exploiter M2) ──
+//
+// These NEVER go on the wire. The contracts error registry is frozen by
+// contract law (adding a wire code is a registry release, not a client's
+// pen), so the pin's refusals ride the same CLIENT-LOCAL channel the service's
+// `SEND_FAILED` precedent already uses: `events.onError(code, sentence)` →
+// the PlayerScreen Alert rail. `describeSyncPlayError` maps wire codes only,
+// so for these two the passed sentence IS the rendering target — which is why
+// the copy is owned here, next to every other SyncPlay sentence the viewer
+// can see, instead of being inlined at the throw site.
+
+/** Stable local code: hub-suggested host ≠ the host that minted the vault JWT. */
+export const SYNCPLAY_HOST_MISMATCH_CODE = 'SYNCPLAY_HOST_MISMATCH';
+/** Stable local code: vault pair with no recorded minting host (pre-pin era). */
+export const SYNCPLAY_HOST_UNPINNED_CODE = 'SYNCPLAY_HOST_UNPINNED';
+
+export const SYNCPLAY_HOST_MISMATCH_MESSAGE =
+  'Your hub pointed at a different media server than the one you signed in to, so Phlix will not send your sign-in token there. Use relay mode, or sign in to that server first.';
+
+export const SYNCPLAY_HOST_UNPINNED_MESSAGE =
+  'Phlix cannot tell which server your sign-in token was minted for, so it will not risk sending it anywhere. Sign out and back in, then try SyncPlay again.';
+
 /**
  * Resolve the sentence the viewer should see for a `syncplay_error` frame.
  *

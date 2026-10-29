@@ -168,7 +168,7 @@ describe('401 refresh-failure flow', () => {
       error: null,
     });
 
-    await secureStorage.storeTokens('acc', 'ref-expired');
+    await secureStorage.storeTokens('acc', 'ref-expired', 'login.example');
     // The refresh POST itself fails (offline / dead refresh token).
     mockedAxios.post.mockRejectedValueOnce(new Error('refresh offline'));
 

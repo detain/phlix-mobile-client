@@ -41,7 +41,7 @@ describe('SecureStorage (token vault)', () => {
       await AsyncStorage.setItem('access_token', 'stale-leftover');
       await AsyncStorage.setItem('refresh_token', 'stale-leftover-r');
 
-      await secureStorage.storeTokens('access123', 'refresh456');
+      await secureStorage.storeTokens('access123', 'refresh456', 'login.example');
 
       expect(await secureStorage.getAccessToken()).toBe('access123');
       expect(await secureStorage.getRefreshToken()).toBe('refresh456');
@@ -53,7 +53,7 @@ describe('SecureStorage (token vault)', () => {
     });
 
     it('writes the two slots separately so a leak of one is not a leak of both', async () => {
-      await secureStorage.storeTokens('a-tok', 'r-tok');
+      await secureStorage.storeTokens('a-tok', 'r-tok', 'login.example');
 
       const services = keychainMock.setGenericPassword.mock.calls.map(
         (call) => (call[2] as { service: string }).service
@@ -66,9 +66,40 @@ describe('SecureStorage (token vault)', () => {
     it('propagates a keychain write failure (caller must not claim persistence)', async () => {
       keychainMock.setGenericPassword.mockRejectedValueOnce(new Error('Keychain error'));
 
-      await expect(secureStorage.storeTokens('access', 'refresh')).rejects.toThrow(
+      await expect(secureStorage.storeTokens('access', 'refresh', 'login.example')).rejects.toThrow(
         'Keychain error'
       );
+    });
+  });
+
+  describe('minted-host pin (review mobile__exploiter M2)', () => {
+    it('records which host minted the pair, normalized through the shared parser', async () => {
+      await secureStorage.storeTokens('a', 'b', 'https://Login.Example:32400');
+      expect(await secureStorage.getIssuedHost()).toBe('login.example');
+    });
+
+    it('accepts a bare hostname from the caller', async () => {
+      await secureStorage.storeTokens('a', 'b', 'home.lan');
+      expect(await secureStorage.getIssuedHost()).toBe('home.lan');
+    });
+
+    it('refuses to store a pair without a minting host (fail fast, nothing lands)', async () => {
+      await expect(secureStorage.storeTokens('a', 'b', '   ')).rejects.toThrow(/minting host/);
+      expect(await secureStorage.getAccessToken()).toBeNull();
+    });
+
+    it('clearTokens wipes the pin alongside the pair — never an orphaned minted host', async () => {
+      await secureStorage.storeTokens('a', 'b', 'login.example');
+      await secureStorage.clearTokens();
+      expect(await secureStorage.getIssuedHost()).toBeNull();
+    });
+
+    it('a migrated pre-vault session has NO pin — getIssuedHost stays null (dial lane fails closed)', async () => {
+      await AsyncStorage.setItem('access_token', 'legacy-access');
+      await AsyncStorage.setItem('refresh_token', 'legacy-refresh');
+
+      expect(await secureStorage.getAccessToken()).toBe('legacy-access');
+      expect(await secureStorage.getIssuedHost()).toBeNull();
     });
   });
 
@@ -109,7 +140,7 @@ describe('SecureStorage (token vault)', () => {
     });
 
     it('a stored vault value outranks a stale plaintext copy (no resurrection)', async () => {
-      await secureStorage.storeTokens('fresh-access', 'fresh-refresh');
+      await secureStorage.storeTokens('fresh-access', 'fresh-refresh', 'login.example');
       await AsyncStorage.setItem('access_token', 'stale-plaintext');
       secureStorage.__resetMigrationLatchForTests();
 
@@ -122,7 +153,7 @@ describe('SecureStorage (token vault)', () => {
   describe('clearTokens', () => {
     it('wipes BOTH keychain slots and BOTH legacy keys', async () => {
       await AsyncStorage.setItem('access_token', 'pre-migration');
-      await secureStorage.storeTokens('access123', 'refresh456');
+      await secureStorage.storeTokens('access123', 'refresh456', 'login.example');
 
       await secureStorage.clearTokens();
 
@@ -236,13 +267,13 @@ describe('SecureStorage (token vault)', () => {
       expect(await secureStorage.getHubRefreshToken()).toBe('hub-r');
       expect(await secureStorage.getAccessToken()).toBeNull();
 
-      await secureStorage.storeTokens('srv-a', 'srv-r');
+      await secureStorage.storeTokens('srv-a', 'srv-r', 'srv.example');
       expect(await secureStorage.getAccessToken()).toBe('srv-a');
       expect(await secureStorage.getHubAccessToken()).toBe('hub-a');
     });
 
     it('clearHubTokens wipes ONLY the hub pair — the server vault survives', async () => {
-      await secureStorage.storeTokens('srv-a', 'srv-r');
+      await secureStorage.storeTokens('srv-a', 'srv-r', 'srv.example');
       await secureStorage.storeHubTokens('hub-a', 'hub-r');
 
       await secureStorage.clearHubTokens();

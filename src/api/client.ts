@@ -237,6 +237,13 @@ class ApiClient {
       }
 
       // Hit the real `/api/v1/auth/refresh` route (getBaseUrl includes /api/v1).
+      // The S280 gate pins the axios call to keep its literal
+      // `${getBaseUrl()}` URL form, so the pin snapshot is taken in the SAME
+      // synchronous tick as the dial — JS evaluates both calls with no await
+      // between them, making `dialedBase` exactly the base being dialled: the
+      // host that serves this issuance is what re-pins the rotated pair
+      // (review mobile__exploiter M2).
+      const dialedBase = getBaseUrl();
       const response = await axios.post(`${getBaseUrl()}/auth/refresh`, {
         refresh_token: refreshToken,
       });
@@ -245,7 +252,11 @@ class ApiClient {
 
       // The vault holds the pair atomically; a rotation that omits a new
       // refresh token re-presents the current one rather than dropping it.
-      await secureStorage.storeTokens(access_token, newRefreshToken || refreshToken);
+      await secureStorage.storeTokens(
+        access_token,
+        newRefreshToken || refreshToken,
+        dialedBase
+      );
 
       return access_token;
     })();

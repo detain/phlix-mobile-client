@@ -7,7 +7,7 @@
 
 // src/api/__tests__/AuthManager.test.ts
 import { authManager } from '../AuthManager';
-import apiClient from '../client';
+import apiClient, { getApiBaseUrl } from '../client';
 import { secureStorage } from '../../services/SecureStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -36,6 +36,9 @@ describe('AuthManager', () => {
     keychainMock.__resetKeychainMock();
     secureStorage.__resetMigrationLatchForTests();
     await AsyncStorage.clear();
+    // The minting origin saveCredentials must pin: whatever base the API
+    // client is aimed at when the auth response lands (review M2 pin).
+    (getApiBaseUrl as jest.Mock).mockReturnValue('https://login.example/api/v1');
   });
 
   it('login POSTs /auth/login with body + X-Device-Id header and persists tokens to the vault', async () => {
@@ -58,6 +61,9 @@ describe('AuthManager', () => {
     expect(JSON.parse((await AsyncStorage.getItem('user')) as string).username).toBe('bob');
     // No `server` is persisted from the response.
     expect(await AsyncStorage.getItem('server')).toBeNull();
+    // The pair is pinned to its minting origin — the direct SyncPlay lane may
+    // only ever dial THIS host with these tokens (review mobile__exploiter M2).
+    expect(await secureStorage.getIssuedHost()).toBe('login.example');
   });
 
   it('register POSTs /auth/register and handles a pending status without saving tokens', async () => {
@@ -101,7 +107,7 @@ describe('AuthManager', () => {
 
   it('logout clears local credentials only (no network logout)', async () => {
     // Seed the vault the way a real login does (tokens now live in keychain).
-    await secureStorage.storeTokens('acc', 'ref');
+    await secureStorage.storeTokens('acc', 'ref', 'login.example');
 
     await authManager.logout();
 
@@ -111,7 +117,7 @@ describe('AuthManager', () => {
   });
 
   it('isAuthenticated follows the vault across logout', async () => {
-    await secureStorage.storeTokens('acc', 'ref');
+    await secureStorage.storeTokens('acc', 'ref', 'login.example');
     expect(await authManager.isAuthenticated()).toBe(true);
 
     await authManager.logout();

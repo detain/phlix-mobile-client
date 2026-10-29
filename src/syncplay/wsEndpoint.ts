@@ -44,12 +44,30 @@
  * Port: `PHLIX_SYNCPLAY_WS_PORT` (react-native-config env, same mechanism as
  * `PHLIX_BASE_URL`) overrides the `8097` default for deployments that remap
  * the listener.
+ *
+ * Identity pin (review mobile__exploiter M2): in DIRECT mode the dial target
+ * `effectiveServerUrl` comes from the HUB's server list — a discovery trust
+ * domain — while the bearer credential is the vault's SERVER JWT, minted by
+ * whatever host the user actually authenticated to. The resolver therefore
+ * refuses to hand that JWT to any host except the one recorded beside the
+ * tokens at issuance (a mismatch or an unpinned pre-vault session throws a
+ * typed `SyncPlayHostPinError` the service surfaces to the viewer — never a
+ * silent fallback, never a downgrade). The hub-suggested host reaching a
+ * socket at all is only ever through the RELAY lane, which presents a
+ * hub-minted relay token to the hub itself: the server JWT stays home.
  */
 
 import Config from 'react-native-config';
 import { buildHubRelayUrl } from './hubRelay';
 import { createHubRelayTokenProvider } from '../hub/RelayTokenProvider';
 import { secureStorage } from '../services/SecureStorage';
+import { hostOf } from '../utils/serverHost';
+import {
+  SYNCPLAY_HOST_MISMATCH_CODE,
+  SYNCPLAY_HOST_MISMATCH_MESSAGE,
+  SYNCPLAY_HOST_UNPINNED_CODE,
+  SYNCPLAY_HOST_UNPINNED_MESSAGE,
+} from './syncplayErrors';
 
 /** Server SyncPlay WS listener default port (config/server.php 'syncplay' => 'port'). */
 export const SYNCPLAY_WS_DEFAULT_PORT = 8097;
@@ -107,15 +125,6 @@ export function wsScheme(baseUrl: string): 'ws' | 'wss' {
   return baseUrl.startsWith('https') ? 'wss' : 'ws';
 }
 
-/** Hostname (no port) of an http(s) base URL; URL global first, regex fallback. */
-function hostOf(baseUrl: string): string {
-  try {
-    return new URL(baseUrl).hostname;
-  } catch {
-    return baseUrl.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
-  }
-}
-
 /**
  * Direct-mode LOCATION: `ws(s)://{host}:{syncplayPort}/api/v1/syncplay/ws`.
  *
@@ -144,6 +153,25 @@ export function buildDirectSyncPlayWsUrl(
 const relayTokenProviders = new Map<string, () => Promise<string | null>>();
 
 /**
+ * A TYPED refusal from the direct lane's minted-host pin: the vault's server
+ * JWT may not be carried to `effectiveServerUrl`'s host. `refusalCode` is a
+ * client-local stable code (never a wire value — the contracts registry owns
+ * those) and `message` is the catalog sentence from `syncplayErrors.ts`, safe
+ * to show the viewer. Throwing rather than returning null is deliberate: a
+ * null means "nothing to dial, stay quiet"; this is "someone tried to ride
+ * your credential somewhere — SAY SO" (estate fail-loud law).
+ */
+export class SyncPlayHostPinError extends Error {
+  readonly refusalCode: string;
+
+  constructor(refusalCode: string, message: string) {
+    super(message);
+    this.name = 'SyncPlayHostPinError';
+    this.refusalCode = refusalCode;
+  }
+}
+
+/**
  * Resolve the SyncPlay WS endpoint for the current connection mode.
  *
  * Returns `null` when the lane is not usable (no server root, no stored
@@ -151,6 +179,11 @@ const relayTokenProviders = new Map<string, () => Promise<string | null>>();
  * must treat null as "do not open the socket", never as "open without a
  * credential": both listeners reject unauthenticated upgrades, and a tokenless
  * attempt only burns a reconnect slot.
+ *
+ * THROWS `SyncPlayHostPinError` when the DIRECT lane's host pin refuses: the
+ * hub-suggested host is not the host that minted the vault pair, or the pair
+ * predates the pin and carries no recorded origin. That is not "nothing to
+ * dial" — it is an attempted credential ride, and the service surfaces it.
  */
 export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promise<SyncPlayWsEndpoint | null> {
   if (source.connectionMode === 'relay') {
@@ -189,6 +222,31 @@ export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promi
   if (!serverJwt) {
     return null;
   }
+
+  // Minted-host pin (review mobile__exploiter M2). The direct bearer is the
+  // vault's SERVER JWT — a credential that authenticates to exactly the host
+  // that minted it. `effectiveServerUrl` is hub-supplied discovery data, so
+  // the two must be shown to agree BEFORE the JWT is placed on the offer.
+  const mintedHost = await secureStorage.getIssuedHost();
+  if (mintedHost === null) {
+    // A pre-pin migrated session: no recorded origin, so no host can be
+    // proven safe. Fail closed; the viewer is asked to re-authenticate (which
+    // mints a pinned pair). Never "dial anyway" over an unknown origin.
+    throw new SyncPlayHostPinError(
+      SYNCPLAY_HOST_UNPINNED_CODE,
+      SYNCPLAY_HOST_UNPINNED_MESSAGE
+    );
+  }
+  if (hostOf(source.effectiveServerUrl) !== mintedHost) {
+    // The hub pointed at a different machine than the one the user signed in
+    // to. Presenting the server JWT here is exactly the cross-domain ride the
+    // review demonstrated — refuse loudly.
+    throw new SyncPlayHostPinError(
+      SYNCPLAY_HOST_MISMATCH_CODE,
+      SYNCPLAY_HOST_MISMATCH_MESSAGE
+    );
+  }
+
   // Dual-carrier TARGET law (phlix-server 424c14d0): bearer subprotocol
   // carrier, never a query token — same offer shape the relay lane above and
   // hubRelay.ts:256 already ship.

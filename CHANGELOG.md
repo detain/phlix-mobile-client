@@ -5,6 +5,44 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the server JWT never rides to a hub-suggested host (direct-lane minted-host pin) — 2026-10-29
+
+- **M-MOBILE-11 (review mobile__exploiter.md M2).** The direct SyncPlay lane
+  presented the vault's SERVER JWT (`wsEndpoint.ts` direct branch, bearer
+  subprotocol) to `effectiveServerUrl` — a hostname coming from the HUB's
+  `/me/servers` payload (`hubStore.resolveEffectiveUrl` →
+  `HubAuthService.listServers`, zero validation). A malicious or compromised
+  hub listing `attacker.example` made the app dial `wss://attacker.example:8097`
+  with the victim's real media-server token: the :8097 listener is
+  possession-equals-auth, so one room join handed the attacker live access to
+  the victim's private server. The hub is a DISCOVERY trust domain; the vault
+  pair belongs to the server-AUTH domain — the code conflated them at the
+  only place either was consumed. (M-MOBILE-05's vault migration changed the
+  token READ path, not this dial law.)
+- **Shipped (minted-host pin):** `SecureStorage.storeTokens` now REQUIRES the
+  minting host (normalized through the new shared `utils/serverHost.hostOf`
+  parser, fail-fast on empty) and stores it beside the pair; `clearTokens`
+  wipes it with the pair — never an orphaned pin, never a token without its
+  origin. Both server-token issuance sites pass it: `AuthManager.saveCredentials`
+  (login/register/passkey/refresh — all POST through `getBaseUrl()`) and the
+  `client.ts` refresh leg (the host that serves a rotation re-pins the pair,
+  which also self-heals migrated pre-pin sessions). `resolveSyncPlayWsEndpoint`'s
+  direct branch throws a typed `SyncPlayHostPinError` — codes
+  `SYNCPLAY_HOST_MISMATCH` / `SYNCPLAY_HOST_UNPINNED`, copy owned by the
+  `syncplayErrors` catalog (client-local codes; the contracts wire registry is
+  frozen and gained nothing) — when the dial host ≠ the minted host or the
+  vault holds no pin; `SyncPlayService.openSocket` surfaces it through the
+  same `onError` → Alert rail as every other SyncPlay failure (fail-loud:
+  never a silent error-state drop, never a downgrade to tokenless). The
+  RELAY lane is untouched — it already presents only a hub-minted relay token
+  to the hub itself, the conformant shape for hub-connected users.
+- **Pins:** wsEndpoint suite — mismatch throws (never returns an endpoint),
+  unpinned fails closed, same-host pass-through unchanged, case/port
+  normalization pinned, relay proven pin-immune; service suite — refusal emits
+  the catalog code+sentence with ZERO WebSocket builds; vault suite — pin
+  write/normalize/wipe/migrated-stays-unpinned; AuthManager suite — login
+  pins `login.example`.
+
 ### Fixed — hub session JWTs move into the keychain vault (SecureStorage law extended to the hub lane) — 2026-10-29
 
 - **M-MOBILE-05 (review mobile__crossfe.md M2).** Audit M1's token-vault

@@ -6,7 +6,7 @@
  */
 
 // src/api/AuthManager.ts
-import apiClient from './client';
+import apiClient, { getApiBaseUrl } from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { secureStorage } from '../services/SecureStorage';
 import { getDeviceId } from './deviceIdentity';
@@ -119,8 +119,16 @@ class AuthManager {
   private async saveCredentials(data: LoginResponse): Promise<void> {
     // Tokens go to the vault (keychain); only the non-secret user profile
     // stays in AsyncStorage. (audit M1 — the old code wrote both JWTs as
-    // plaintext AsyncStorage keys.)
-    await secureStorage.storeTokens(data.access_token, data.refresh_token);
+    // plaintext AsyncStorage keys.) The pair is pinned to the base URL every
+    // auth leg here POSTs through (the request interceptor re-resolves
+    // config.baseURL = getBaseUrl() at dispatch): that host MINTED these
+    // tokens, and the direct SyncPlay lane may only ever carry them back
+    // there (review mobile__exploiter M2).
+    await secureStorage.storeTokens(
+      data.access_token,
+      data.refresh_token,
+      getApiBaseUrl()
+    );
     await AsyncStorage.setItem('user', JSON.stringify(data.user));
   }
 

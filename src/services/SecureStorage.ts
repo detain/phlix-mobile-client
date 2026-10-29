@@ -20,7 +20,11 @@
  * — into one plaintext AsyncStorage blob. It now routes them through the
  * hub slots below (`storeHubTokens`/`getHubAccessToken`/
  * `getHubRefreshToken`/`clearHubTokens`); only non-secret session metadata
- * stays in the blob.
+ * stays in the blob. A third piece of state joins the vault with review
+ * mobile__exploiter M2: the MINTED HOST of the server pair — configuration,
+ * not a credential, but integrity metadata whose lifecycle must be welded to
+ * the tokens' (the direct SyncPlay lane refuses to dial any host but that
+ * one, and an orphaned pin is as misleading as an orphaned token).
  *
  * Migration: sessions created before the vault put `access_token` /
  * `refresh_token` in AsyncStorage. The first read of each slot in a process
@@ -33,6 +37,7 @@
 
 import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hostOf } from '../utils/serverHost';
 
 const SERVICE_NAME = 'com.phlix.mobile';
 const ACCESS_SERVICE = `${SERVICE_NAME}.access`;
@@ -41,6 +46,15 @@ const HUB_ACCESS_SERVICE = `${SERVICE_NAME}.hub.access`;
 const HUB_REFRESH_SERVICE = `${SERVICE_NAME}.hub.refresh`;
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+/**
+ * Which host minted the currently-stored server pair (review
+ * mobile__exploiter M2). NOT a secret — a hostname is configuration the user
+ * typed or the hub announced, already sitting plaintext in settings — but it
+ * is vault INTEGRITY metadata, so its lifecycle is welded to the pair's:
+ * written by every `storeTokens`, wiped by every `clearTokens`, never
+ * surviving without the tokens it authenticates.
+ */
+const ISSUED_HOST_KEY = 'phlix.access_issued_host';
 /** Keychain username half — the password half is the credential itself. */
 const TOKEN_USERNAME = 'phlix';
 
@@ -94,14 +108,41 @@ function migratedOnce(): Promise<void> {
 
 class SecureStorage {
   /**
-   * Persist a fresh token pair. The vault is the only store: the legacy
-   * AsyncStorage keys are swept so a later first-read cannot resurrect an
-   * older plaintext session over these values.
+   * Persist a fresh token pair AND the host that minted it. The vault is the
+   * only store: the legacy AsyncStorage keys are swept so a later first-read
+   * cannot resurrect an older plaintext session over these values.
+   *
+   * `issuedHost` is REQUIRED (fail fast): a token stored without its origin
+   * is a token the SyncPlay direct lane must refuse to carry anywhere, and
+   * the refusal is only honest if the pin was written at issuance. The value
+   * is normalized through the shared `hostOf` parser, so callers may hand the
+   * minting base URL itself and the vault stores the canonical host.
    */
-  async storeTokens(accessToken: string, refreshToken: string): Promise<void> {
+  async storeTokens(accessToken: string, refreshToken: string, issuedHost: string): Promise<void> {
+    const pinnedHost = typeof issuedHost === 'string' ? hostOf(issuedHost) : '';
+    if (pinnedHost === '') {
+      throw new Error(
+        'SecureStorage: storeTokens requires the minting host of the token pair'
+      );
+    }
+    await AsyncStorage.setItem(ISSUED_HOST_KEY, pinnedHost);
     await writeSlot(ACCESS_SERVICE, accessToken);
     await writeSlot(REFRESH_SERVICE, refreshToken);
     await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+  }
+
+  /**
+   * The host the stored pair was minted for — the anchor the direct SyncPlay
+   * dial is checked against — or null for a pre-pin (migrated) session, in
+   * which case consumers must FAIL CLOSED. A successful re-issuance (login,
+   * register, passkey, or the REST refresh leg) re-pins the pair.
+   */
+  async getIssuedHost(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(ISSUED_HOST_KEY);
+    } catch {
+      return null;
+    }
   }
 
   /** The access JWT, or null (migrating a pre-vault session on first read). */
@@ -132,11 +173,11 @@ class SecureStorage {
     }
   }
 
-  /** Wipe every token trace: both vault slots and both legacy keys. */
+  /** Wipe every token trace: both vault slots, the minted-host pin, and both legacy keys. */
   async clearTokens(): Promise<void> {
     await Keychain.resetGenericPassword({ service: ACCESS_SERVICE });
     await Keychain.resetGenericPassword({ service: REFRESH_SERVICE });
-    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, ISSUED_HOST_KEY]);
     // A pending (or failed-and-cached) migration must not move values the
     // user just revoked; arm a fresh pass over the now-empty legacy keys.
     migrationPromise = null;

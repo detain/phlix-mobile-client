@@ -58,6 +58,7 @@ import { useHubStore } from '../store/hubStore';
 import { wireMsToSeconds } from './wireUnits';
 import {
   resolveSyncPlayWsEndpoint,
+  SyncPlayHostPinError,
   type SyncPlayWsEndpoint,
 } from './wsEndpoint';
 import { hashGroupPassword } from './sha256';
@@ -627,6 +628,7 @@ class SyncPlayService {
       useHubStore.getState();
 
     let endpoint: SyncPlayWsEndpoint | null = null;
+    let hostPinError: SyncPlayHostPinError | null = null;
     try {
       endpoint = await resolveSyncPlayWsEndpoint({
         connectionMode,
@@ -636,10 +638,23 @@ class SyncPlayService {
         getHubAccessToken: () => useHubStore.getState().session?.accessToken ?? null,
       });
     } catch (error) {
+      if (error instanceof SyncPlayHostPinError) {
+        hostPinError = error;
+      }
       console.error('SyncPlay: endpoint resolution failed', error);
     }
     if (generation !== this.connectionGeneration) {
       return; // superseded by disconnect()/a newer connect()
+    }
+    if (hostPinError) {
+      // The minted-host pin blocked a credential ride (review
+      // mobile__exploiter M2). That is not a quiet "nothing to dial" — the
+      // viewer is told, through the SAME onError → Alert rail every other
+      // SyncPlay failure uses (estate fail-loud law: no silent drops), and
+      // the socket is never constructed.
+      this.events.onError?.(hostPinError.refusalCode, hostPinError.message);
+      this.setConnectionState('error');
+      return;
     }
     if (!endpoint) {
       // No lane without a credential — both listeners reject unauthenticated

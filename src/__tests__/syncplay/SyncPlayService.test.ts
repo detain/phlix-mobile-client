@@ -32,6 +32,12 @@ import { useHubStore } from '../../store/hubStore';
 import { secureStorage } from '../../services/SecureStorage';
 import { createHubRelayTokenProvider } from '../../hub/RelayTokenProvider';
 import { __resetRelayTokenProvidersForTests } from '../../syncplay/wsEndpoint';
+import {
+  SYNCPLAY_HOST_MISMATCH_CODE,
+  SYNCPLAY_HOST_MISMATCH_MESSAGE,
+  SYNCPLAY_HOST_UNPINNED_CODE,
+  SYNCPLAY_HOST_UNPINNED_MESSAGE,
+} from '../../syncplay/syncplayErrors';
 
 // ---------------------------------------------------------------------------
 // Mock WebSocket
@@ -100,8 +106,8 @@ jest.mock('../../store/hubStore');
 jest.mock('../../store/syncplayStore');
 jest.mock('../../services/SecureStorage', () => ({
   __esModule: true,
-  default: { getAccessToken: jest.fn(), getRefreshToken: jest.fn() },
-  secureStorage: { getAccessToken: jest.fn(), getRefreshToken: jest.fn() },
+  default: { getAccessToken: jest.fn(), getRefreshToken: jest.fn(), getIssuedHost: jest.fn() },
+  secureStorage: { getAccessToken: jest.fn(), getRefreshToken: jest.fn(), getIssuedHost: jest.fn() },
 }));
 // The relay-token MINT (hub REST round-trip) is another module's contract;
 // this suite only pins that the endpoint builder USES it behind the bearer
@@ -166,6 +172,9 @@ const setupMocks = (
     storeState(syncplayOverrides)) as unknown as typeof mockSyncplayStore.getState;
   mockSyncplayStore.setState = jest.fn();
   mockSecureStorage.getAccessToken.mockResolvedValue(DIRECT_JWT);
+  // Default vault state for the direct lane: the token was minted by the
+  // same host the hub store suggests — the pin passes and tests dial freely.
+  mockSecureStorage.getIssuedHost.mockResolvedValue('192.168.1.100');
 };
 
 // The endpoint resolve is Promise-based (token vault read on every lane);
@@ -366,6 +375,51 @@ describe('SyncPlayService - Connection', () => {
     expect(stateChange).toHaveBeenCalledWith('error');
 
     syncPlayService.off('onConnectionStateChange');
+  });
+
+  // ── Minted-host pin (review mobile__exploiter M2) ───────────────────────
+  // A hub-suggested host that did NOT mint the vault's server JWT must never
+  // receive a dial — and the refusal must be VISIBLE (onError → Alert rail),
+  // not a silent error-state drop. Fail-loud estate law.
+
+  it('refuses a hub-suggested host mismatch with a user-visible error and never dials', async () => {
+    mockSecureStorage.getIssuedHost.mockResolvedValue('home.lan');
+
+    const errorCallback = jest.fn();
+    const stateChange = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+    syncPlayService.on('onConnectionStateChange', stateChange as any);
+
+    syncPlayService.connect('member-123');
+    await pump();
+
+    expect(MockWebSocket.builds).toBe(0); // the JWT never left the process
+    expect(errorCallback).toHaveBeenCalledWith(
+      SYNCPLAY_HOST_MISMATCH_CODE,
+      SYNCPLAY_HOST_MISMATCH_MESSAGE
+    );
+    expect(stateChange).toHaveBeenLastCalledWith('error');
+
+    syncPlayService.off('onError');
+    syncPlayService.off('onConnectionStateChange');
+  });
+
+  it('surfaces the re-login ask when the vault holds no minted host', async () => {
+    mockSecureStorage.getIssuedHost.mockResolvedValue(null);
+
+    const errorCallback = jest.fn();
+    syncPlayService.on('onError', errorCallback as any);
+
+    syncPlayService.connect('member-123');
+    await pump();
+
+    expect(MockWebSocket.builds).toBe(0);
+    expect(errorCallback).toHaveBeenCalledWith(
+      SYNCPLAY_HOST_UNPINNED_CODE,
+      SYNCPLAY_HOST_UNPINNED_MESSAGE
+    );
+
+    syncPlayService.off('onError');
   });
 
   it('connectWithRoom joins the room on open — no caller-supplied URL', async () => {
