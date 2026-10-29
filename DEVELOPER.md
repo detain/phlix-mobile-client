@@ -282,7 +282,7 @@ interface SettingsState {
 
 The API client uses Axios with:
 
-- **Base URL**: Configurable via `BASE_URL` constant
+- **Base URL**: Resolved by `getServerRoot()` — Settings/login `serverUrl` runtime override, else build-time `PHLIX_BASE_URL` (`.env` via react-native-config), else the hardcoded default; `/api/v1` is appended by the client
 - **Request Interceptor**: Automatically adds auth token to requests
 - **Response Interceptor**: Handles 401 errors and token refresh
 - **Timeout**: 30 seconds default

@@ -141,20 +141,44 @@ cd ios && pod install && cd ..
 
 ### 4. Configure Environment
 
-Create a `.env` file in the root directory (optional for development):
+No configuration is required to start: the app defaults to
+`https://api.phlix.app`. To build against your own server, copy the provided
+`.env.example` to `.env` in the project root and set:
 
 ```env
-API_BASE_URL=https://api.phlix.app
+PHLIX_BASE_URL=http://192.168.1.10:8096
 ```
+
+Two facts about this file, both from how the code consumes it
+(`src/api/client.ts`):
+
+- `PHLIX_BASE_URL` is read at **native build time** by react-native-config,
+  so after changing it you must rebuild the app (`npm run android` / a fresh
+  Xcode build) — reloading Metro is not enough. The module is already wired
+  on both platforms (`dotenv.gradle` in `android/app/build.gradle`, the
+  autolinked pod on iOS), so `npm install` + `pod install` is all it takes.
+  No other keys are read today; `.env` is git-ignored, but anything in it
+  ships inside the app bundle unencrypted — put no secrets there.
+- The value is the server **root**: the client appends `/api/v1` to every
+  request, so leave that suffix off.
+
+For a quick trial against your server without any rebuild, skip `.env`
+entirely and enter the server URL on the login screen instead — that runtime
+override is stored in the settings store (visible under Settings) and
+out-ranks the build-time value.
 
 ## Configuration
 
 ### API Configuration
 
-The app connects to a media server API. Configure the base URL in:
+The server the app talks to resolves in this priority order (implemented by
+`getServerRoot()` in `src/api/client.ts`):
 
-- **Development**: Uses default `https://api.phlix.app`
-- **Self-hosted**: Update `BASE_URL` in `src/api/client.ts`
+1. **Runtime override** — the server URL entered on the login screen
+   (persisted as `serverUrl` in `src/stores/useSettingsStore.ts`).
+2. **Build-time default** — `PHLIX_BASE_URL` from the root `.env`, baked in
+   by react-native-config (see step 4 above).
+3. **Hardcoded fallback** — `https://api.phlix.app`.
 
 ### Native Module Configuration
 
