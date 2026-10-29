@@ -133,7 +133,7 @@ describe('deep-link resolution through the PRODUCTION config', () => {
     expect(resolve(url)?.name).toBe(expectedLeaf);
   });
 
-  it('carries param routes: collection/:collectionId, album/:albumName, album/:albumId/photos', () => {
+  it('carries param routes: collection/:collectionId, album/:albumName', () => {
     expect(resolve('phlix://collection/col-9')).toEqual({
       name: 'CollectionDetail',
       params: { collectionId: 'col-9' },
@@ -142,10 +142,25 @@ describe('deep-link resolution through the PRODUCTION config', () => {
       name: 'MusicAlbum',
       params: { albumName: 'Daft Punk' },
     });
-    expect(resolve('phlix://album/al-1/photos')).toEqual({
-      name: 'PhotoAlbum',
-      params: { albumId: 'al-1' },
-    });
+  });
+
+  it('PhotoAlbum is NOT mapped: its required libraryId never arrives through a path (param law)', () => {
+    // R-M-MOBILE-17 r2 (MAJOR-1 cure). RootStackParamList declares
+    // PhotoAlbum as { albumId: string; libraryId: string } — the album id
+    // alone yields a screen whose getAlbum(albumId, undefined) call lands on
+    // ErrorView, guaranteed. Same class as the excluded Cast/PhotoViewer/
+    // SeasonDetail routes: a param-incomplete mapping is forbidden, and the
+    // estate emits no `phlix://album/.../photos` link from any producer
+    // (windows emits only media/play/accept-invite/server/internal). The
+    // shape must resolve to NOTHING — honestly dropped, like any unknown
+    // route — and MUST NOT be re-added without a screen-side libraryId
+    // guard + a pinned wire producer.
+    expect(
+      'PhotoAlbum' in
+        ((PHLIX_LINKING_CONFIG as { screens: Record<string, unknown> })
+          .screens ?? {})
+    ).toBe(false);
+    expect(resolve('phlix://album/al-1/photos')).toBeUndefined();
   });
 
   it('an unknown path resolves to NOTHING (honest drop, no phantom route)', () => {
@@ -193,5 +208,33 @@ describe('OS manifests register the scheme (no config theater)', () => {
     expect(plist).toContain('<key>CFBundleURLTypes</key>');
     expect(plist).toContain('<string>phlix</string>');
     expect(plist).toContain('<key>CFBundleURLSchemes</key>');
+  });
+
+  it('iOS CFBundleURLName matches the project bundle identifier (no stale label)', () => {
+    // R-M-MOBILE-17 r2 (MINOR-3 cure): the URL type label shipped as
+    // `app.phlix.mobile`, a label no file in the project owns — the real
+    // bundle id is declared in project.pbxproj. Cross-file equality (not a
+    // second literal) so an identifier change cannot silently orphan it.
+    const plist = readFileSync(
+      join(__dirname, '../../../ios/PhlixMobile/Info.plist'),
+      'utf8'
+    );
+    const urlName = /<key>CFBundleURLName<\/key>\s*<string>([^<]+)<\/string>/.exec(
+      plist
+    );
+    expect(urlName).not.toBeNull();
+    const pbx = readFileSync(
+      join(
+        __dirname,
+        '../../../ios/PhlixMobile.xcodeproj/project.pbxproj'
+      ),
+      'utf8'
+    );
+    const bundleIds = [
+      ...pbx.matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([^";\n]+)"?;/g),
+    ].map((m) => m[1]);
+    expect(bundleIds.length).toBeGreaterThan(0);
+    expect(new Set(bundleIds).size).toBe(1);
+    expect(urlName![1]).toBe(bundleIds[0]);
   });
 });

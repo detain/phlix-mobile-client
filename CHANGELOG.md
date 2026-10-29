@@ -5,6 +5,45 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — PhotoAlbum deep-link param law (M-MOBILE-17 r2) — 2026-10-29
+
+- **Rework atop `8467014` per review `M-MOBILE-17__r1` (verdict REWORK).**
+  MAJOR-1: the r1 mapping `PhotoAlbum: 'album/:albumId/photos'` carried only
+  `albumId` while `RootStackParamList` requires BOTH `albumId` and
+  `libraryId` — the bare canonical form deterministically rendered ErrorView
+  (`getAlbum(albumId, undefined)` → server error), and a green test had
+  pinned that broken resolution as spec (r1 `linking.test.ts:145-148`).
+  Cured by LAW, not by guard: the mapping is removed and the test now pins
+  the exclusion itself — `PhotoAlbum` is absent from the config AND
+  `phlix://album/al-1/photos` resolves to `undefined` (measured: a full
+  honest drop, not a stray `album/:albumName` match). Chosen over a
+  screen-side libraryId guard because ZERO estate producers emit the link:
+  windows' `deepLinkValidator.ts` owns only media/play/accept-invite/
+  server/internal, and a grep of server/hub/ui/roku/tizen for
+  album-photos link emission found none; the only real entry to the screen
+  (`PhotosScreen.tsx` album tap) always passes both params in-app. Matches
+  the file's own Cast/PhotoViewer param-law precedent. Mutation teeth:
+  re-adding the mapping reddens the new law test exactly ×1.
+- **MINOR-3 cured:** iOS `CFBundleURLName` was the label
+  `app.phlix.mobile`, which no file in the project owns; set to the real
+  bundle identifier `com.phlixmobile.PhlixMobile` (`project.pbxproj`) and
+  pinned by a new cross-file equality test (plist label == pbxproj
+  `PRODUCT_BUNDLE_IDENTIFIER`, no duplicated literal). Mutation: restoring
+  the stale label reddens it exactly ×1. plist re-parsed with `plistlib`
+  after the change.
+- **MINOR-1 disclosed (not cured):** a link arriving while unauthenticated
+  resolves against a tree rendering only `Login` and is dropped — no
+  pending-URL replay after sign-in. Documented in `linking.ts` as an
+  auth-gated `linking` callback follow-up.
+- **MINOR-2 prose corrected:** the r1 entry above said "gate law ×7 /
+  linking ×28"; measured per-file at r1 the counts were gate ×8, hook ×4,
+  linking ×27 (sum 39 unchanged). Corrected in place.
+- **Measured:** linking suite 27 → 29 tests; full serial
+  `jest --runInBand` 93 suites / 1426 tests = 1425 passed + 1 skipped,
+  0 failed (baseline 1424: +2 = the two new law tests). `tsc --noEmit`
+  clean; eslint 0 errors (same 2 pre-existing warnings in files untouched
+  here). Zero new deps, wire codes, or user-facing strings.
+
 ### Fixed — cross-device liveness and a `phlix://` front door — 2026-10-29
 
 - **M-MOBILE-17 (review mobile__gameux M-F).** No screen had a focus
@@ -38,9 +77,9 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`app.phlix.mobile` / `phlix`). https app-links stay OUT — they need
   assetlinks / apple-app-site-association hosting this client does not
   control (disclosed gap, owner call).
-- **Tests.** +3 suites / +39 tests (gate law ×7 incl fail-fast on bad
+- **Tests.** +3 suites / +39 tests (gate law ×8 incl fail-fast on bad
   intervals; hook law ×4 driven by the repo's slot-backed host with the
-  focus callback captured as the event; linking ×28 driving the REAL
+  focus callback captured as the event; linking ×27 driving the REAL
   `getStateFromPath` over the production config, incl windows-parity
   assertions and manifest-tripwire reads of both OS config files).
 - **Measured full suite @this tree:** 93 suites, 1424 tests = 1423 passed +

@@ -32,7 +32,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>app.phlix.mobile</string>
+			<string>com.phlixmobile.PhlixMobile</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>phlix</string>

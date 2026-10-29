@@ -20,7 +20,21 @@
 // param arrives through the path itself: `Cast` is deliberately absent
 // because its `streamUrl` can never come from a URL (it is minted per
 // playback request); `PhotoViewer`/`SeasonDetail` stay in-app for the same
-// reason (session-scoped context).
+// reason (session-scoped context); `PhotoAlbum` is absent because
+// `RootStackParamList` requires BOTH `albumId` and `libraryId` while a path
+// of the shape `album/:albumId/photos` carries only one — such a link
+// deterministically renders ErrorView (r1 shipped exactly that mapping and
+// a test pinned the broken resolution; r2 removed both — re-adding it
+// needs a screen-side libraryId guard AND a real wire producer, and the
+// estate today has none: windows emits only media/play/accept-invite/
+// server/internal).
+//
+// DISCLOSED GAP (auth cold-start, M-MOBILE-17 r2): a link arriving while
+// the session is unauthenticated resolves against a tree that renders only
+// `Login`, so react-navigation drops it — there is no pending-URL replay
+// after sign-in. Curing it needs an auth-gated linking callback (upstream
+// `linking.subscribe`/`getInitialURL` overrides) and is filed as a
+// follow-up, not silently pretended-works here.
 //
 // SCHEME PARITY with the windows client (`deepLinkValidator.ts`, W3
 // unification): `phlix://media/{id}` and `phlix://play/{id}` mean the same
@@ -85,7 +99,9 @@ export const PHLIX_LINKING_CONFIG = {
     Music: 'music',
     MusicAlbum: 'album/:albumName',
     Photos: 'photos',
-    PhotoAlbum: 'album/:albumId/photos',
+    // PhotoAlbum deliberately absent — required `libraryId` can never arrive
+    // through a path (see THE LAW above + the r2 test). Re-adding needs both
+    // a screen guard and a real producer.
     LiveTv: 'livetv',
     LiveTvRecordings: 'livetv/recordings',
     Profiles: 'profiles',
