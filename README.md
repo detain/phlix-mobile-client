@@ -119,8 +119,8 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/phlix-mobile.git
-cd phlix-mobile
+git clone https://github.com/detain/phlix-mobile-client.git
+cd phlix-mobile-client
 ```
 
 ### 2. Install Dependencies
