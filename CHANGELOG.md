@@ -5,6 +5,55 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — hub session JWTs: plaintext-era audit closed at HEAD, vault LAW pinned by order- and failure-toothed tests — 2026-10-29
+
+- **M-MOBILE-12 (review mobile__exploiter).** The queue entry — "HUB session
+  tokens persist in PLAINTEXT AsyncStorage" — carried review-era evidence.
+  Re-verified at HEAD (`74cce0f`): the cure had already landed one commit
+  earlier (`d72dc0c`, the crossfe-M2 lane) — `persistSession` writes both hub
+  JWTs to the dedicated keychain slots (`com.phlix.mobile.hub.access` /
+  `.hub.refresh`) and keeps only `{hubUrl, expiresAt, userId, activeServerId,
+  connectionMode}` in the `phlix_hub_session` blob; `loadPersistedState`
+  migrates legacy plaintext blobs; `signOutOfHub` wipes blob AND vault.
+  This lane re-swept EVERY AsyncStorage write site instead of re-doing the
+  move: settings (no password/token fields exist in the state shape),
+  download tasks (media metadata + local paths), the `user` envelope (profile
+  data; `saveCredentials` routes both server JWTs to the vault), device id /
+  active profile / the minted-host pin (identifiers, already judged
+  configuration by the vault docblock). **No credential material remains in
+  AsyncStorage plaintext.**
+- **Bundle-shape judgment (disclosed, keeping the shipped split):** non-secret
+  connection metadata stays in AsyncStorage rather than the vault — mirroring
+  the ratified server-pair idiom (`AuthManager` keeps the profile envelope
+  plaintext, tokens vaulted), and keeping boot honest: `loadPersistedState`
+  awaits the async vault read inside a total try/catch, so nothing crashes
+  before the vault resolves; the session simply hydrates when both halves
+  agree, and an unsalvageable row (keychain wiped under a sanitized blob) is
+  swept, never opened without a credential.
+- **The real gap was unpinned LAW, and tests close it.** Four end-state-blind
+  spots became order-aware pins (new `hub token vault ordering & failure law
+  (M-MOBILE-12)` block in `src/__tests__/hub/hubStore.test.ts`): (1) sign-in
+  writes the blob only after the vault already holds the pair — observed at
+  the instant of each write, plus a hostile full-dump scan (no token material
+  in ANY AsyncStorage payload); (2) the legacy migration's sanitizing rewrite
+  is likewise vault-gated; (3) a keychain failure at sign-in fails LOUD —
+  the rejection surfaces and zero plaintext is ever written; (4) a keychain
+  failure mid-migration degrades honestly: the session stays usable from the
+  retained plaintext row, no sanitize/sweep fires, and the retry after
+  recovery completes the move (no silent token-loss loop).
+  Mutation-proven: flipping `persistSession`'s order reddens (1)+(3);
+  flipping the migration order reddens (2)+(4) and M-MOBILE-05's pin;
+  deleting the legacy sanitizing sweep reddens (2)+(4) + the M-05 pin;
+  removing the migration's catch-fallback (feeding a vault failure into the
+  unsalvageable sweep) reddens (4) exactly.
+- **Gates:** jest `--runInBand` 85 suites / 1309 tests (1308 pass + the
+  pre-existing 1 skip) = parent 1305 + 4 exact; `tsc --noEmit` 0; eslint 0
+  errors (2 pre-existing warnings in untouched `SleepTimer.tsx`/
+  `PlayerScreen.tsx`). Venue note: the local jest process can exit with a
+  stray `WebSocket is not defined` ReferenceError from a leaked
+  `SyncPlayService` timer AFTER totals print — pre-existing at the parent
+  baseline, totals unaffected.
+
 ### Fixed — the server JWT never rides to a hub-suggested host (direct-lane minted-host pin) — 2026-10-29
 
 - **M-MOBILE-11 (review mobile__exploiter.md M2).** The direct SyncPlay lane

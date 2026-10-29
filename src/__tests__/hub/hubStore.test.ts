@@ -600,4 +600,185 @@ describe('hubStore', () => {
       ).not.toHaveBeenCalled();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // M-MOBILE-12 (review mobile__exploiter): the queue entry claimed the hub
+  // pair still sat plaintext in AsyncStorage. Re-verified at HEAD: that era
+  // ended at d72dc0c — `persistSession` sanitizes and `loadPersistedState`
+  // migrates — and a sweep of EVERY AsyncStorage write site found no other
+  // credential material in the plaintext store (settings carries no
+  // password/token fields, download tasks carry media metadata + local
+  // paths, the `user` envelope is profile data, device id / active profile /
+  // the minted-host pin are identifiers the vault docblock already judges
+  // configuration). What stayed unpinned is the SHAPE of the law the tests
+  // above cannot see: (a) every end-state assertion passes even if the
+  // vault-write and the blob-write swap order — a swapped pair is an orphan
+  // window whenever the second call fails, so the ORDER is the contract;
+  // (b) pre-vault platform failure must degrade honestly — session usable,
+  // plaintext row retained for a retry, never a silent token-loss loop.
+  // These tests pin both, and they are the mutation teeth the brief demands:
+  // reverting vault-first ordering reddens (1)/(2); dropping the legacy
+  // sweep reddens (2) alongside the M-MOBILE-05 migration pin.
+  // ---------------------------------------------------------------------------
+  describe('hub token vault ordering & failure law (M-MOBILE-12)', () => {
+    const keychainMock = jest.requireMock('react-native-keychain') as {
+      __resetKeychainMock: () => void;
+      getGenericPassword: jest.Mock;
+      setGenericPassword: jest.Mock;
+    };
+    const HUB_ACCESS_SERVICE = 'com.phlix.mobile.hub.access';
+    const BLOB_KEY = 'phlix_hub_session';
+
+    // The factory implementation, captured before any test swaps it, so an
+    // assertion failure mid-swap cannot poison later cases.
+    const innerKeychainWrite = keychainMock.setGenericPassword.getMockImplementation();
+
+    const legacyBlob = JSON.stringify({
+      hubUrl: 'https://hub.example.com',
+      session: mockSession,
+      activeServerId: 'server-2',
+      connectionMode: 'relay',
+    });
+
+    interface ObservedWrite {
+      key: string;
+      value: string;
+      vaultHeldPairAtWrite: boolean;
+    }
+
+    /**
+     * Replace setItem with an instrumented pass-through: at the moment every
+     * AsyncStorage write fires, it snapshots whether the hub vault slot
+     * ALREADY holds the access JWT. End-state is not enough — the order is.
+     */
+    function observeWrites(): ObservedWrite[] {
+      const writes: ObservedWrite[] = [];
+      (AsyncStorage.setItem as jest.Mock).mockImplementation(
+        async (key: string, value: string) => {
+          const credential = await keychainMock.getGenericPassword({
+            service: HUB_ACCESS_SERVICE,
+          });
+          writes.push({
+            key,
+            value,
+            vaultHeldPairAtWrite:
+              credential !== false && credential.password === mockSession.accessToken,
+          });
+        }
+      );
+      return writes;
+    }
+
+    /** Make the native keychain refuse hub writes; other services pass through. */
+    function failHubVaultWrites(): void {
+      keychainMock.setGenericPassword.mockImplementation(
+        async (username: string, password: string, options?: { service?: string }) => {
+          if (options?.service === HUB_ACCESS_SERVICE) {
+            throw new Error('keychain unavailable');
+          }
+          return innerKeychainWrite!(username, password, options);
+        }
+      );
+    }
+
+    beforeEach(() => {
+      keychainMock.__resetKeychainMock();
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+    });
+
+    afterEach(() => {
+      keychainMock.setGenericPassword.mockImplementation(innerKeychainWrite!);
+    });
+
+    it('(1) sign-in persists vault-before-blob, and NO AsyncStorage write carries token material', async () => {
+      const writes = observeWrites();
+
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      const blobWrites = writes.filter((w) => w.key === BLOB_KEY);
+      expect(blobWrites).toHaveLength(1);
+      // Mutation tooth: hoisting the blob setItem above storeHubTokens in
+      // persistSession lands vaultHeldPairAtWrite=false here, red.
+      expect(blobWrites[0].vaultHeldPairAtWrite).toBe(true);
+
+      // Hostile dump: after a full sign-in, no payload written anywhere in
+      // AsyncStorage contains either JWT — the vault is the only carrier.
+      for (const write of writes) {
+        expect(write.value).not.toContain(mockSession.accessToken);
+        expect(write.value).not.toContain(mockSession.refreshToken);
+      }
+    });
+
+    it('(2) legacy plaintext migration rewrites the sanitized blob only AFTER the vault holds the pair', async () => {
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(legacyBlob);
+      const writes = observeWrites();
+
+      await useHubStore.getState().loadPersistedState();
+
+      const blobWrites = writes.filter((w) => w.key === BLOB_KEY);
+      expect(blobWrites).toHaveLength(1);
+      // Mutation teeth: swapping the storeHubTokens/setItem pair in
+      // loadPersistedState reddens vaultHeldPairAtWrite (orphan window);
+      // deleting the sanitizing write reddens the length pin (M-MOBILE-05's
+      // migration test reddens the same move from the end-state side).
+      expect(blobWrites[0].vaultHeldPairAtWrite).toBe(true);
+      expect(blobWrites[0].value).not.toContain(mockSession.accessToken);
+      expect(blobWrites[0].value).not.toContain(mockSession.refreshToken);
+    });
+
+    it('(3) vault failure at sign-in fails loud: sign-in rejects and no plaintext blob is ever written', async () => {
+      failHubVaultWrites();
+
+      await expect(
+        useHubStore.getState().signInToHub(
+          'https://hub.example.com',
+          'testuser',
+          'testpass'
+        )
+      ).rejects.toThrow('keychain unavailable');
+
+      // The honest degradation at issuance is a REPORTED failure — persist
+      // has no fallback path that trades the vault for plaintext.
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+      expect(useHubStore.getState().error).toBe('keychain unavailable');
+    });
+
+    it('(4) vault failure mid-migration degrades honestly: session stays usable, plaintext stays for the retry, recovery completes the move', async () => {
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(legacyBlob);
+      failHubVaultWrites();
+
+      await useHubStore.getState().loadPersistedState();
+
+      // Never orphan: the in-memory session hydrates from the plaintext pair…
+      expect(useHubStore.getState().session).toEqual(mockSession);
+      expect(
+        mockedHubAuthService.hubAuthService.listServers
+      ).toHaveBeenCalledWith('https://hub.example.com', mockSession);
+      // …and the row survives untouched — no sanitize rewrite, no sweep of a
+      // recoverable session. Deleting the try/catch in loadPersistedState so
+      // the throw falls through to the unsalvageable sweep reddens this pair
+      // (silent token-loss loop).
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+
+      // Platform recovers: the next read completes what this one deferred.
+      keychainMock.setGenericPassword.mockImplementation(innerKeychainWrite!);
+      (AsyncStorage.setItem as jest.Mock).mockClear();
+
+      await useHubStore.getState().loadPersistedState();
+
+      expect(await secureStorage.getHubAccessToken()).toBe(mockSession.accessToken);
+      expect(await secureStorage.getHubRefreshToken()).toBe(mockSession.refreshToken);
+      const calls = (AsyncStorage.setItem as jest.Mock).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const sanitized = calls[calls.length - 1][1] as string;
+      expect(sanitized).not.toContain(mockSession.accessToken);
+      expect(sanitized).not.toContain(mockSession.refreshToken);
+    });
+  });
 });
