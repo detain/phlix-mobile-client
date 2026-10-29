@@ -1,6 +1,6 @@
 # Phlix Mobile — Agent Context
 
-Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a media server (Jellyfin/Emby-compatible). TypeScript strict, Zustand state, React Navigation v6, native players via `ios/LocalPods/PhlixPlayer/` (AVPlayer/Swift) and `android/app/src/main/java/com/phlixmobile/player/` (ExoPlayer/Kotlin). Detailed architecture: `DEVELOPER.md`. Setup: `README.md`.
+Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a Phlix media server (speaks the `phlix-server` `/api/v1` API; remote access via Phlix Hub relay — not a Jellyfin/Emby client). TypeScript strict, Zustand state, React Navigation v6, native players via `ios/LocalPods/PhlixPlayer/` (AVPlayer/Swift) and `android/app/src/main/java/com/phlixmobile/player/` (ExoPlayer/Kotlin). Detailed architecture: `DEVELOPER.md`. Setup: `README.md`.
 
 ## Commands
 

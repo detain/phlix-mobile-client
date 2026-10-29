@@ -6,11 +6,11 @@
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
-A cross-platform mobile application for media playback, built with React Native. Phlix connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
+A cross-platform mobile application for media playback, built with React Native. Phlix connects to your Phlix server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
 
 ## Project Overview
 
-Phlix Mobile is a React Native application designed to interface with media servers (such as Jellyfin, Emby, or compatible APIs). It provides a native mobile experience with:
+Phlix Mobile is a React Native application built for the **Phlix media server** — it speaks the `phlix-server` `/api/v1` API directly, with remote access routed through the **Phlix Hub** relay. It is not a generic multi-server client and does not speak Jellyfin or Emby APIs. It provides a native mobile experience with:
 
 - **Movies & TV Series**: Browse, search, and play media content
 - **Music Playback**: Listen to your music library with full playback controls
@@ -64,7 +64,7 @@ Phlix Mobile is a React Native application designed to interface with media serv
 
 ### Hub Mode
 
-Phlix Mobile supports **Hub Mode** for remote access to your media servers:
+Phlix Mobile supports **Hub Mode** for remote access to your Phlix servers:
 
 - **Sign in to Hub**: Authenticate with a Phlix Hub to access your claimed servers
 - **Multi-Server Support**: View and manage multiple claimed servers from a single app
@@ -76,7 +76,7 @@ Phlix Mobile supports **Hub Mode** for remote access to your media servers:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| **Direct** | Connects directly to server hostname (e.g., `https://192.168.1.100:32400`) | Same network as server |
+| **Direct** | Connects directly to server hostname (e.g., `https://192.168.1.100:8096`) | Same network as server |
 | **Via Hub Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
 
 Hub session data is persisted securely using `AsyncStorage`, allowing seamless reconnection across app restarts.
