@@ -12,7 +12,8 @@
 // here: the 30s resume floor, the 15s throttle with forced transitions, the
 // lazy session (never created for sub-floor plays, never re-created merely to
 // finish), the seconds→ticks conversion at the wire boundary, the retained
-// snapshot flushed on teardown, the cross-account session reset on logout,
+// snapshot flushed on teardown, the cross-account session reset on logout
+// AND on a silent account switch (no unauthenticated call in between),
 // and the best-effort law that no failure path ever throws or jams later
 // reports.
 
@@ -33,8 +34,10 @@ jest.mock('../../api/deviceIdentity', () => ({
 }));
 
 // Mutable auth latch — the reporter reads `getState()` per decision, like the
-// real zustand store does.
-const mockAuth = { isAuthenticated: true };
+// real zustand store does. The `user.id` stamp is what binds a session to its
+// owning account (review C17 r1: logout-from-Settings never fires an
+// unauthenticated report, so id drift — not the flag — is the real guard).
+const mockAuth = { isAuthenticated: true, user: { id: 'user-a' } };
 jest.mock('../../stores/useAuthStore', () => ({
   useAuthStore: { getState: () => mockAuth },
 }));
@@ -57,6 +60,7 @@ beforeEach(() => {
   jest.useFakeTimers({ now: START });
   jest.clearAllMocks();
   mockAuth.isAuthenticated = true;
+  mockAuth.user = { id: 'user-a' };
   mockCreate.mockResolvedValue('sess-1');
   mockReport.mockResolvedValue(undefined);
   mockComplete.mockResolvedValue(undefined);
@@ -202,6 +206,44 @@ describe('PlaybackProgressReporter', () => {
     await playbackProgressReporter.report(snapshot({ positionSeconds: 250 }));
     expect(mockCreate).toHaveBeenCalledTimes(2); // fresh session for the new login
     expect(mockReport).toHaveBeenCalledTimes(2);
+  });
+
+  it('account switch WITHOUT an unauthenticated call never aims at the previous session', async () => {
+    mockCreate.mockResolvedValueOnce('sess-a').mockResolvedValueOnce('sess-b');
+
+    // Account A plays past the floor: session S_A opens and receives the report.
+    await playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockReport).toHaveBeenLastCalledWith('sess-a', expect.anything());
+
+    // The REAL logout flow (review C17 r1 issue 1): Settings logs out with the
+    // player already unmounted — no report ever fires in the gap — and B signs
+    // in inside the same JS process. The reporter never sees an
+    // unauthenticated call; the only signal is a different stamped user id.
+    mockAuth.user = { id: 'user-b' };
+
+    await playbackProgressReporter.report(snapshot({ positionSeconds: 300 }));
+
+    expect(mockCreate).toHaveBeenCalledTimes(2); // a FRESH session for B
+    const aimedAt = mockReport.mock.calls.map((call) => call[0]);
+    // Zero POSTs aimed at S_A after the switch: the stale handle is forgotten
+    // (the server 403s every cross-account write, so aiming there is a
+    // permanently-dead resume, silently swallowed).
+    expect(aimedAt).toEqual(['sess-a', 'sess-b']);
+  });
+
+  it('flush()/complete() after a silent account switch aim nowhere', async () => {
+    await playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+    expect(mockReport).toHaveBeenCalledTimes(1);
+
+    mockAuth.user = { id: 'user-b' };
+
+    await playbackProgressReporter.flush(snapshot({ positionSeconds: 590 }));
+    await playbackProgressReporter.complete('m-1');
+
+    expect(mockReport).toHaveBeenCalledTimes(1); // stale tail dropped
+    expect(mockComplete).not.toHaveBeenCalled(); // stale completion dropped
+    expect(mockCreate).toHaveBeenCalledTimes(1); // flush/complete still never create one
   });
 
   it('a failed session creation is swallowed and retried on a later window', async () => {

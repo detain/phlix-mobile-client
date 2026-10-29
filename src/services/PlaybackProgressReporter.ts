@@ -28,7 +28,10 @@ import { secondsToTicks } from '../utils/resumePositions';
 /**
  * Resume floor: below this many watched seconds the app never opens a server
  * session — an accidental two-second tap must not pollute Continue Watching.
- * Mirrors the web player's RESUME_MIN_SECONDS (and the server's own gate).
+ * Mirrors the web player's RESUME_MIN_SECONDS. This is a CLIENT-side gate:
+ * the server has no 30s floor — its rail filter only drops rows with
+ * position_ticks <= 0 or at/over 0.95 × duration and keeps status
+ * playing/paused (SessionController).
  */
 export const RESUME_MIN_SECONDS = 30;
 
@@ -46,6 +49,15 @@ export interface ProgressSnapshot {
 
 class PlaybackProgressReporter {
   private sessionId: string | null = null;
+  /**
+   * The account `sessionId` (or an in-flight creation) belongs to, stamped
+   * from the auth store the moment it is opened. The server 403s every
+   * progress/complete write whose session user_id does not match the caller,
+   * and a logout from Settings happens with the player already unmounted —
+   * no report ever fires in the gap — so every entry point compares this
+   * stamp against the CURRENT user id and drops the session on drift.
+   */
+  private sessionOwner: string | null = null;
   /** Single in-flight session creation shared by concurrent callers. */
   private sessionCreation: Promise<string | null> | null = null;
   private lastReportMs = 0;
@@ -63,12 +75,19 @@ class PlaybackProgressReporter {
    * Throttled unless `force` (a pause/resume transition never waits).
    */
   async report(snapshot: ProgressSnapshot, force = false): Promise<void> {
-    if (!useAuthStore.getState().isAuthenticated) {
+    const state = useAuthStore.getState();
+    if (!state.isAuthenticated) {
       // A session belongs to an authenticated user — never aim a later
       // report at the previous account's session after a logout.
       this.forgetSession();
       return;
     }
+    // Account switch WITHOUT any unauthenticated call in between (the real
+    // Settings logout never reports before flipping users): a held session
+    // owned by a different user id can only ever 403 — drop it and open a
+    // fresh one for the current account.
+    const userId = state.user?.id ?? null;
+    this.forgetSessionIfAccountChanged(userId);
     if (!(snapshot.durationSeconds > 0) || !(snapshot.positionSeconds > RESUME_MIN_SECONDS)) {
       return;
     }
@@ -82,7 +101,7 @@ class PlaybackProgressReporter {
     this.inFlight = true;
     this.lastReportMs = now;
     try {
-      const sessionId = await this.ensureSession();
+      const sessionId = await this.ensureSession(userId);
       if (sessionId === null) {
         return;
       }
@@ -106,6 +125,13 @@ class PlaybackProgressReporter {
    * title that never crossed the floor has nothing on the server to flush.
    */
   async flush(live?: ProgressSnapshot): Promise<void> {
+    const state = useAuthStore.getState();
+    if (!state.isAuthenticated) {
+      return;
+    }
+    // Same account-switch law as report(): a tail for the previous account
+    // is worthless (the server owns the session out) — drop it, flush nothing.
+    this.forgetSessionIfAccountChanged(state.user?.id ?? null);
     if (
       live !== undefined &&
       live.durationSeconds > 0 &&
@@ -113,7 +139,7 @@ class PlaybackProgressReporter {
     ) {
       this.lastSnapshot = live;
     }
-    if (!useAuthStore.getState().isAuthenticated || this.sessionId === null || this.lastSnapshot === null) {
+    if (this.sessionId === null || this.lastSnapshot === null) {
       return;
     }
     const snapshot = this.lastSnapshot;
@@ -138,7 +164,13 @@ class PlaybackProgressReporter {
    * never crossed the floor) — it never creates one just to finish.
    */
   async complete(mediaItemId: string): Promise<void> {
-    if (!useAuthStore.getState().isAuthenticated || this.sessionId === null) {
+    const state = useAuthStore.getState();
+    if (!state.isAuthenticated) {
+      return;
+    }
+    // Never finalize on the previous account's session — see flush().
+    this.forgetSessionIfAccountChanged(state.user?.id ?? null);
+    if (this.sessionId === null) {
       return;
     }
     try {
@@ -149,29 +181,50 @@ class PlaybackProgressReporter {
     }
   }
 
-  /** Drop all local state (logout, tests). Idempotent. */
+  /** Drop all local state (logout, account switch, tests). Idempotent. */
   forgetSession(): void {
     this.sessionId = null;
+    this.sessionOwner = null;
     this.sessionCreation = null;
     this.lastSnapshot = null;
     this.lastReportMs = 0;
   }
 
-  private async ensureSession(): Promise<string | null> {
+  /**
+   * Forget the held/in-flight session when it belongs to a different account
+   * than `userId`. A fresh session is then opened lazily by the next
+   * reportable tick (never created merely to finish a stale flush/complete).
+   */
+  private forgetSessionIfAccountChanged(userId: string | null): void {
+    const holdsAccountState = this.sessionId !== null || this.sessionCreation !== null;
+    if (holdsAccountState && userId !== this.sessionOwner) {
+      this.forgetSession();
+    }
+  }
+
+  private async ensureSession(userId: string | null): Promise<string | null> {
     if (this.sessionId !== null) {
       return this.sessionId;
     }
     if (this.sessionCreation === null) {
-      this.sessionCreation = this.createSession().finally(() => {
-        this.sessionCreation = null;
+      this.sessionOwner = userId;
+      const creation = this.createSession().finally(() => {
+        // Only clear OUR slot — a forget (logout/switch) plus a newer
+        // creation may already own it by the time this settles.
+        if (this.sessionCreation === creation) {
+          this.sessionCreation = null;
+        }
       });
+      this.sessionCreation = creation;
     }
     return this.sessionCreation;
   }
 
   private async createSession(): Promise<string | null> {
+    const owner = this.sessionOwner;
+    let sessionId: string | null;
     try {
-      this.sessionId = await playbackManager.createSession({
+      sessionId = await playbackManager.createSession({
         // Stable per-install id → the server reuses ONE session row for this
         // device (idempotent per `device_id`), same contract the web shell
         // and Roku use.
@@ -183,8 +236,15 @@ class PlaybackProgressReporter {
       // A failed creation must not poison later plays: the next reportable
       // tick retries (throttle-gated), and no session means every other
       // method stays a no-op.
-      this.sessionId = null;
+      return null;
     }
+    if (this.sessionOwner !== owner) {
+      // The account changed while this creation was in flight — the freshly
+      // minted session belongs to the previous user; committing it would
+      // reintroduce the stale-403 bug this guard exists to prevent.
+      return null;
+    }
+    this.sessionId = sessionId;
     return this.sessionId;
   }
 }
