@@ -5,6 +5,42 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Search rail consumes the geometry seam; screen-level law pin (M-MOBILE-19 r2) — 2026-10-29
+
+- **The 44pt law is now pinned through the RENDERED screen, not only the
+  helpers** (review `M-MOBILE-19__r1` MAJOR-1): the r1 review's mutation M2b
+  — `railButton: {...RAIL_BUTTON_LAYOUT, minHeight: 15}`, lint-clean and
+  tsc-clean — left all 1459 tests green while silently re-breaking the exact
+  law the item exists for, because no test imported `SearchScreen`. Cure
+  (no geometry change — the r1 review judged the shipped numbers correct):
+  the screen now computes its rail touch geometry **through the seam**
+  (`railLetterTouchRect()` feeds both the 44pt column width and every
+  letter's laid-out footprint; values identical to r1, only the conduit
+  changed) and the NEW `src/screens/__tests__/SearchScreen.test.tsx` (5
+  tests) drives the real screen through the repo's hook-host venue
+  (PlayerScreen/CastScreen pattern — no React renderer in test deps) and
+  pins the flattened style of the rendered tree: the rail root is a
+  `ScrollView` SIBLING of the results list (never nested), all 27 letters
+  carry a literal-44x44pt footprint with per-letter helper==inline
+  equivalence, zero `hitSlop` anywhere plus exact row tiling (pitch ==
+  touch height, no margins) — the reviewer's 12.3pt neighbour-bleed
+  scenario is now structurally impossible **and screen-pinned** — and the
+  1188pt > 320pt scroll premise holds from the tree. Mutation proofs:
+  M2b (`minHeight: 15`) reddens 2 named screen tests (was: whole suite
+  green); the 24x15 defect shape reddens 2; `RAIL_TARGET_MIN_SIZE_PT`
+  44→40 reddens 7 tests across 2 suites (r1: 3).
+- **Test-only seam removed** (review minor-1): `railContentHeightPt` had no
+  production caller and cannot get one honestly — an explicit px column
+  height in `contentContainerStyle` would override the blessed
+  `minHeight: '100%'` percentage centering (r1 review §1), so it is deleted
+  and its 27 × 44 = 1188 arithmetic is now pinned as a literal through
+  `railLetterTouchRect()` in both the helper and the new screen test.
+  `railLetterTouchRect` gains its production caller via the wiring.
+- Gates: jest `--runInBand` **96 suites / 1463 pass + 1 skip (1464)** vs
+  self-baseline at `fcd1118` of 95 / 1458 + 1 skip (1459) — delta exactly
+  the new file (+5); `tsc --noEmit` 0 errors; eslint 0 errors / 2
+  pre-existing warnings (law intact), none from touched files.
+
 ### Fixed — Search A–Z rail meets the 44pt touch-target law (M-MOBILE-19) — 2026-10-29
 
 - **Every rail letter is now a laid-out 44x44pt square; the 27-square column

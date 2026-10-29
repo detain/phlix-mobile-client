@@ -53,9 +53,18 @@ export const RAIL_LETTERS: string[] = [
  * tap selects would be responder-order luck. Horizontal slop is equally
  * unnecessary — the column itself is the minimum width.
  *
- * Single source of truth: SearchScreen renders `RAIL_BUTTON_LAYOUT` straight
- * into its StyleSheet, and searchRailTouchTargets.test.ts pins these numbers
- * against a literal platform floor.
+ * Single source of truth: SearchScreen computes its rail geometry through
+ * `railLetterTouchRect()` (the screen's StyleSheet dimensions ARE this
+ * function's output — M-MOBILE-19 r2 wiring law), searchRailTouchTargets.test.ts
+ * pins these numbers against a literal platform floor, and the screen-level
+ * SearchScreen.test.tsx pins the flattened footprint of the RENDERED rail so
+ * the seam can never be bypassed silently.
+ *
+ * (`railContentHeightPt` lived here briefly and was removed in r2: the
+ * screen cannot consume an explicit px column height without overriding the
+ * blessed `minHeight: '100%'` percentage centering, so it had no honest
+ * production caller — estate law ships no test-only seams. The 27 × 44 = 1188
+ * > 320 arithmetic is pinned directly in the two test files that need it.)
  */
 export const RAIL_TARGET_MIN_SIZE_PT = 44;
 
@@ -72,11 +81,6 @@ export const railLetterTouchRect = (): { width: number; height: number } => ({
   width: RAIL_BUTTON_LAYOUT.width,
   height: RAIL_BUTTON_LAYOUT.minHeight,
 });
-
-/** Total scrollable content height of the rail for `entries` letters. */
-export const railContentHeightPt = (
-  entries: number = RAIL_LETTERS.length
-): number => entries * RAIL_TARGET_MIN_SIZE_PT;
 
 /**
  * The cumulative offset at which `letter` begins in the name-asc result set, or

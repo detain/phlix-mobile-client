@@ -31,8 +31,8 @@ import {
   RATING_OPTIONS,
   SORT_OPTIONS,
   RAIL_LETTERS,
-  RAIL_TARGET_MIN_SIZE_PT,
   RAIL_BUTTON_LAYOUT,
+  railLetterTouchRect,
   activeLetters,
   hasActiveFilters,
   type MediaFilters,
@@ -41,6 +41,16 @@ import {
 } from './search/searchScreenHelpers';
 
 type SearchNavigationProp = NativeStackNavigationProp<any>;
+
+// M-MOBILE-19 (r2 wiring law): the screen computes its rail touch geometry
+// THROUGH the helper seam — railLetterTouchRect() is the single source of
+// truth for what a letter occupies on screen; the StyleSheet below never
+// copies raw constants. The screen-level test (SearchScreen.test.tsx) pins
+// the flattened footprint of the RENDERED tree, so ripping this binding out
+// (feeding the styles from raw literals instead) turns that test red —
+// the r1 review's M2b mutation could previously ship silently. Values are
+// identical to the r1-shipped geometry (44x44pt); only the conduit changed.
+const RAIL_LETTER_TOUCH = railLetterTouchRect();
 
 const SearchScreen: React.FC = () => {
   const navigation = useNavigation<SearchNavigationProp>();
@@ -175,8 +185,10 @@ const SearchScreen: React.FC = () => {
   );
 
   // Touch-target law (M-MOBILE-19): each letter occupies a full 44x44pt laid-
-  // out square (RAIL_BUTTON_LAYOUT — no hitSlop, so neighbours can never
-  // overlap) and the 27-square column scrolls inside the viewport it is given.
+  // out square, computed once via railLetterTouchRect() into RAIL_LETTER_TOUCH
+  // (no hitSlop, so neighbours can never overlap), and the 27-square column —
+  // 27 × touch-height = 1188pt, taller than any phone viewport — scrolls
+  // inside the space it is given.
   // The scroll indicator stays visible: it is the affordance that announces
   // "more letters below". Feedback honesty: TouchableOpacity's built-in
   // activeOpacity press state is honest and needs no onPressOut handler.
@@ -454,9 +466,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  // A–Z rail — see renderRail + searchScreenHelpers for the 44pt law.
+  // A–Z rail — see renderRail + searchScreenHelpers for the 44pt law. The
+  // dimensions below come from RAIL_LETTER_TOUCH (the seam), not from raw
+  // constants; RAIL_BUTTON_LAYOUT contributes the centering shape.
   rail: {
-    width: RAIL_TARGET_MIN_SIZE_PT,
+    width: RAIL_LETTER_TOUCH.width,
   },
   railContent: {
     // When a viewport is taller than the 27-square column (tablets), centre
@@ -465,7 +479,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  railButton: RAIL_BUTTON_LAYOUT,
+  railButton: {
+    ...RAIL_BUTTON_LAYOUT,
+    width: RAIL_LETTER_TOUCH.width,
+    minHeight: RAIL_LETTER_TOUCH.height,
+  },
   railText: {
     color: '#0066cc',
     fontSize: 11,

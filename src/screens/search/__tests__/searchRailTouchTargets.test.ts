@@ -24,7 +24,6 @@ import {
   RAIL_TARGET_MIN_SIZE_PT,
   RAIL_BUTTON_LAYOUT,
   railLetterTouchRect,
-  railContentHeightPt,
 } from '../searchScreenHelpers';
 
 const PLATFORM_MIN_TOUCH_PT = 44;
@@ -56,7 +55,9 @@ describe('Search A–Z rail touch-target law (M-MOBILE-19)', () => {
     // Row pitch == laid-out height == the touch rect height, so adjacent
     // letters never claim the same point.
     expect(RAIL_BUTTON_LAYOUT.minHeight).toBe(RAIL_TARGET_MIN_SIZE_PT);
-    expect(railContentHeightPt()).toBe(
+    // Column height is emergent layout (27 stacked rows of the touch-rect
+    // height); pin the arithmetic the design depends on through the seam.
+    expect(RAIL_LETTERS.length * railLetterTouchRect().height).toBe(
       RAIL_LETTERS.length * RAIL_TARGET_MIN_SIZE_PT
     );
   });
@@ -64,8 +65,10 @@ describe('Search A–Z rail touch-target law (M-MOBILE-19)', () => {
   it('exceeds the smallest supported rail viewport — the rail must scroll', () => {
     // 27 entries x 44pt = 1188pt, far beyond a 320pt-tall results area; the
     // rail is therefore required to live inside a ScrollView with the rest
-    // reachable by flick. Pin the arithmetic the design depends on.
-    expect(railContentHeightPt()).toBeGreaterThan(320);
+    // reachable by flick. Literal total (1188), so raising the constant or
+    // the letter count cannot self-satisfy the scroll premise.
+    expect(RAIL_LETTERS.length * railLetterTouchRect().height).toBe(1188);
+    expect(RAIL_LETTERS.length * railLetterTouchRect().height).toBeGreaterThan(320);
     expect(RAIL_LETTERS).toHaveLength(27);
   });
 });
