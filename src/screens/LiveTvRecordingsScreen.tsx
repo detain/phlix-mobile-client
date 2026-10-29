@@ -22,6 +22,7 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLiveTvStore } from '../stores/useLiveTvStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import {
   formatProgramTime,
   programIsLive,
@@ -83,6 +84,15 @@ const LiveTvRecordingsScreen: React.FC = () => {
       refreshAll();
     }
   }, [isAdmin, refreshAll]);
+
+  // M-MOBILE-17: a recording completes on the SERVER while this screen sits
+  // backgrounded; re-focus re-runs the same composite refresh the manual
+  // path uses (admin view only, mirroring the mount effect).
+  useFocusRefetch(() => {
+    if (isAdmin) {
+      refreshAll();
+    }
+  });
 
   const openCreate = useCallback(() => {
     // Pull the upcoming-week guide so the picker has programs to choose from.

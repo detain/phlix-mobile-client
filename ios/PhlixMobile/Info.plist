@@ -22,6 +22,23 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- M-MOBILE-17 (review mobile__gameux M-F): external entry. Registers the
+	     SAME phlix:// scheme the windows client already owns, so
+	     phlix://media/{id} / phlix://play/{id} open this app. Route mapping
+	     lives in src/navigation/linking.ts (existing routes only). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.phlix.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>phlix</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

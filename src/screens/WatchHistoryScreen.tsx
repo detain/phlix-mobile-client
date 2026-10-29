@@ -24,6 +24,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useWatchHistoryStore } from '../stores/useWatchHistoryStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { MediaItem } from '../types/media';
 import { SafeContainer } from '../components/layout';
 import { MediaCard } from '../components/media/MediaCard';
@@ -52,6 +53,11 @@ const WatchHistoryScreen: React.FC = () => {
     await loadHistory();
     setIsRefreshing(false);
   };
+
+  // M-MOBILE-17: TV/other-device watches extend history while this screen is
+  // backgrounded; the store re-fetch is reentrant-guarded and never clears
+  // existing rows, so re-focus refreshes the list without a spinner flash.
+  useFocusRefetch(() => loadHistory());
 
   const handleItemPress = (item: MediaItem) => {
     navigation.navigate('MediaDetail', { itemId: item.id });

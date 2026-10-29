@@ -22,6 +22,7 @@ import { libraryManager } from '../api/LibraryManager';
 import { userManager } from '../api/UserManager';
 import { MediaItem } from '../types/media';
 import { ticksToSeconds } from '../utils/resumePositions';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import { useAuthStore } from '../stores/useAuthStore';
 import { SafeContainer } from '../components/layout';
 import { MediaList } from '../components/media/MediaList';
@@ -90,6 +91,11 @@ const HomeScreen: React.FC = () => {
     await loadHomeData();
     setIsRefreshing(false);
   };
+
+  // M-MOBILE-17 (gameux M-F): a show started on the TV changes this screen's
+  // rails; refetch on re-focus (gate skips mount-focus and fresh data, so
+  // tab-hopping cannot stampede the server). Pull-to-refresh stays manual.
+  useFocusRefetch(loadHomeData);
 
   const handleMediaPress = (item: MediaItem) => {
     navigation.navigate('MediaDetail', { itemId: item.id });

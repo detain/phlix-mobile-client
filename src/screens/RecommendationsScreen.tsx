@@ -11,6 +11,7 @@ import { View, FlatList, StyleSheet, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import apiClient from '../api/client';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { UserRecommendation } from '../types/contracts';
 import { SafeContainer } from '../components/layout';
 import RecommendationCard from '../components/media/RecommendationCard';
@@ -43,6 +44,11 @@ const RecommendationsScreen: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // M-MOBILE-17: the server recomputes recommendations as other devices
+  // watch; re-focus re-pulls the rail list (loader never re-arms cold-start
+  // loading, so no spinner flash).
+  useFocusRefetch(loadRecommendations);
 
   const handlePress = (id: string) => {
     navigation.navigate('Player', { itemId: id });

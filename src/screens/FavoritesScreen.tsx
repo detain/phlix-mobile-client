@@ -17,6 +17,7 @@ import { View, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFavoritesStore } from '../stores/useFavoritesStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { MediaItem } from '../types/media';
 import { SafeContainer } from '../components/layout';
 import { MediaCard } from '../components/media/MediaCard';
@@ -44,6 +45,10 @@ const FavoritesScreen: React.FC = () => {
     await loadFavorites(true);
     setIsRefreshing(false);
   };
+
+  // M-MOBILE-17: favorites toggled on TV/web re-sync on re-focus (reset=true
+  // refetches page 1; the store keeps rows until the response lands).
+  useFocusRefetch(() => loadFavorites(true));
 
   const handleEndReached = () => {
     if (!loading && hasMore && items.length > 0) {

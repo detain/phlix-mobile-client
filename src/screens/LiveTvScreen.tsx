@@ -22,6 +22,7 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useLiveTvStore } from '../stores/useLiveTvStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import {
   channelTypeLabel,
   currentProgram,
@@ -77,6 +78,15 @@ const LiveTvScreen: React.FC = () => {
     // eslint-disable-next-line no-void
     void loadGuide();
   }, [loadChannels, loadGuide]);
+
+  // M-MOBILE-17: channel lineup + EPG are server-side config; re-focus
+  // re-pulls them through the SAME manual-refresh path (admin view only,
+  // mirroring the mount effect).
+  useFocusRefetch(() => {
+    if (isAdmin) {
+      handleRefreshChannels();
+    }
+  });
 
   const handleRefreshGuide = useCallback(async () => {
     setRefreshingGuide(true);

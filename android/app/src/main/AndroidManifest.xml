@@ -27,6 +27,19 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- M-MOBILE-17 (review mobile__gameux M-F): external entry.
+                 Registers the SAME `phlix://` scheme the windows client
+                 already owns (deepLinkValidator.ts), so links like
+                 phlix://media/{id} / phlix://play/{id} open this app. Route
+                 mapping lives in src/navigation/linking.ts (existing routes
+                 only); MainActivity is launchMode="singleTask", so warm
+                 links arrive as react-navigation's `url` event. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="phlix" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

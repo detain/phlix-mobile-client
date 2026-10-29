@@ -23,6 +23,7 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 
 type PhotoAlbumNavigationProp = NativeStackNavigationProp<any>;
 type PhotoAlbumRouteProp = RouteProp<RootStackParamList, 'PhotoAlbum'>;
@@ -58,6 +59,11 @@ const PhotoAlbumScreen: React.FC = () => {
     loadAlbum();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumId, libraryId]);
+
+  // M-MOBILE-17: album photo sets change server-side (library rescans);
+  // re-focus re-pulls — the full-screen guard is length-keyed, so the grid
+  // never blanks during the background refresh.
+  useFocusRefetch(loadAlbum);
 
   const handlePhotoPress = (index: number) => {
     // PhotoViewer re-fetches the album itself (by albumId+libraryId) — we only

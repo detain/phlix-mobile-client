@@ -22,6 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCollectionStore } from '../stores/useCollectionStore';
 import { libraryManager } from '../api/LibraryManager';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { Library } from '../types/media';
 import type { Collection } from '../types/collection';
 import { SafeContainer } from '../components/layout';
@@ -63,6 +64,10 @@ const CollectionsScreen: React.FC = () => {
     await loadCollections();
     setIsRefreshing(false);
   };
+
+  // M-MOBILE-17: collections created/edited on the web portal re-sync on
+  // re-focus (store keeps rows until the response lands — no flash).
+  useFocusRefetch(() => loadCollections());
 
   const openCreate = async () => {
     setNewName('');

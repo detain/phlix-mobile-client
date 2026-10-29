@@ -19,6 +19,7 @@ import {
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePhotoStore } from '../stores/usePhotoStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { RootStackParamList } from '../types/navigation';
 import type { Library } from '../types/media';
 import type { PhotoAlbum } from '../types/photo';
@@ -85,6 +86,16 @@ const PhotosScreen: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenId]);
+
+  // M-MOBILE-17: photo libraries/albums are server content; the chosen-id
+  // effect only fires on ID change, so re-focus re-pulls the current set.
+  useFocusRefetch(() => {
+    if (chosenId) {
+      loadAlbums(chosenId);
+    } else {
+      loadPhotoLibraries();
+    }
+  });
 
   const handlePickLibrary = (lib: Library) => {
     setSelectedLibraryId(lib.id);

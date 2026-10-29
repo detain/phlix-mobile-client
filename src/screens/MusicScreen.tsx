@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useMusicStore } from '../stores/useMusicStore';
 import { musicManager } from '../api/MusicManager';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { Artist, Album, Track } from '../types/music';
 import { SafeContainer } from '../components/layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -65,6 +66,13 @@ const MusicScreen: React.FC = () => {
     loadAlbums();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // M-MOBILE-17: music library growth (other devices import) re-lands here on
+  // re-focus; the tracks pagination is user-session state and stays as-is.
+  useFocusRefetch(() => {
+    loadArtists();
+    loadAlbums();
+  });
 
   const loadTracks = async (reset: boolean) => {
     if (tracksLoading) {

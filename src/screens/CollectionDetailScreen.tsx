@@ -23,6 +23,7 @@ import {
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCollectionStore } from '../stores/useCollectionStore';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import type { MediaItem } from '../types/media';
 import type { RootStackParamList } from '../types/navigation';
 import { SafeContainer } from '../components/layout';
@@ -94,6 +95,11 @@ const CollectionDetailScreen: React.FC = () => {
       );
     }
   };
+
+  // M-MOBILE-17: items added/removed to this collection from the web portal
+  // land on re-focus. Silent by design: the pull path owns the error Alert;
+  // a background refresh must not raise popups over an unchanged view.
+  useFocusRefetch(() => (collection ? refresh(collectionId) : undefined));
 
   const editable = collection ? canEditItems(collection) : false;
 

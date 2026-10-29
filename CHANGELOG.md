@@ -5,6 +5,51 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — cross-device liveness and a `phlix://` front door — 2026-10-29
+
+- **M-MOBILE-17 (review mobile__gameux M-F).** No screen had a focus
+  listener and the app registered no OS URL scheme: every tab's data loaded
+  once per mount (grep: `useFocusEffect`/`'focus'` = zero sites estate-wide
+  for this client), and nothing external could deep-link in.
+- **Liveness.** New `src/utils/focusRefetchGate.ts` (pure stampede guard:
+  mount-focus never refetches; re-focuses inside the 15 s staleness window
+  reuse loaded data; past it, exactly one refetch re-arms) +
+  `src/utils/useFocusRefetch.ts` (react-navigation v7 `useFocusEffect`
+  adapter; loader errors owned by the screen, sync throws and rejections
+  swallowed by the adapter). Wired into all 14 consumer-facing server-data
+  screens: Home, Library, WatchHistory, Favorites, Collections,
+  CollectionDetail, Recommendations, MediaDetail, Music, MusicAlbum, Photos,
+  PhotoAlbum, LiveTv, LiveTvRecordings. MediaDetail/MusicAlbum loaders now
+  arm the full-screen spinner only on COLD loads (`item === null` /
+  `album === null`), so focus refreshes repaint in place instead of
+  blanking. Deliberately unmaintained-kept: Search (query-driven),
+  Downloads (local store), Cast (owns its status polling), Admin screens
+  (mount-load; the hook is available for a follow-up).
+- **External entry.** New `src/navigation/linking.ts`: `phlix://` scheme →
+  react-navigation `LinkingOptions` consumed by ONE new prop on the
+  NavigationContainer (the library's own `useLinking` handles cold-start
+  `getInitialURL` + warm `url` events — no new dependency). Paths are
+  windows-client parity (`phlix://media/{id}`, `phlix://play/{id}` mean the
+  same thing on every desktop) plus the five tabs and the param-self-
+  sufficient routes; EXISTING routes only — unknown links resolve to nothing
+  (no phantom routes). `Cast` is absent by law: its required `streamUrl` can
+  never come from a URL. OS side: Android gains a VIEW+BROWSABLE
+  intent-filter on `scheme="phlix"`; iOS gains `CFBundleURLTypes`
+  (`app.phlix.mobile` / `phlix`). https app-links stay OUT — they need
+  assetlinks / apple-app-site-association hosting this client does not
+  control (disclosed gap, owner call).
+- **Tests.** +3 suites / +39 tests (gate law ×7 incl fail-fast on bad
+  intervals; hook law ×4 driven by the repo's slot-backed host with the
+  focus callback captured as the event; linking ×28 driving the REAL
+  `getStateFromPath` over the production config, incl windows-parity
+  assertions and manifest-tripwire reads of both OS config files).
+- **Measured full suite @this tree:** 93 suites, 1424 tests = 1423 passed +
+  1 skipped, `jest --runInBand` serial, 0 failed. tsc --noEmit clean;
+  eslint 0 errors (2 warnings pre-existing at parent in files untouched
+  here). Zero new user-facing strings (code + XML config only) — this client
+  carries no locale catalogs, so the estate locale-mirror law is not engaged;
+  zero new wire codes; zero new dependencies.
+
 ### Fixed — the cast controller stays reachable after dismissal — 2026-10-29
 
 - **M-MOBILE-16 (review mobile__gameux M-E).** Re-verified LIVE at HEAD

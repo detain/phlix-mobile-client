@@ -20,6 +20,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { libraryManager } from '../api/LibraryManager';
 import { MediaItem, Library } from '../types/media';
 import { SafeContainer } from '../components/layout';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import { MediaCard } from '../components/media/MediaCard';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
@@ -116,6 +117,14 @@ const LibraryScreen: React.FC = () => {
     await loadLibraryItems(true);
     setIsRefreshing(false);
   };
+
+  // M-MOBILE-17: library membership (server-side adds) and new episodes both
+  // land here on re-focus; items page-1 reset mirrors pull-to-refresh, and
+  // neither loader re-shows the cold-start full-screen spinner.
+  useFocusRefetch(() => {
+    loadLibraries();
+    return loadLibraryItems(true);
+  });
 
   const handleLoadMore = () => {
     if (!isLoadingItems && hasMore) {

@@ -26,6 +26,7 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 import {
   albumSubtitle,
   trackSubtitle,
@@ -45,7 +46,7 @@ const MusicAlbumScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    setIsLoading(true);
+    setIsLoading(album === null); // M-MOBILE-17: cold-load owns the full-screen spinner
     setError(null);
     try {
       const fetched = await musicManager.getAlbum(albumName);
@@ -63,6 +64,10 @@ const MusicAlbumScreen: React.FC = () => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [albumName]);
+
+  // M-MOBILE-17: album rows track server-side library edits; re-focus pulls
+  // them (cold-load guard above keeps the repaint silent).
+  useFocusRefetch(load);
 
   const handleTrackPress = (track: Track) =>
     navigation.navigate('Player', { itemId: track.id });

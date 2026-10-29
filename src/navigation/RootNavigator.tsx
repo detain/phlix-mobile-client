@@ -48,6 +48,7 @@ import {
   WatchHistoryScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
+import { PHLIX_LINKING } from './linking';
 import { CastSessionPill } from '../components/cast';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -181,7 +182,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={PHLIX_LINKING}>
       <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Login" component={LoginScreen} />

@@ -45,6 +45,7 @@ import { UserRatingPicker } from '../components/UserRatingPicker';
 import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
 import { isDownloadableType, isPlayableType } from '../utils/mediaType';
+import { useFocusRefetch } from '../utils/useFocusRefetch';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -139,7 +140,9 @@ const MediaDetailScreen: React.FC = () => {
 
   const loadMediaDetails = async () => {
     try {
-      setIsLoading(true);
+      // M-MOBILE-17: only the cold load owns the full-screen spinner — a
+      // re-focus refresh repaints in place instead of blanking the detail.
+      setIsLoading(item === null);
       setError(null);
       const mediaItem = await libraryManager.getMediaItem(itemId);
       setItem(mediaItem);
@@ -176,6 +179,11 @@ const MediaDetailScreen: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // M-MOBILE-17: back-navigation into a detail whose watch state changed on
+  // another device (server progress, favorite toggled elsewhere) refreshes
+  // the payload instead of showing the mount-era snapshot.
+  useFocusRefetch(loadMediaDetails);
 
   const loadEpisodes = async (seasonId: string) => {
     try {
