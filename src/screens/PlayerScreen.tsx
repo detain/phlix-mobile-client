@@ -822,10 +822,35 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
+  /**
+   * THE single seek choke point — every seek surface (the M-MOBILE-13 scrub bar
+   * commit, the ±15 buttons, SkipButton intro/outro jumps) lands here, so the
+   * SyncPlay group law is enforced exactly once:
+   *  - Ungrouped: plain local seek (native `seekTo` is a SECONDS API).
+   *  - Grouped host: the group timeline is ours to move — apply locally AND
+   *    broadcast `syncplay_playback_seek`; positions go on the wire in
+   *    MILLISECONDS via `toSyncPlayPositionMs` (S293: convert at the send
+   *    boundary only).
+   *  - Grouped NON-host: seeking is a HOST-ONLY wire command (phlix-syncplay
+   *    SPEC.md §9 item 2 — the server authorizes it by the connection's host
+   *    identity), and a member-local seek would desync from the group clock,
+   *    so the seek is REFUSED outright. The scrub bar additionally renders
+   *    non-capturing for members (`canSeek` below); this early exit is the
+   *    belt for the button/skip surfaces sharing the choke point.
+   */
   const handleSeek = (position: number) => {
+    if (currentGroup && !isHost) {
+      return;
+    }
     dispatchPlayerCommand(playerRef, 'seekTo', [position]);
     setCurrentTime(position);
     playerSetCurrentTime(position);
+    if (currentGroup && isHost) {
+      syncPlayService.sendSeek(
+        toSyncPlayPositionMs(currentTime),
+        toSyncPlayPositionMs(position),
+      );
+    }
   };
 
   const handleSeekBackward = () => {
@@ -1060,6 +1085,9 @@ const PlayerScreen: React.FC = () => {
               currentTime={currentTime}
               duration={duration}
               onSeek={handleSeek}
+              // Members follow the host timeline (host-only wire command,
+              // SPEC §9) — the bar goes display-only for them.
+              canSeek={currentGroup === null || isHost}
             />
           </View>
         </Animated.View>

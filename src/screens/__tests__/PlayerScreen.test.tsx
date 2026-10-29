@@ -252,6 +252,7 @@ jest.mock('../../syncplay/SyncPlayService', () => ({
     disconnect: jest.fn(),
     sendPlay: jest.fn(),
     sendPause: jest.fn(),
+    sendSeek: jest.fn(),
   },
 }));
 jest.mock('../../api/SyncPlayManager', () => ({
@@ -299,6 +300,7 @@ const mockSyncPlaySvc = () =>
   (jest.requireMock('../../syncplay/SyncPlayService') as any).syncPlayService as {
     sendPlay: jest.Mock;
     sendPause: jest.Mock;
+    sendSeek: jest.Mock;
   };
 
 // ── tree helpers ────────────────────────────────────────────────────────────
@@ -1032,5 +1034,83 @@ describe('PlayerScreen — C17 resume reporting wiring', () => {
     expect(mockReporter.flush).toHaveBeenCalledWith(
       { mediaItemId: 'm-1', positionSeconds: 245, durationSeconds: 600, paused: false },
     );
+  });
+});
+
+// ── M-MOBILE-13: the seek choke point is syncplay-aware ───────────────────
+// handleSeek is THE seam every seek surface (scrub-bar commit, ±15 buttons,
+// SkipButton jumps) shares. Group law: the wire makes seeking a HOST-ONLY
+// command (phlix-syncplay SPEC.md §9 item 2 — the server authorizes it by the
+// connection's host identity), and a member-local seek desyncs from the group
+// clock. So: host broadcasts `syncplay_playback_seek` in WIRE MS (S293), the
+// member's seek is refused outright (and the bar renders non-capturing via
+// canSeek), and the ungrouped path stays local-only with zero wire traffic.
+describe('PlayerScreen — M-MOBILE-13 syncplay-aware seek routing', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    mockSyncplayStore.currentGroup = null;
+    mockSyncplayStore.isHost = false;
+  });
+
+  async function bootGroupedAt42_5s(group: { isHost: boolean; grouped: boolean }) {
+    if (group.grouped) {
+      mockSyncplayStore.currentGroup = {
+        id: 'sp_room13',
+        name: 'Room',
+        members: [],
+        hostId: 'u-13',
+      };
+      mockSyncplayStore.isHost = group.isHost;
+    }
+    const h = await bootDirectPlay();
+    (findPlayer(h.host.tree)!.props.onProgress as (e: unknown) => void)({
+      nativeEvent: { currentTime: 42.5, duration: 600 },
+    });
+    h.rerender();
+    return h;
+  }
+
+  const seekTo = (h: Awaited<ReturnType<typeof bootGroupedAt42_5s>>, seconds: number) => {
+    (findSeekBar(h.host.tree)!.props.onSeek as (p: number) => void)(seconds);
+    h.rerender();
+  };
+
+  it('grouped HOST: one drag-commit broadcasts the seek in WIRE MS, exact', async () => {
+    const h = await bootGroupedAt42_5s({ grouped: true, isHost: true });
+    // The host's bar is interactive.
+    expect(findSeekBar(h.host.tree)!.props.canSeek).toBe(true);
+
+    seekTo(h, 480);
+
+    // EXACTLY one group command: from 42.5 s → 42_500 ms, to 480 s → 480_000 ms
+    // (identity would carry 42.5/480 — 1000×-sensitive fixtures per S293 law).
+    expect(mockSyncPlaySvc().sendSeek).toHaveBeenCalledTimes(1);
+    expect(mockSyncPlaySvc().sendSeek).toHaveBeenCalledWith(42_500, 480_000);
+    // The internal clock (and the native seekTo feed) stays SECONDS.
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(480);
+  });
+
+  it('grouped MEMBER: bar is non-capturing AND the seek is refused (no desync)', async () => {
+    const h = await bootGroupedAt42_5s({ grouped: true, isHost: false });
+    expect(findSeekBar(h.host.tree)!.props.canSeek).toBe(false);
+
+    // Even a seek driven straight into the choke point (the ±15/skip surfaces
+    // share it, so the refusal must live HERE, not only in the bar's gating):
+    seekTo(h, 480);
+
+    expect(mockSyncPlaySvc().sendSeek).not.toHaveBeenCalled();
+    // The member stays on the HOST timeline — no local seek landed.
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(42.5);
+  });
+
+  it('UNGROUPED: seek stays local — zero wire traffic, clock moves', async () => {
+    const h = await bootGroupedAt42_5s({ grouped: false, isHost: false });
+    expect(findSeekBar(h.host.tree)!.props.canSeek).toBe(true);
+
+    seekTo(h, 480);
+
+    expect(mockSyncPlaySvc().sendSeek).not.toHaveBeenCalled();
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(480);
   });
 });

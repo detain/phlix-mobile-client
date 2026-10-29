@@ -5,6 +5,55 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the player seek bar actually seeks: responder drag, single commit, syncplay-aware choke point — 2026-10-29
+
+- **M-MOBILE-13 (review mobile__gameux).** Re-verified LIVE at HEAD (`23482a5`),
+  not stale: `SeekBar.tsx` destructured `onSeek` as `_onSeek` and rendered the
+  track/thumb as plain decorationless `View`s — zero responders — so dragging
+  the bar did NOTHING (only the invisible double-tap/skip surfaces moved the
+  clock). The screen side was already wired (`onSeek={handleSeek}` at the JSX);
+  the defect lived entirely in the component.
+- **Cure — dependency-free responder scrub:** the track surface captures the
+  RN core responder (`onStartShouldSetResponder`/grant/move/release — the same
+  no-package idiom the repo's modal surfaces already use;
+  `@react-native-community/slider` sits in package.json wired to NOTHING and
+  stays untouched, zero lock churn). The bar measures itself via `onLayout`
+  and refuses capture until measured — an unmapped track can never commit a
+  bogus position-0 seek. While a drag is in flight the bar renders the LOCAL
+  drag position (`dragSeconds` state flag): the native `onProgress` ticker
+  keeps its real-position feed to PlayerScreen (the resume reporter still
+  eats every tick) but cannot repaint the thumb mid-drag. The seek COMMITS
+  EXACTLY ONCE on release — per-move seeking (the native thrash bug class) is
+  structurally absent; `onResponderTerminate` abandons without committing.
+- **Units:** seconds end to end across the component (the native `seekTo` is
+  a SECONDS API — the Android impl multiplies by 1000 at its own boundary);
+  the wire-milliseconds law (`toSyncPlayPositionMs`) stays parked at the
+  PlayerScreen SyncPlay send boundary where S293 put it.
+- **SyncPlay disposition — `handleSeek` is THE seek choke point** (scrub-bar
+  commit, ±15 buttons, SkipButton jumps all share it) and is now group-law
+  aware: grouped HOST applies locally AND broadcasts `syncplay_playback_seek`
+  with `(from_ms, to_ms)` — curing the second live defect this sweep found:
+  `sendSeek` had ZERO production callers estate-side, so even a host's ±15/skip
+  seeks silently desynced the group. Grouped NON-host member: seeking is a
+  HOST-ONLY wire command (phlix-syncplay SPEC.md §9 item 2 — the server
+  authorizes it by the connection's host identity), so the member's seek is
+  REFUSED outright at the choke point (member-local seeks = the desync bug
+  class), and the bar renders as a live, non-capturing display via the new
+  `canSeek={currentGroup === null || isHost}` prop — the early exit is the
+  belt for the button/skip surfaces sharing the choke point.
+- **Tests:** +15 (`SeekBar.test.tsx` 12 — capture gating, drag preview with
+  ZERO commits, ticker-cannot-repaint-mid-drag, single commit with the exact
+  final SECONDS value, tap-commit, terminate-abandon, member non-capture,
+  [0,duration] clamps, pure `scrubSecondsFromLocation` exactness; PlayerScreen
+  M-MOBILE-13 describe 3 — host commit broadcasts `sendSeek(42_500, 480_000)`
+  EXACTLY once with 1000×-sensitive wire ms, member seek refused with the
+  clock held on the host timeline, ungrouped stays local with zero wire
+  traffic). Mutation teeth M1–M8 all killed: decorative reversion (7 reds),
+  seek-per-move (2), ticker-override (2), terminate-commits (1),
+  member-local-seek (1), host-broadcast-stripped (1), seconds-on-wire (1),
+  canSeek-unwired (1). Suite 85→86 files, 1309→1324 tests (1 skip held);
+  tsc 0, eslint 0 err (2 pre-existing warnings).
+
 ### Fixed — hub session JWTs: plaintext-era audit closed at HEAD, vault LAW pinned by order- and failure-toothed tests — 2026-10-29
 
 - **M-MOBILE-12 (review mobile__exploiter).** The queue entry — "HUB session
