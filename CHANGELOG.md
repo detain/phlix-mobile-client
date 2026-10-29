@@ -5,6 +5,40 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Search A–Z rail meets the 44pt touch-target law (M-MOBILE-19) — 2026-10-29
+
+- **Every rail letter is now a laid-out 44x44pt square; the 27-square column
+  scrolls.** The pre-cure rail sized letters with `paddingVertical: 1` around
+  `fontSize: 11` text in a 24pt column — a ~15pt-tall target, 27 of them
+  stacked shoulder-to-shoulder with no vertical budget to expand into
+  (27 x 44pt = 1188pt exceeds any phone viewport), so mis-tapping a
+  neighbour was structural, not incidental (review `mobile__gameux` M-H).
+  Cure: the rail root became a `ScrollView` (`decelerationRate="fast"`,
+  scroll indicator kept as the "more letters" affordance) and each button now
+  takes its minimum from **layout, never hitSlop** — vertical slop across
+  stacked siblings makes neighbour rects claim the same points, which is the
+  failure mode the review called out. Geometry lives in
+  `searchScreenHelpers.ts` (`RAIL_TARGET_MIN_SIZE_PT` 44,
+  `RAIL_BUTTON_LAYOUT`, `railLetterTouchRect`, `railContentHeightPt`) as the
+  single source the screen renders and the tests pin. Visual density is kept:
+  11pt glyphs centred in invisible 44pt rows.
+- **a11y honesty:** `accessibilityRole="button"`,
+  `accessibilityLabel={letter}` (a single A–Z/"#" glyph is alphabet, not UI
+  copy — no message-catalog entry is needed, and none would render correctly
+  across locales), `accessibilityState={{ disabled }}` mirrors the no-entry
+  letters. Press feedback: `TouchableOpacity`'s built-in `activeOpacity`
+  already reports touches honestly; no `onPressOut` handler exists to
+  contradict it.
+- **New `src/screens/search/__tests__/searchRailTouchTargets.test.ts` (5
+  tests)** — red 5/5 at parent (measure-from-red), asserting the platform
+  floor as a literal against the exported StyleSheet object, the computed
+  per-letter touch rect (44 x 44pt), the non-overlap row-pitch invariant,
+  and the 1188pt > 320pt arithmetic that makes the ScrollView mandatory.
+- Gates: jest `--runInBand` **95 suites / 1458 pass + 1 skip (1459)** vs
+  self-baseline at `05a139a` of 94 / 1453 + 1 skip (1454) — delta exactly
+  the new file; `tsc --noEmit` 0 errors; eslint 0 errors / 0 warnings on the
+  three touched files.
+
 ### Fixed — hub server switch: caches, mounted screens, cross-server write trap (M-MOBILE-18) — 2026-10-29
 
 - **`hubStore` gained `serverGeneration` and one switch law.**

@@ -31,6 +31,8 @@ import {
   RATING_OPTIONS,
   SORT_OPTIONS,
   RAIL_LETTERS,
+  RAIL_TARGET_MIN_SIZE_PT,
+  RAIL_BUTTON_LAYOUT,
   activeLetters,
   hasActiveFilters,
   type MediaFilters,
@@ -172,8 +174,22 @@ const SearchScreen: React.FC = () => {
     <MediaCard item={item} onPress={() => handleMediaPress(item)} />
   );
 
+  // Touch-target law (M-MOBILE-19): each letter occupies a full 44x44pt laid-
+  // out square (RAIL_BUTTON_LAYOUT — no hitSlop, so neighbours can never
+  // overlap) and the 27-square column scrolls inside the viewport it is given.
+  // The scroll indicator stays visible: it is the affordance that announces
+  // "more letters below". Feedback honesty: TouchableOpacity's built-in
+  // activeOpacity press state is honest and needs no onPressOut handler.
+  // a11y: the letter IS the label (a single A–Z/"#" glyph — alphabet, not UI
+  // copy, so no message-catalog entry is needed and none would be correct in
+  // any locale); the role makes screen readers announce it as a button and
+  // accessibilityState mirrors the disabled (no-entry) letters.
   const renderRail = () => (
-    <View style={styles.rail}>
+    <ScrollView
+      style={styles.rail}
+      contentContainerStyle={styles.railContent}
+      decelerationRate="fast"
+    >
       {RAIL_LETTERS.map((letter) => {
         const enabled = enabledLetters.has(letter);
         return (
@@ -182,6 +198,9 @@ const SearchScreen: React.FC = () => {
             disabled={!enabled}
             onPress={() => jumpToLetter(letter)}
             style={styles.railButton}
+            accessibilityRole="button"
+            accessibilityLabel={letter}
+            accessibilityState={{ disabled: !enabled }}
           >
             <Text
               style={[styles.railText, !enabled && styles.railTextDisabled]}
@@ -191,7 +210,7 @@ const SearchScreen: React.FC = () => {
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 
   const renderResults = () => {
@@ -435,16 +454,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  // A–Z rail
+  // A–Z rail — see renderRail + searchScreenHelpers for the 44pt law.
   rail: {
-    width: 24,
+    width: RAIL_TARGET_MIN_SIZE_PT,
+  },
+  railContent: {
+    // When a viewport is taller than the 27-square column (tablets), centre
+    // it; on phones the column overflows and the ScrollView takes over.
+    minHeight: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
   },
-  railButton: {
-    paddingVertical: 1,
-  },
+  railButton: RAIL_BUTTON_LAYOUT,
   railText: {
     color: '#0066cc',
     fontSize: 11,
