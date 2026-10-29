@@ -79,7 +79,7 @@ Phlix Mobile supports **Hub Mode** for remote access to your Phlix servers:
 | **Direct** | Connects directly to server hostname (e.g., `https://192.168.1.100:8096`) | Same network as server |
 | **Via Hub Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
 
-Hub session data is persisted securely using `AsyncStorage`, allowing seamless reconnection across app restarts.
+Hub sessions survive app restarts. The hub JWT pair is persisted in the OS keychain vault via `react-native-keychain` (the plugin provides access to the Keychain on iOS and the Keystore on Android); `AsyncStorage` holds only non-secret session metadata — hub URL, user id, expiry, active server, connection mode. Pre-vault installs that stored the whole session in plaintext `AsyncStorage` are migrated on first read, and signing out of the hub wipes both the vault slots and the metadata blob.
 
 ### Technical Features
 
@@ -87,7 +87,7 @@ Hub session data is persisted securely using `AsyncStorage`, allowing seamless r
 - **Zustand** for lightweight state management
 - **React Navigation** for navigation flows
 - **Native Modules** for optimal video playback performance
-- **Secure Storage** for authentication tokens
+- **Secure token vault** — server and hub JWTs live in the OS keychain via `react-native-keychain`; `AsyncStorage` keeps only non-secret preferences and session metadata
 - **CI/CD Pipeline** with GitHub Actions
 
 ## Prerequisites

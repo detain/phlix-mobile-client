@@ -48,7 +48,7 @@ See the source tree for the full `src/api/`, `src/stores/`, `src/screens/`, `src
 - **SyncPlay wire positions are milliseconds** — convert at the send boundary only (`toSyncPlayPositionMs` in `src/screens/PlayerScreen.tsx`); store state and the native player stay in seconds. The HTTP surface is `/syncplay/groups`, never `/syncplay/rooms`.
 - **SyncPlay errors are code-first**: render the viewer-facing sentence through `describeSyncPlayError(code, message)` in `src/syncplay/syncplayErrors.ts` (a `Record<SyncPlayErrorCode, string>` English catalog keyed by the exact wire code); the server's `message` is only a fallback. `SyncPlayService` reads `error_code` then `code`.
 - **Server-relative signed paths** (the playback-info subtitle `url`) go through `absolutizeApiPath` from `src/api/client.ts` before reaching a native player — never hand-join a base URL.
-- **AsyncStorage keys**: prefixed `phlix_`.
+- **AsyncStorage keys**: prefixed `phlix_` — the exceptions are `user` (non-secret server profile) and the legacy `access_token`/`refresh_token` (pre-vault migration sources, swept once the vault holds the pair). **Auth JWTs never live in AsyncStorage**: the server and hub pairs go to the keychain vault (`src/services/SecureStorage.ts`).
 - **Time units**: ticks are 100ns (divide by `10000000` for seconds, by `600000000` for minutes).
 - **Navigation params**: declared in `src/types/navigation.ts`.
 

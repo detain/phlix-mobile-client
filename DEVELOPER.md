@@ -291,10 +291,49 @@ The API client uses Axios with:
 
 1. User submits credentials via `AuthManager.login()`
 2. Server returns `access_token` and `refresh_token`
-3. Tokens stored in AsyncStorage
-4. All subsequent requests include `Authorization: Bearer <token>`
-5. On 401 response, interceptor attempts token refresh
-6. If refresh fails, user is logged out
+3. The JWT pair is written to the keychain vault (`SecureStorage.storeTokens`, iOS Keychain / Android Keystore via `react-native-keychain`) together with a non-secret pin of the minting host; only the user profile goes to `AsyncStorage`
+4. All subsequent requests include `Authorization: Bearer <token>` (the request interceptor reads the access JWT from the vault)
+5. On 401 response, the interceptor refreshes using the vault's refresh JWT; the rotated pair is re-written to the vault and re-pinned to the host that served the issuance
+6. If refresh fails, the user is logged out — `SecureStorage.clearTokens()` wipes both vault slots, the minted-host pin, and the legacy plaintext keys
+
+### Token & Data Storage Model
+
+**Vault (keychain).** `src/services/SecureStorage.ts` is the only sanctioned
+home for auth JWTs — four `react-native-keychain` generic-password slots
+(the plugin's own surface: Keychain on iOS, Keystore on Android):
+
+| Slots | Contents |
+|-------|----------|
+| `com.phlix.mobile.access` / `.refresh` | Server-session JWT pair (login, register, passkey, every refresh rotation) |
+| `com.phlix.mobile.hub.access` / `.hub.refresh` | Hub-session JWT pair minted by `HubAuthService` sign-in — separate slots so hub and server sign-out never wipe each other |
+
+**`AsyncStorage` holds non-secret data only:**
+
+| Key | Contents |
+|-----|----------|
+| `phlix_hub_session` | Sanitized hub envelope `{ hubUrl, session: { expiresAt, userId }, activeServerId, connectionMode }` — written through the single `buildSanitizedHubBlob` builder, so a JWT field can never drift back into it |
+| `user` | Server user profile (from the auth response / `getMe`) — the one live key without the `phlix_` prefix |
+| `phlix.access_issued_host` | Which host minted the stored server pair — integrity metadata, not a credential: the direct SyncPlay dial is checked against it |
+| `phlix_settings` · `phlix_active_profile_id` · `phlix_device_id` · `phlix_downloads_v2` · `phlix_download_storage` | Preferences, profile id, device identity, download records |
+
+**Legacy migration is never-orphan.** Pre-vault sessions kept JWTs as
+plaintext `AsyncStorage` (`access_token` / `refresh_token`; the hub pair
+inside the `phlix_hub_session` blob). Each lane migrates on first read:
+read → secure-write → and only once the secure side settles, delete the
+plaintext. A failing vault write leaves the plaintext copy in place for the
+next read to retry — an existing session is never orphaned, which honestly
+means that while the keychain is failing, those JWTs do remain in plaintext
+storage. Crash residue (vault committed, blob rewrite died) is swept on the
+next read: the vault wins and the redundant plaintext half is sanitized. If
+the OS wipes the vault pair out from under a sanitized blob, no credential
+exists on either side — the corpse blob is swept and the user signs in
+again; there is never a credential-less fallback session.
+
+**Sign-out wipes both halves.** `AuthManager.logout()` clears the server
+slots, the minted-host pin, the legacy keys, and the `user` profile;
+`signOutOfHub()` removes the `phlix_hub_session` blob and the hub slots.
+A failing vault read is treated as signed-out (`getAccessToken()` returns
+null), never as a plaintext fallback.
 
 ### API Managers
 
@@ -428,7 +467,7 @@ phlix-mobile/
 │   │   ├── LoginScreen.tsx
 │   │   └── index.ts
 │   ├── services/
-│   │   ├── SecureStorage.ts # Secure token storage
+│   │   ├── SecureStorage.ts # Auth token vault (OS keychain)
 │   │   ├── DownloadService.ts# Download management
 │   │   ├── NotificationService.ts
 │   │   └── index.ts
