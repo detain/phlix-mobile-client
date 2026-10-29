@@ -18,7 +18,9 @@
 //   4. a rejected focus does NOT re-arm (the window keeps growing until a
 //      fetch is granted);
 //   5. minIntervalMs = 0 degenerates to plain refetch-on-focus;
-//   6. a nonsense interval fails fast at creation.
+//   6. a nonsense interval fails fast at creation;
+//   7. (M-MOBILE-18) a server-switch invalidation refetches NOW, re-arming
+//      the window — but stays silent before the mount-focus.
 
 import {
   createFocusRefetchGate,
@@ -68,6 +70,38 @@ describe('createFocusRefetchGate — staleness window', () => {
     expect(gate.onFocus(101)).toBe(true);
     expect(gate.onFocus(102)).toBe(true);
     expect(gate.onFocus(102)).toBe(true);
+  });
+});
+
+describe('createFocusRefetchGate — server-switch invalidation (M-MOBILE-18)', () => {
+  it('before the mount-focus was ever seen it stays silent — the load-on-mount fetch is ahead', () => {
+    const gate = createFocusRefetchGate(15_000);
+    expect(gate.onInvalidate(1_000)).toBe(false);
+    // ...and answering false must not secretly mark the gate mounted:
+    expect(gate.onFocus(1_001)).toBe(false); // the real mount-focus still passes
+  });
+
+  it('after mount it fires immediately — invalidation outranks the staleness window', () => {
+    const gate = createFocusRefetchGate(15_000);
+    gate.onFocus(0); // mount
+    // 1ms after a cold mount-focus, an ordinary re-focus would be skipped;
+    // an invalidation is the one event that must NOT be.
+    expect(gate.onInvalidate(1)).toBe(true);
+  });
+
+  it('re-arms the stamp from the invalidation — the next focus never double-fetches', () => {
+    const gate = createFocusRefetchGate(15_000);
+    gate.onFocus(0); // mount
+    expect(gate.onInvalidate(10_000)).toBe(true); // switched: refetch NOW
+    expect(gate.onFocus(14_999)).toBe(false); // already refetched at 10_000
+    expect(gate.onFocus(25_000)).toBe(true); // window re-armed from 10_000
+  });
+
+  it('two switches in a row refetch twice — each one invalidates different data', () => {
+    const gate = createFocusRefetchGate(15_000);
+    gate.onFocus(0); // mount
+    expect(gate.onInvalidate(10)).toBe(true); // A → B
+    expect(gate.onInvalidate(20)).toBe(true); // B → C: the first cure was for B's truth
   });
 });
 

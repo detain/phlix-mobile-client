@@ -5,6 +5,64 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — hub server switch: caches, mounted screens, cross-server write trap (M-MOBILE-18) — 2026-10-29
+
+- **`hubStore` gained `serverGeneration` and one switch law.**
+  `setActiveServer` previously swapped `activeServerId`/`effectiveServerUrl`
+  and persisted while every screen kept rendering the OLD server's cached
+  rows and every queued write still carried OLD-server ids (review
+  `mobile__gameux` M-G). All four identity sites — `setActiveServer`,
+  `signInToHub`, `signOutOfHub`, `loadPersistedState` (lazy Settings-screen
+  hydration can land a different id under warm caches) — now route through
+  `switchServerIdentity()`: identity moves ⇒ `resetServerScopedState()` drops
+  every old-server cache BEFORE the `set()` that commits (a synchronous
+  generation subscriber can never observe a row of the server being left) and
+  `serverGeneration` bumps; same-id re-select is a true no-op (no cascade, no
+  stampede). `setConnectionMode` deliberately stays silent: same server, same
+  ids — direct↔relay re-routes transport, not data.
+- **New `src/store/serverScope.ts` — the single cascade owner** (imports
+  stores, never `hubStore`; acyclic law): resets library (new `reset()` +
+  hoisted `initialState`), favorites, watch-history (new `reset()` — local
+  eviction, NOT the server DELETE `clearHistory`), search, collections,
+  music, photos, live-TV, profiles (new in-memory `reset()`; the persisted
+  `phlix_active_profile_id` pin survives — `.find() ?? null` rehydration
+  makes a foreign id inert), discards an unconsumed `pendingPlayMedia`
+  (new `discardPendingPlayMedia()`, distinct from consume for auditability)
+  and cancels queued/paused download tasks (`cancelUnfinishedTasks()`:
+  `cancelled`, not `failed` — retry would re-drain old ids; one persist;
+  `downloading` tasks keep streaming — their signed URL is already
+  old-server-bound, so the bytes are content-correct). Deliberate exclusions
+  docblocked: player stream, syncplay ROOM state and cast (M-MOBILE-16
+  lifecycle laws), direct-login settings/auth, admin/webauthn.
+- **Mounted screens wake through the M-MOBILE-17 idiom (no second
+  mechanism):** `createFocusRefetchGate` gains `onInvalidate(nowMs)` —
+  invalidation outranks the staleness window and re-arms it (the next focus
+  cannot double-fetch); pre-mount it stays silent (load-on-mount owns the
+  first fetch). `useFocusRefetch` subscribes to the hub store's generation
+  channel and refetches through the same extracted quiet fire-and-forget
+  path — a synchronous loader throw can never poison the switcher's own
+  `set()` notify loop.
+- **The progress-report write trap is disarmed by generation stamp.**
+  `PlaybackProgressReporter` mirrors its account-drift idiom: `ensureSession`
+  stamps `sessionGeneration` beside `sessionOwner`; every entry point
+  compares LIVE (`forgetSessionIfStale`); and `createSession`'s post-await
+  commit guard re-reads the live generation — a session minted across a
+  switch is discarded, never committed, never written to (mid-flight drift
+  is invisible to a field-vs-captured compare: the live read is load-bearing,
+  pinned by a red test before it was green).
+- No new UI copy (a confirmation toast is not what the evidence demands; the
+  post-switch truth is cache-drop + immediate refetch).
+- **Tests:** +28 across 5 files (new `src/store/__tests__/serverScope.test.ts`
+  ×8; hubStore switch law ×6 at the mocked `serverScope` seam; gate ×4; hook
+  ×6 through the slot host's new mount-semantics `useEffect`; reporter ×4 with
+  transport spies). Mutation teeth measured: cascade strip → exactly the 3
+  named hubStore law tests red; sweep strip → 3 named serverScope tests red;
+  forget-guard removal → 2 named reporter tests red; commit-guard removal →
+  exactly the crossing-switch test red. Full suite serial: **94 suites,
+  1453 passed + 1 skipped (1454)** vs parent `530bec7` measured
+  **93 / 1425+1 (1426)** — +28 exact, zero moved baselines. `tsc --noEmit` 0,
+  eslint 0 on all touched paths.
+
 ### Fixed — PhotoAlbum deep-link param law (M-MOBILE-17 r2) — 2026-10-29
 
 - **Rework atop `8467014` per review `M-MOBILE-17__r1` (verdict REWORK).**

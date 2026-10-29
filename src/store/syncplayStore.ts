@@ -46,6 +46,15 @@ interface SyncplayState {
   removeMember: (memberId: string) => void;
   applyPendingPlayMedia: (command: PendingPlayMediaCommand) => void;
   consumePendingPlayMedia: () => void;
+  /**
+   * Throw away an unconsumed `pendingPlayMedia` on a server switch
+   * (M-MOBILE-18). The command carries the OLD server's media id; on the new
+   * server it would either 404 or — worse for the game loop — start an
+   * unrelated title that happens to share the id. Distinct from
+   * `consumePendingPlayMedia` (the player took it over) on purpose: the two
+   * exits must stay separately auditable.
+   */
+  discardPendingPlayMedia: () => void;
   reset: () => void;
 }
 
@@ -141,6 +150,10 @@ export const useSyncplayStore = create<SyncplayState>((set, get) => ({
    * re-trigger the load.
    */
   consumePendingPlayMedia: () => {
+    set({ pendingPlayMedia: null });
+  },
+
+  discardPendingPlayMedia: () => {
     set({ pendingPlayMedia: null });
   },
 

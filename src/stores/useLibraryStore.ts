@@ -44,20 +44,32 @@ interface LibraryState {
   setLoadingHome: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearSearch: () => void;
+  /**
+   * Drop every server-backed row (M-MOBILE-18, review mobile__gameux M-G):
+   * libraries, grid caches, home rails and search state are all addressed
+   * by the CURRENT server's ids — a hub server switch invalidates them all
+   * at once. Loading/error flags return to their cold-boot shape so a
+   * following load starts from an honest "nothing yet".
+   */
+  reset: () => void;
 }
 
-export const useLibraryStore = create<LibraryState>((set) => ({
-  libraries: [],
-  libraryItems: {},
-  recentlyAdded: [],
-  continueWatching: [],
-  searchResults: [],
+const initialState = {
+  libraries: [] as Library[],
+  libraryItems: {} as Record<string, MediaItem[]>,
+  recentlyAdded: [] as MediaItem[],
+  continueWatching: [] as MediaItem[],
+  searchResults: [] as MediaItem[],
   searchQuery: '',
   isSearching: false,
   isLoadingLibraries: false,
   isLoadingItems: false,
   isLoadingHome: false,
-  error: null,
+  error: null as string | null,
+};
+
+export const useLibraryStore = create<LibraryState>((set) => ({
+  ...initialState,
 
   setLibraries: (libraries) => set({ libraries }),
   setLibraryItems: (libraryId, items) =>
@@ -74,4 +86,5 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   setLoadingHome: (loading) => set({ isLoadingHome: loading }),
   setError: (error) => set({ error }),
   clearSearch: () => set({ searchResults: [], searchQuery: '' }),
+  reset: () => set({ ...initialState }),
 }));

@@ -13,6 +13,17 @@ import { secureStorage } from '../../services/SecureStorage';
 
 jest.mock('@react-native-async-storage/async-storage');
 jest.mock('../../hub/HubAuthService');
+// The M-MOBILE-18 cascade is observed at THIS seam (hubStore → serverScope);
+// what the cascade actually clears is pinned by the cascade's own law test
+// (src/store/__tests__/serverScope.test.ts). Mocking keeps the hub auth
+// surface (11 stores + the download queue) out of these unit tests.
+jest.mock('../../store/serverScope', () => ({
+  resetServerScopedState: jest.fn(),
+}));
+// Hoisting-safe seam handle: jest.mock above is moved before imports by
+// babel-jest, so requireMock already returns the factory object.
+const mockResetServerScopedState = jest.requireMock('../../store/serverScope')
+  .resetServerScopedState as jest.Mock;
 
 // The auto-mocked singleton: its async methods are jest.fn() at runtime, but the
 // static type still describes them as plain methods. Re-type the instance so the
@@ -62,6 +73,7 @@ describe('hubStore', () => {
       activeServerId: null,
       connectionMode: 'direct',
       effectiveServerUrl: '',
+      serverGeneration: 0,
       isLoading: false,
       error: null,
     });
@@ -779,6 +791,122 @@ describe('hubStore', () => {
       const sanitized = calls[calls.length - 1][1] as string;
       expect(sanitized).not.toContain(mockSession.accessToken);
       expect(sanitized).not.toContain(mockSession.refreshToken);
+    });
+  });
+
+  // ── M-MOBILE-18 (review mobile__gameux M-G) ──────────────────────────────
+  // The switch law at the hubStore seam: server identity MOVES → caches are
+  // dropped (cascade called through the serverScope seam) and `serverGeneration`
+  // bumps — mounted screens subscribe to that number; re-selecting the CURRENT
+  // server must stay a true no-op (a wake-up stampede for identical rows is
+  // not a cure). Identity-to/from-null (sign-in landing the first server,
+  // sign-out leaving none) is itself a MOVE.
+  describe('server-switch law (M-MOBILE-18)', () => {
+    const signIn = async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+    };
+
+    it('setActiveServer to another server drops the caches and bumps the generation', async () => {
+      await signIn(); // null → server-1 is itself a move: 1 cascade, gen 1
+      expect(mockResetServerScopedState).toHaveBeenCalledTimes(1);
+      expect(useHubStore.getState().serverGeneration).toBe(1);
+
+      mockResetServerScopedState.mockClear();
+      useHubStore.getState().setActiveServer('server-2');
+
+      expect(mockResetServerScopedState).toHaveBeenCalledTimes(1);
+      expect(useHubStore.getState().serverGeneration).toBe(2);
+      expect(useHubStore.getState().activeServerId).toBe('server-2');
+      expect(useHubStore.getState().effectiveServerUrl).toBe(
+        'https://192.168.1.101:32400'
+      );
+    });
+
+    it('re-selecting the ACTIVE server is a true no-op — no cascade, no bump, no persist churn', async () => {
+      await signIn();
+      mockResetServerScopedState.mockClear();
+      (AsyncStorage.setItem as jest.Mock).mockClear();
+
+      useHubStore.getState().setActiveServer('server-1'); // already active
+
+      expect(mockResetServerScopedState).not.toHaveBeenCalled();
+      expect(useHubStore.getState().serverGeneration).toBe(1); // unchanged
+      expect(useHubStore.getState().activeServerId).toBe('server-1');
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it('an unknown serverId never wakes the law (not-found guard precedes it)', async () => {
+      await signIn();
+      mockResetServerScopedState.mockClear();
+
+      useHubStore.getState().setActiveServer('nonexistent');
+
+      expect(mockResetServerScopedState).not.toHaveBeenCalled();
+      expect(useHubStore.getState().serverGeneration).toBe(1);
+    });
+
+    it('sign-out moves the identity to NONE — caches drop once, a repeat sign-out is inert', async () => {
+      await signIn();
+      mockResetServerScopedState.mockClear();
+
+      await useHubStore.getState().signOutOfHub();
+
+      expect(mockResetServerScopedState).toHaveBeenCalledTimes(1);
+      expect(useHubStore.getState().serverGeneration).toBe(2);
+
+      mockResetServerScopedState.mockClear();
+      await useHubStore.getState().signOutOfHub(); // already out
+
+      expect(mockResetServerScopedState).not.toHaveBeenCalled();
+      expect(useHubStore.getState().serverGeneration).toBe(2);
+    });
+
+    it('connection-mode toggles never wake the law (same server = same ids)', async () => {
+      await signIn();
+      mockResetServerScopedState.mockClear();
+
+      useHubStore.getState().setConnectionMode('relay');
+      useHubStore.getState().setConnectionMode('direct');
+
+      expect(mockResetServerScopedState).not.toHaveBeenCalled();
+      expect(useHubStore.getState().serverGeneration).toBe(1);
+      expect(useHubStore.getState().effectiveServerUrl).toBe(
+        'https://192.168.1.100:32400'
+      );
+    });
+
+    it('lazy hydration of a DIFFERENT persisted server wakes the law; same-id replay stays inert', async () => {
+      // Warm caches already on server-1, then the Settings screen hydrates a
+      // persisted row pointing at server-2 — identity moves under the caches.
+      await signIn();
+      mockResetServerScopedState.mockClear();
+
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify({
+          hubUrl: 'https://hub.example.com',
+          session: mockSession,
+          activeServerId: 'server-2',
+          connectionMode: 'direct',
+        })
+      );
+      await useHubStore.getState().loadPersistedState();
+
+      expect(mockResetServerScopedState).toHaveBeenCalledTimes(1);
+      expect(useHubStore.getState().serverGeneration).toBe(2);
+      expect(useHubStore.getState().activeServerId).toBe('server-2');
+
+      // Same persisted id replayed: nothing moved — no cascade, no bump.
+      mockResetServerScopedState.mockClear();
+      await useHubStore.getState().loadPersistedState();
+
+      expect(mockResetServerScopedState).not.toHaveBeenCalled();
+      expect(useHubStore.getState().serverGeneration).toBe(2);
     });
   });
 });

@@ -25,6 +25,13 @@ interface WatchHistoryState {
   deleteItem: (mediaItemId: string) => Promise<void>;
   /** Clear all watch history. */
   clearHistory: () => Promise<void>;
+  /**
+   * Drop the loaded list WITHOUT any server call (M-MOBILE-18): the rows
+   * belong to the previous active server — a hub server switch invalidates
+   * them. `clearHistory` is the user's DELETE (writes to the server); this
+   * is the local cache eviction.
+   */
+  reset: () => void;
 }
 
 const errMessage = (error: unknown, fallback: string): string =>
@@ -76,4 +83,6 @@ export const useWatchHistoryStore = create<WatchHistoryState>((set, get) => ({
       throw error;
     }
   },
+
+  reset: () => set({ ...initialState }),
 }));

@@ -42,6 +42,16 @@ jest.mock('../../stores/useAuthStore', () => ({
   useAuthStore: { getState: () => mockAuth },
 }));
 
+// Mutable hub latch — the reporter reads `getState()` per decision, exactly
+// like the real zustand store (same idiom as the auth latch above). Bumping
+// `serverGeneration` IS a hub server switch from the reporter's point of
+// view (M-MOBILE-18, review mobile__gameux M-G: a session row minted on
+// server A addresses NOTHING on server B).
+const mockHub = { serverGeneration: 0 };
+jest.mock('../../store/hubStore', () => ({
+  useHubStore: { getState: () => mockHub },
+}));
+
 const mockCreate = playbackManager.createSession as jest.Mock;
 const mockReport = playbackManager.reportProgress as jest.Mock;
 const mockComplete = playbackManager.completeSession as jest.Mock;
@@ -61,6 +71,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAuth.isAuthenticated = true;
   mockAuth.user = { id: 'user-a' };
+  mockHub.serverGeneration = 0;
   mockCreate.mockResolvedValue('sess-1');
   mockReport.mockResolvedValue(undefined);
   mockComplete.mockResolvedValue(undefined);
@@ -273,5 +284,74 @@ describe('PlaybackProgressReporter', () => {
 
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  // ── M-MOBILE-18 (review mobile__gameux M-G): the cross-server write trap ──
+  // Same drift law as the account switch above, one axis later: the session
+  // handle, its media ids and every queued progress write belong to the
+  // hub server generation that MINTED them. After a switch, aiming any of
+  // them at the new server is a 404 at best and an unrelated same-id
+  // title's history at worst — the reporter must drop, never deliver.
+  describe('hub server switch (M-MOBILE-18)', () => {
+    it('a switch mid-playback drops the held session — the next tick opens a FRESH one', async () => {
+      mockCreate.mockResolvedValueOnce('sess-a').mockResolvedValueOnce('sess-b');
+
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+      expect(mockReport).toHaveBeenLastCalledWith('sess-a', expect.anything());
+
+      // The user switches servers while the video keeps playing.
+      mockHub.serverGeneration = 1;
+
+      jest.setSystemTime(START + 16_000);
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 300 }));
+
+      expect(mockCreate).toHaveBeenCalledTimes(2); // fresh session on the NEW server
+      const aimedAt = mockReport.mock.calls.map((call) => call[0]);
+      expect(aimedAt).toEqual(['sess-a', 'sess-b']); // zero writes to the orphan
+    });
+
+    it('flush()/complete() after a switch aim nowhere (stale tails dropped, never resurrected)', async () => {
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+      expect(mockReport).toHaveBeenCalledTimes(1);
+
+      // Player unmounts AFTER the switch: the teardown flush and the
+      // completion tail belong to a session the new server never hosted.
+      mockHub.serverGeneration = 1;
+      await playbackProgressReporter.flush(snapshot({ positionSeconds: 590 }));
+      await playbackProgressReporter.complete('m-1');
+
+      expect(mockReport).toHaveBeenCalledTimes(1); // stale tail dropped
+      expect(mockComplete).not.toHaveBeenCalled(); // stale completion dropped
+      expect(mockCreate).toHaveBeenCalledTimes(1); // tails never create one
+    });
+
+    it('a session mint whose create POST crosses a switch is never committed', async () => {
+      let resolveCreate: (id: string) => void = () => undefined;
+      mockCreate.mockImplementationOnce(
+        () => new Promise<string>((resolve) => (resolveCreate = resolve)),
+      );
+
+      const firstReport = playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+      // The switch lands WHILE the POST /sessions is in flight:
+      mockHub.serverGeneration = 7;
+      resolveCreate('sess-ghost');
+      await firstReport; // the commit guard must discard the ghost handle…
+
+      jest.setSystemTime(START + 16_000);
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 136 }));
+
+      const aimedAt = mockReport.mock.calls.map((call) => call[0]);
+      expect(aimedAt).not.toContain('sess-ghost'); // …and nothing writes to it, EVER
+      expect(mockCreate).toHaveBeenCalledTimes(2); // a clean session on the new server
+    });
+
+    it('a constant generation across many reports reuses ONE session (no over-clearing)', async () => {
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 120 }));
+      jest.setSystemTime(START + 16_000);
+      await playbackProgressReporter.report(snapshot({ positionSeconds: 136 }));
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockReport).toHaveBeenCalledTimes(2);
+    });
   });
 });

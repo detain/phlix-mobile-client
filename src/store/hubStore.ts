@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HubSession, HubServer, hubAuthService } from '../hub/HubAuthService';
 import { secureStorage } from '../services/SecureStorage';
+import { resetServerScopedState } from './serverScope';
 
 export type ConnectionMode = 'direct' | 'relay';
 
@@ -23,6 +24,16 @@ interface HubState {
   // Connection mode
   connectionMode: ConnectionMode;
   effectiveServerUrl: string;
+
+  /**
+   * Monotonic counter bumped ONLY when the active server identity actually
+   * moves (M-MOBILE-18, review mobile__gameux M-G). It is the invalidation
+   * channel `useFocusRefetch` subscribes to — mounted screens learn the data
+   * they show just became another server's truth — and the generation stamp
+   * `PlaybackProgressReporter` binds sessions with, so a queued progress
+   * write can never land on a server that never hosted its session.
+   */
+  serverGeneration: number;
 
   // UI state
   isLoading: boolean;
@@ -45,13 +56,33 @@ interface HubState {
 
 const HUB_STORAGE_KEY = 'phlix_hub_session';
 
-export const useHubStore = create<HubState>((set, get) => ({
+export const useHubStore = create<HubState>((set, get) => {
+  /**
+   * The M-MOBILE-18 switch law in one place: when the active-server identity
+   * MOVES (in either direction, including to/from "none"), the previous
+   * server's cached rows can no longer be addressed here and must vanish in
+   * the SAME frame, and generation watchers must wake. Call BEFORE the
+   * `set()` that commits the new identity — the bump notifies subscribers
+   * synchronously, so any screen refetching must never be able to observe a
+   * row of the server it just left. Returns the new generation, or `null`
+   * when nothing moved (same-id re-select: no cascade, no wake-up stampede).
+   */
+  const switchServerIdentity = (nextActiveServerId: string | null): number | null => {
+    if (get().activeServerId === nextActiveServerId) {
+      return null;
+    }
+    resetServerScopedState();
+    return get().serverGeneration + 1;
+  };
+
+  return {
   hubUrl: null,
   session: null,
   servers: [],
   activeServerId: null,
   connectionMode: 'direct',
   effectiveServerUrl: '',
+  serverGeneration: 0,
   isLoading: false,
   error: null,
 
@@ -71,14 +102,22 @@ export const useHubStore = create<HubState>((set, get) => ({
         get().connectionMode
       );
 
-      set({
+      // A sign-in that lands the user on a different active server than the
+      // app last knew (cold case: null → first server) moves the server
+      // identity — same atomic cascade + wake-up law as setActiveServer.
+      const nextGeneration = switchServerIdentity(activeServerId);
+      const patch: Partial<HubState> = {
         hubUrl,
         session,
         servers,
         activeServerId,
         effectiveServerUrl,
         isLoading: false,
-      });
+      };
+      if (nextGeneration !== null) {
+        patch.serverGeneration = nextGeneration;
+      }
+      set(patch);
 
       // Persist session
       await persistSession(hubUrl, session, activeServerId);
@@ -93,14 +132,21 @@ export const useHubStore = create<HubState>((set, get) => ({
 
   signOutOfHub: async () => {
     hubAuthService.signOut();
-    set({
+    // "No active server" is itself a server-identity move: every cached row
+    // was addressed by the server we just left.
+    const nextGeneration = switchServerIdentity(null);
+    const patch: Partial<HubState> = {
       hubUrl: null,
       session: null,
       servers: [],
       activeServerId: null,
       effectiveServerUrl: '',
       error: null,
-    });
+    };
+    if (nextGeneration !== null) {
+      patch.serverGeneration = nextGeneration;
+    }
+    set(patch);
     await AsyncStorage.removeItem(HUB_STORAGE_KEY);
     // The JWT half of the session lives in the vault — sign-out must
     // wipe it too, not just the metadata blob (M-MOBILE-05).
@@ -150,8 +196,19 @@ export const useHubStore = create<HubState>((set, get) => ({
       return;
     }
 
+    const nextGeneration = switchServerIdentity(serverId);
+    if (nextGeneration === null) {
+      // Re-selecting the active server: its caches are still the truth on
+      // the wire we already speak. Waking every mounted screen to refetch
+      // identical rows would be a stampede, not a cure.
+      return;
+    }
+
+    // Order law (see switchServerIdentity): caches drop BEFORE the
+    // generation bumps, so the synchronous subscriber wake-up can never
+    // read a row of the server being left.
     const effectiveServerUrl = resolveEffectiveUrl(server, connectionMode);
-    set({ activeServerId: serverId, effectiveServerUrl });
+    set({ activeServerId: serverId, effectiveServerUrl, serverGeneration: nextGeneration });
 
     // Persist active server ID
     const { hubUrl, session } = get();
@@ -234,21 +291,30 @@ export const useHubStore = create<HubState>((set, get) => ({
             server ?? null,
             connectionMode
           );
-          set({
+          // Hydration is not exempt from the switch law: `loadPersistedState`
+          // runs lazily from the Settings screen, so the identity it restores
+          // CAN move under warm caches (same-id replay → no cascade, no bump).
+          const nextGeneration = switchServerIdentity(activeServerId);
+          const patch: Partial<HubState> = {
             hubUrl,
             session: hydrated,
             servers,
             activeServerId,
             connectionMode,
             effectiveServerUrl,
-          });
+          };
+          if (nextGeneration !== null) {
+            patch.serverGeneration = nextGeneration;
+          }
+          set(patch);
         }
       }
     } catch {
       // Ignore errors loading persisted state
     }
   },
-}));
+  };
+});
 
 /**
  * Resolve the effective server URL based on the active server and connection mode.

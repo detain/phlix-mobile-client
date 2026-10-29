@@ -42,6 +42,16 @@ interface DownloadState {
   resumeDownload: (taskId: string) => void;
   cancelDownload: (taskId: string) => void;
   retryDownload: (taskId: string) => void;
+  /**
+   * Cancel every not-yet-streaming task (queued/paused) — the server-switch
+   * law (M-MOBILE-18). Each task pins the ADD-time server's `itemId`, and the
+   * next queue drain would resolve `getStreamUrl(itemId)` against the NEW
+   * server: a 404 at best, an unrelated same-id title at worst.
+   * `downloading` tasks KEEP streaming — their signed URL was already
+   * resolved from the old server at start, so the bytes landing are
+   * content-correct. completed/failed/cancelled are untouched. Persists once.
+   */
+  cancelUnfinishedTasks: () => void;
   clearCompleted: () => void;
   clearFailed: () => void;
   updateTaskProgress: (taskId: string, downloadedBytes: number, totalBytes: number) => void;
@@ -144,6 +154,27 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
       }));
       get().persistTasks();
     }
+  },
+
+  cancelUnfinishedTasks: () => {
+    const { tasks } = get();
+    const staleIds = Object.values(tasks)
+      .filter((t) => t.status === 'queued' || t.status === 'paused')
+      .map((t) => t.id);
+    if (staleIds.length === 0) {
+      return;
+    }
+    set((state) => {
+      const next = { ...state.tasks };
+      staleIds.forEach((id) => {
+        next[id] = { ...next[id], status: 'cancelled' };
+      });
+      // Nothing left may enter the drain; the live 'downloading' set is by
+      // law untouched (its URL is already old-server-bound — see the action
+      // contract in DownloadState).
+      return { tasks: next };
+    });
+    get().persistTasks();
   },
 
   clearCompleted: () => {

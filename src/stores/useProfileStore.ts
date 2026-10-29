@@ -28,6 +28,15 @@ interface ProfileState {
   clearPin: (id: string) => Promise<void>;
   selectProfile: (profile: Profile) => void;
   clearActiveProfile: () => void;
+  /**
+   * Drop the loaded profiles and the active selection (M-MOBILE-18): profile
+   * rows AND their ids are minted by the CURRENT server, so a hub server
+   * switch invalidates this whole view. The persisted `phlix_active_profile_id`
+   * stays on disk — it is the user's remembered choice; `loadProfiles`
+   * rehydrates it only when a NEW-server profile actually carries that id
+   * (`.find() ?? null`), so a foreign id can never activate anything.
+   */
+  reset: () => void;
 }
 
 const ACTIVE_PROFILE_KEY = 'phlix_active_profile_id';
@@ -162,5 +171,20 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   clearActiveProfile: () => {
     persistActiveProfileId(null);
     set({ activeProfile: null, activeProfileId: null });
+  },
+
+  reset: () => {
+    // In-memory eviction only — see the action contract in ProfileState.
+    // The stale id itself lives on in the AsyncStorage pin (by design, for
+    // the never-matching `.find() ?? null` rehydration); clearing the
+    // in-memory copy just keeps it from resurrecting across a switch where
+    // the persisted read would fall to the same dead value anyway.
+    set({
+      profiles: [],
+      activeProfile: null,
+      activeProfileId: null,
+      isLoading: false,
+      error: null,
+    });
   },
 }));

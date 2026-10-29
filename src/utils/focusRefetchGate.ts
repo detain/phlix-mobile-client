@@ -29,6 +29,17 @@ export interface FocusRefetchGate {
    * cost one staleness window — self-correcting, never stampeding.
    */
   onFocus(nowMs: number): boolean;
+  /**
+   * Report that the data the screen holds just became invalid WITHOUT any
+   * navigation (M-MOBILE-18: the hub server switched and the caches were
+   * reset under it). `true` = refetch NOW — invalidation is the one event
+   * that outranks the staleness window (the window exists to skip work on
+   * data that is still good, not to defend stale data for 15 seconds); the
+   * stamp re-arms so the next focus does not fire the same refresh twice.
+   * Before the mount-focus was ever seen it answers `false` — the screen's
+   * own load-on-mount effect is still ahead and will fetch fresh truth.
+   */
+  onInvalidate(nowMs: number): boolean;
 }
 
 export function createFocusRefetchGate(
@@ -53,6 +64,15 @@ export function createFocusRefetchGate(
         return false;
       }
       if (nowMs - lastLoadMs < minIntervalMs) {
+        return false;
+      }
+      lastLoadMs = nowMs;
+      return true;
+    },
+    onInvalidate(nowMs: number): boolean {
+      if (!mounted) {
+        // Mount-load owns the first fetch — it will run against the new
+        // server anyway; a second immediate load would be a stampede.
         return false;
       }
       lastLoadMs = nowMs;

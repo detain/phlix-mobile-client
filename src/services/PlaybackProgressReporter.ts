@@ -23,6 +23,7 @@ import { Platform } from 'react-native';
 import { playbackManager } from '../api/PlaybackManager';
 import { getCachedDeviceId, getDeviceName } from '../api/deviceIdentity';
 import { useAuthStore } from '../stores/useAuthStore';
+import { useHubStore } from '../store/hubStore';
 import { secondsToTicks } from '../utils/resumePositions';
 
 /**
@@ -58,6 +59,15 @@ class PlaybackProgressReporter {
    * stamp against the CURRENT user id and drops the session on drift.
    */
   private sessionOwner: string | null = null;
+  /**
+   * The hub server generation stamped WITH `sessionOwner` the moment the
+   * session was opened (M-MOBILE-18, review mobile__gameux M-G). The session
+   * row, its media ids and every later progress write belong to THAT server;
+   * after an active-server switch the held handle can address nothing on the
+   * new server — writing anyway is the cross-server id trap. Same drop law
+   * as account drift: compare at every entry point, discard on drift.
+   */
+  private sessionGeneration = 0;
   /** Single in-flight session creation shared by concurrent callers. */
   private sessionCreation: Promise<string | null> | null = null;
   private lastReportMs = 0;
@@ -82,12 +92,14 @@ class PlaybackProgressReporter {
       this.forgetSession();
       return;
     }
-    // Account switch WITHOUT any unauthenticated call in between (the real
-    // Settings logout never reports before flipping users): a held session
-    // owned by a different user id can only ever 403 — drop it and open a
-    // fresh one for the current account.
+    // Account or server moved WITHOUT any unauthenticated call in between
+    // (the real Settings logout never reports before flipping users, and a
+    // hub server switch never touches the auth store): a held session owned
+    // by a different user id can only ever 403, and one opened on a server
+    // we have since left can only mis-aim — drop it either way and open a
+    // fresh one for the current account on the current server.
     const userId = state.user?.id ?? null;
-    this.forgetSessionIfAccountChanged(userId);
+    this.forgetSessionIfStale(userId);
     if (!(snapshot.durationSeconds > 0) || !(snapshot.positionSeconds > RESUME_MIN_SECONDS)) {
       return;
     }
@@ -129,9 +141,10 @@ class PlaybackProgressReporter {
     if (!state.isAuthenticated) {
       return;
     }
-    // Same account-switch law as report(): a tail for the previous account
-    // is worthless (the server owns the session out) — drop it, flush nothing.
-    this.forgetSessionIfAccountChanged(state.user?.id ?? null);
+    // Same account/server-switch law as report(): a tail for the previous
+    // account is worthless (the server owns the session out) — drop it,
+    // flush nothing. Same for a tail aimed at a server we have left.
+    this.forgetSessionIfStale(state.user?.id ?? null);
     if (
       live !== undefined &&
       live.durationSeconds > 0 &&
@@ -168,8 +181,9 @@ class PlaybackProgressReporter {
     if (!state.isAuthenticated) {
       return;
     }
-    // Never finalize on the previous account's session — see flush().
-    this.forgetSessionIfAccountChanged(state.user?.id ?? null);
+    // Never finalize on the previous account's session — see flush(). Same
+    // for a session the server switch left behind.
+    this.forgetSessionIfStale(state.user?.id ?? null);
     if (this.sessionId === null) {
       return;
     }
@@ -181,10 +195,11 @@ class PlaybackProgressReporter {
     }
   }
 
-  /** Drop all local state (logout, account switch, tests). Idempotent. */
+  /** Drop all local state (logout, account switch, server switch, tests). Idempotent. */
   forgetSession(): void {
     this.sessionId = null;
     this.sessionOwner = null;
+    this.sessionGeneration = 0;
     this.sessionCreation = null;
     this.lastSnapshot = null;
     this.lastReportMs = 0;
@@ -192,12 +207,21 @@ class PlaybackProgressReporter {
 
   /**
    * Forget the held/in-flight session when it belongs to a different account
-   * than `userId`. A fresh session is then opened lazily by the next
-   * reportable tick (never created merely to finish a stale flush/complete).
+   * than `userId` OR was opened on a different hub-server generation than
+   * the app speaks now (M-MOBILE-18: its row and media ids do not exist on
+   * the new server — committing or writing them would cross the streams).
+   * A fresh session is then opened lazily by the next reportable tick (never
+   * created merely to finish a stale flush/complete).
    */
-  private forgetSessionIfAccountChanged(userId: string | null): void {
-    const holdsAccountState = this.sessionId !== null || this.sessionCreation !== null;
-    if (holdsAccountState && userId !== this.sessionOwner) {
+  private forgetSessionIfStale(userId: string | null): void {
+    const holdsSessionState = this.sessionId !== null || this.sessionCreation !== null;
+    if (!holdsSessionState) {
+      return;
+    }
+    if (
+      userId !== this.sessionOwner ||
+      useHubStore.getState().serverGeneration !== this.sessionGeneration
+    ) {
       this.forgetSession();
     }
   }
@@ -208,6 +232,7 @@ class PlaybackProgressReporter {
     }
     if (this.sessionCreation === null) {
       this.sessionOwner = userId;
+      this.sessionGeneration = useHubStore.getState().serverGeneration;
       const creation = this.createSession().finally(() => {
         // Only clear OUR slot — a forget (logout/switch) plus a newer
         // creation may already own it by the time this settles.
@@ -222,6 +247,7 @@ class PlaybackProgressReporter {
 
   private async createSession(): Promise<string | null> {
     const owner = this.sessionOwner;
+    const generation = this.sessionGeneration;
     let sessionId: string | null;
     try {
       sessionId = await playbackManager.createSession({
@@ -238,10 +264,17 @@ class PlaybackProgressReporter {
       // method stays a no-op.
       return null;
     }
-    if (this.sessionOwner !== owner) {
-      // The account changed while this creation was in flight — the freshly
-      // minted session belongs to the previous user; committing it would
-      // reintroduce the stale-403 bug this guard exists to prevent.
+    if (
+      this.sessionOwner !== owner ||
+      useHubStore.getState().serverGeneration !== generation
+    ) {
+      // The account or the active server moved while this creation was in
+      // flight — the freshly minted session belongs to the previous user, or
+      // was opened against the server we have since left; committing it would
+      // reintroduce exactly the stale-403 / cross-server trap these guards
+      // exist to prevent. The hub read is LIVE on purpose: `this.sessionGeneration`
+      // still holds the pre-switch stamp here (that is what made the capture
+      // comparable), so only the live number can see the drift.
       return null;
     }
     this.sessionId = sessionId;
