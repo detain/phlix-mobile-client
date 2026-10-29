@@ -206,6 +206,31 @@ describe('useSettingsStore', () => {
       // Should keep defaults
       expect(useSettingsStore.getState().defaultQuality).toBe('auto');
     });
+
+    // M-MOBILE-15: the autoPlayNextEpisode key is no longer inert (PlayerScreen
+    // now reads it). Pin the persisted round-trip so a saved OFF survives a
+    // reload, and confirm the load merge tolerates keys the store does not
+    // know (forward-compat / other lanes' additions must never crash it).
+    it('round-trips autoPlayNextEpisode=false through storage', async () => {
+      await AsyncStorage.setItem('phlix_settings', JSON.stringify({ autoPlayNextEpisode: false }));
+
+      await useSettingsStore.getState().loadSettings();
+
+      expect(useSettingsStore.getState().autoPlayNextEpisode).toBe(false);
+    });
+
+    it('tolerates unknown persisted keys without throwing or losing defaults', async () => {
+      await AsyncStorage.setItem(
+        'phlix_settings',
+        JSON.stringify({ some_future_key: 42, theme: 'dark' as const }),
+      );
+
+      await useSettingsStore.getState().loadSettings();
+
+      const state = useSettingsStore.getState();
+      expect(state.theme).toBe('dark'); // the known key applied
+      expect(state.autoplay).toBe(true); // an untouched default still present
+    });
   });
 
   describe('saveSettings', () => {

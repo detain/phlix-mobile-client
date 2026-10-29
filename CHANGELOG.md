@@ -5,6 +5,66 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — "Auto-play next episode" is wired (the toggle's first reader) — 2026-10-29
+
+- **M-MOBILE-15 (review mobile__gameux).** Re-verified LIVE at HEAD
+  (`37771ce`). The Settings toggle persisted (default true;
+  `useSettingsStore` field + setter, `SettingsScreen` row) but NO component
+  ever read it — `PlayerScreen`'s `'ended'` arm set `isPlaying: false` and
+  that was the whole story: every episode ended in a dead stop regardless of
+  the setting. Pure settings theater.
+- **Cure — path (A), client-side over the EXISTING wire contract.** No new
+  endpoints, no new wire codes (contracts law). The server's per-item next-up
+  truth rides the rails the client already has: `GET /api/v1/media/{id}`
+  detail + `GET /api/v1/media?parentId=` children browse both carry
+  `parent_id`/`season_number`/`episode_number`/`episode_title`
+  (`MediaItemShaper.php` `shape()` :303-313, `shapeDetail` :343-345).
+  `GET /users/me/next-up` was evaluated and REJECTED as the cure vehicle:
+  `WebPortalRouter.php` :358/:1864 serve a whole-user, per-series rail
+  (recency-ordered, `WatchHistory::getNextUp` :331) — not a per-item
+  end-of-episode decision. The rail stays discovery.
+- **New `src/utils/autoplayNextEpisode.ts`:** positional continuation
+  mirroring the server's ordering law (`NextUpSelector.php`: seasons
+  participate only when numbered ≥1 — Specials excluded :123-131; episodes
+  sort `episode_number` asc with unnumbered last and a
+  `episode_title ?: name` tie-break :133-148; NO wraparound, the finale
+  resolves to nothing :171-196). Deliberate documented divergence: the
+  server rail is state-aware (skips watched/in-progress); autoplay is
+  positional — finishing S1E3 advances into S1E4 even if watched, which is
+  what the user's toggle means. Paging is mandatory: `Request.php`
+  `PageLimit` DEFAULT=50/MAX=100 (:42,:51,:54) and `getSeasons`/
+  `getEpisodes` page not at all — the resolver walks `limit=100` pages to the
+  reported `total` with a 500-row ceiling, so a 30-episode anime season
+  resolves its true successor instead of a wrong "finale".
+- **New `PlayerScreen` ended-arm hook:** toggle read via
+  `getState()` at event time (no subscription churn); suppressed for live /
+  E8 direct-URL streams and for SyncPlay groups (the group owns media
+  selection — per-episode rooms are a separate program); loop-protected by a
+  one-shot `useRef` keyed on `itemId` registered BEFORE the async fetch (a
+  failed next-load never retry-storms, a duplicate `'ended'` never
+  double-navigates); `navigation.replace('Player', …, startPosition: 0)` so
+  Back returns to where the viewer came from across a binge; EVERY refusal
+  and failure path degrades to the exact stop-behavior that existed before
+  (which is what toggle-OFF is).
+- **Tests: +31** — 8 wiring cases in `PlayerScreen.test.tsx` (fires with
+  toggle on, zero wire reads with off, non-episodic unchanged, failure =
+  silent single attempt across double `'ended'`, single attempt on success,
+  season→season crossing skipping Specials, SyncPlay-group suppression,
+  live suppression; 4 of the 8 re-verified RED at the parent commit — the
+  negative guards pass at parent by construction); 21 law cases in the new
+  `src/utils/__tests__/autoplayNextEpisode.test.ts` (ordering table incl.
+  string-typed numbers treated unnumbered, specials excluded, no-wraparound,
+  degenerate self-successor, pagination offsets 0/100/200, 500-row cap,
+  short-page stop); 2 persisted-key pins in `useSettingsStore.test.ts`
+  (`autoPlayNextEpisode` round-trip, unknown-key tolerance). Suite measured
+  at parent (re-baselined from the brief's stale 85/1292): 86 files → 87
+  files, 1329 → 1360 passing + 1 pre-existing skip (exact +1 file/+31
+  tests, serial `--runInBand`). `tsc --noEmit` 0, `eslint` 0 errors (2
+  pre-existing `no-unused-disable` warnings byte-identical at parent, as is
+  the pre-existing post-run `SyncPlayService` open-handle exit-1 — not
+  lane-caused). The C17 seek/ended, M-MOBILE-13 and
+  M-MOBILE-14 cures (`2666d4f`/`37771ce`) hold untouched.
+
 ### Fixed — the player top bar degrades gracefully on 320–390pt phones — 2026-10-29
 
 - **M-MOBILE-14 (review mobile__gameux).** Re-verified LIVE at HEAD

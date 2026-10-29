@@ -159,8 +159,20 @@ jest.mock('react', () => {
 // when PlayerScreen imports it). We grab handles back via `jest.requireMock`
 // below and mutate them per test.
 jest.mock('../../stores/useSettingsStore', () => {
-  const state = { defaultQuality: 'auto', setDefaultQuality: jest.fn() };
-  return { __state: state, useSettingsStore: (sel: (s: unknown) => unknown) => sel(state) };
+  const state = {
+    defaultQuality: 'auto',
+    // M-MOBILE-15: the autoplay law reads this via getState() at event time.
+    // Honest default here is OFF so the pre-existing suites keep asserting
+    // the stop-behavior; the autoplay describe flips it deliberately.
+    autoPlayNextEpisode: false,
+    setDefaultQuality: jest.fn(),
+  };
+  // Real zustand hooks carry .getState too (the screen's ended-arm reads the
+  // toggle imperatively) — mirror that surface, like the syncplay fake does.
+  const hook = Object.assign((sel: (s: unknown) => unknown) => sel(state), {
+    getState: () => state,
+  });
+  return { __state: state, useSettingsStore: hook };
 });
 
 jest.mock('../../stores/usePlayerStore', () => {
@@ -221,7 +233,7 @@ jest.mock('../../api/PlaybackManager', () => ({ playbackManager: { getStreamUrl:
 // src/services/__tests__/PlaybackProgressReporter.test.ts; here we assert the
 // WIRING — that the screen actually calls it. The async fakes keep the real
 // call sites' `.catch(() => undefined)` chain safe.
-const mockReporterRouteParams = { itemId: 'm-1' };
+const mockReporterRouteParams: Record<string, unknown> = { itemId: 'm-1' };
 jest.mock('../../services/PlaybackProgressReporter', () => ({
   playbackProgressReporter: {
     report: jest.fn(async () => undefined),
@@ -231,15 +243,28 @@ jest.mock('../../services/PlaybackProgressReporter', () => ({
 }));
 // The global route mock (jest.setup) hands PlayerScreen empty params; the C17
 // lifecycle assertions need a real itemId on the wire calls.
+// Stable navigation handle (M-MOBILE-15): the ended-arm's replace() must be
+// assertable — a per-call object with fresh jest.fn()s is unobservable.
+const mockNavigation = {
+  navigate: jest.fn(),
+  goBack: jest.fn(),
+  replace: jest.fn(),
+};
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
-  useNavigation: () => ({
-    navigate: jest.fn(),
-    goBack: jest.fn(),
-  }),
+  useNavigation: () => mockNavigation,
   useRoute: () => ({
     params: mockReporterRouteParams,
   }),
+}));
+// M-MOBILE-15: the autoplay resolver reads the wire through libraryManager —
+// mock the module so NO PlayerScreen boot ever touches it (the boot lifecycle
+// stays read-free; only the ended arm may call), and never the real API.
+jest.mock('../../api/LibraryManager', () => ({
+  libraryManager: {
+    getMediaItem: jest.fn(),
+    browseMedia: jest.fn(),
+  },
 }));
 jest.mock('../../api/TranscodeManager', () => ({ transcodeManager: { prepare: jest.fn() } }));
 jest.mock('../../api/MarkerManager', () => ({ markerManager: { getPlaybackInfo: jest.fn() } }));
@@ -274,6 +299,7 @@ import PlayerScreen, { AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE } from '../PlayerScr
 
 const mockSettings = (jest.requireMock('../../stores/useSettingsStore') as any).__state as {
   defaultQuality: string;
+  autoPlayNextEpisode: boolean;
   setDefaultQuality: jest.Mock;
 };
 const mockPlayerStore = (jest.requireMock('../../stores/usePlayerStore') as any).__state as {
@@ -298,6 +324,9 @@ const mockDownloadService = (jest.requireMock('../../services/DownloadService') 
   .downloadService as { getItemLocalPath: jest.Mock };
 const mockSyncplayStore = (jest.requireMock('../../store/syncplayStore') as any)
   .__state as { isHost: boolean; currentGroup: unknown };
+// M-MOBILE-15: the autoplay resolver's wire surface (getMediaItem + browseMedia).
+const mockLibrary = (jest.requireMock('../../api/LibraryManager') as any)
+  .libraryManager as { getMediaItem: jest.Mock; browseMedia: jest.Mock };
 const mockSyncPlaySvc = () =>
   (jest.requireMock('../../syncplay/SyncPlayService') as any).syncPlayService as {
     sendPlay: jest.Mock;
@@ -480,6 +509,13 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockSyncplayStore.isHost = false; // S293 describe flips it; restore for siblings.
   mockSettings.defaultQuality = AUTO_QUALITY;
+  // M-MOBILE-15: honest default is OFF — every pre-existing suite keeps
+  // asserting the stop-behavior unchanged; the autoplay describe flips it.
+  mockSettings.autoPlayNextEpisode = false;
+  // jest.clearAllMocks() keeps implementations; the autoplay wire fakes MUST
+  // start each test blank (a leaked mockResolvedValue would fake a "next").
+  mockLibrary.getMediaItem.mockReset();
+  mockLibrary.browseMedia.mockReset();
   mockPlayerStore.subtitleTracks = [];
   mockPlayerStore.currentSubtitleTrackId = null;
   mockPlayerStore.audioTracks = [];
@@ -1359,5 +1395,165 @@ describe('PlayerScreen — M-MOBILE-14 narrow-screen top bar law', () => {
     expect(groupButton).not.toBeNull();
     expect(typeof groupButton!.props.onPress).toBe('function');
     expect(flat(groupButton!.props.style).flexShrink).toBe(0);
+  });
+});
+
+// ── M-MOBILE-15 (review mobile__gameux): the "Auto-play next episode"
+// toggle is wired ──────────────────────────────────────────────────────────
+// Pre-fix the toggle persisted from Settings and NO component read it — the
+// native player stopped at every episode end no matter what it said (settings
+// theater). PlayerScreen's 'ended' arm now resolves the positional next
+// episode through utils/autoplayNextEpisode over the EXISTING wire contract
+// and replace()s into it. Every describe-level case below reddens on exactly
+// one broken guard: toggle honored, wire untouched when OFF, non-episodic
+// items keep the stop, failed loads never retry-storm, one attempt per item,
+// SyncPlay groups and live streams are excluded. The global beforeEach pins
+// the toggle OFF, so all sibling suites keep asserting the unchanged
+// stop-behavior (this is itself the cure-proof: flipping the default here
+// would leak autoplay into them and redden C17's complete-count tests).
+describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    delete mockReporterRouteParams.streamUrl;
+  });
+
+  const fireEnded = (h: { host: HookHost }) => {
+    const player = findPlayer(h.host.tree);
+    (player!.props.onPlaybackEvent as (e: unknown) => void)({
+      nativeEvent: { event: 'ended', currentTime: 600, duration: 600 },
+    });
+  };
+
+  // Minimal episode world: m-1 = S1E1 of season s-1, sibling m-2 = S1E2.
+  const EPISODE_M1 = { id: 'm-1', name: 'Pilot', type: 'episode', parent_id: 's-1', season_number: 1, episode_number: 1 };
+  const SEASON_S1 = { id: 's-1', name: 'Season 1', type: 'season', parent_id: 'tv-1', season_number: 1 };
+  const wireItem = (item: Record<string, unknown> | null) => ({
+    getMediaItem: async (id: string) => {
+      if (id === 'm-1') return item ?? null;
+      if (id === 's-1') return SEASON_S1;
+      throw new Error(`unexpected detail read ${id}`);
+    },
+    browseMedia: async ({ parentId }: { parentId: string }) => {
+      if (parentId === 's-1') {
+        return { items: [EPISODE_M1, { id: 'm-2', name: 'Second', type: 'episode', parent_id: 's-1', season_number: 1, episode_number: 2 }] };
+      }
+      throw new Error(`unexpected browse ${parentId}`);
+    },
+  });
+  const installWire = (impls: { getMediaItem: (id: string) => Promise<unknown>; browseMedia: (p: { parentId: string }) => Promise<unknown> }) => {
+    mockLibrary.getMediaItem.mockImplementation(impls.getMediaItem);
+    mockLibrary.browseMedia.mockImplementation(impls.browseMedia);
+  };
+
+  it('toggle ON + episode with a sibling → replace() into the next id', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    installWire(wireItem(EPISODE_M1) as never);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockNavigation.replace).toHaveBeenCalledTimes(1);
+    expect(mockNavigation.replace).toHaveBeenCalledWith('Player', { itemId: 'm-2', startPosition: 0 });
+    // The COMPLETE signal still lands — autoplay does not swallow the finish.
+    expect(mockReporter.complete).toHaveBeenCalledWith('m-1');
+  });
+
+  it('toggle OFF (default) → the wire is never even asked; stop-behavior holds', async () => {
+    installWire(wireItem(EPISODE_M1) as never);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
+    expect(mockNavigation.replace).not.toHaveBeenCalled();
+    expect(mockReporter.complete).toHaveBeenCalledWith('m-1');
+  });
+
+  it('toggle ON + non-episodic item → null resolution, no replace, no browse', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    const movie = { id: 'm-1', name: 'A Film', type: 'movie' };
+    mockLibrary.getMediaItem.mockImplementation(async () => movie);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockLibrary.browseMedia).not.toHaveBeenCalled();
+    expect(mockNavigation.replace).not.toHaveBeenCalled();
+  });
+
+  it('next-load failure → silent stop, exactly ONE wire attempt across two ended events', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    mockLibrary.getMediaItem.mockRejectedValue(new Error('500 from the wire'));
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    fireEnded(h); // a second 'ended' for the same item must NOT retry-storm
+    await flush();
+    expect(mockLibrary.getMediaItem).toHaveBeenCalledTimes(1);
+    expect(mockNavigation.replace).not.toHaveBeenCalled();
+  });
+
+  it('a successful resolve is still ONE attempt per item (double ended → single replace)', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    installWire(wireItem(EPISODE_M1) as never);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    fireEnded(h);
+    await flush();
+    expect(mockNavigation.replace).toHaveBeenCalledTimes(1);
+    expect(mockLibrary.getMediaItem).toHaveBeenCalledTimes(2); // m-1 + s-1, once
+  });
+
+  it('season finale → crosses into the FIRST episode of the next numbered season, skipping Specials', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    // m-1 is the ONLY episode of season 1 → exhausted listing.
+    mockLibrary.getMediaItem.mockImplementation(async (id: string) => {
+      if (id === 'm-1') return EPISODE_M1;
+      if (id === 's-1') return SEASON_S1;
+      if (id === 's-2') return { id: 's-2', name: 'Season 2', type: 'season', parent_id: 'tv-1', season_number: 2 };
+      throw new Error(`unexpected detail read ${id}`);
+    });
+    mockLibrary.browseMedia.mockImplementation(async ({ parentId }: { parentId: string }) => {
+      if (parentId === 's-1') return { items: [EPISODE_M1], total: 1 };
+      if (parentId === 'tv-1') {
+        return {
+          items: [
+            SEASON_S1,
+            { id: 'sp-0', name: 'Specials', type: 'season', parent_id: 'tv-1', season_number: 0 },
+            { id: 's-2', name: 'Season 2', type: 'season', parent_id: 'tv-1', season_number: 2 },
+          ],
+          total: 3,
+        };
+      }
+      if (parentId === 's-2') return { items: [{ id: 'n-1', name: 'S2E1', type: 'episode', parent_id: 's-2', season_number: 2, episode_number: 1 }] };
+      throw new Error(`unexpected browse ${parentId}`);
+    });
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockNavigation.replace).toHaveBeenCalledWith('Player', { itemId: 'n-1', startPosition: 0 });
+  });
+
+  it('SyncPlay grouped → suppressed entirely (the group owns media selection)', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    mockSyncplayStore.currentGroup = { id: 'g-1', name: 'watch party' };
+    installWire(wireItem(EPISODE_M1) as never);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
+    expect(mockNavigation.replace).not.toHaveBeenCalled();
+    mockSyncplayStore.currentGroup = null;
+  });
+
+  it('live stream (E8 direct-URL params) → no autoplay, no COMPLETE, no wire reads', async () => {
+    mockSettings.autoPlayNextEpisode = true;
+    mockReporterRouteParams.streamUrl = 'https://live.example/cam.m3u8';
+    installWire(wireItem(EPISODE_M1) as never);
+    const h = await bootDirectPlay();
+    fireEnded(h);
+    await flush();
+    expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
+    expect(mockNavigation.replace).not.toHaveBeenCalled();
+    expect(mockReporter.complete).not.toHaveBeenCalled();
   });
 });

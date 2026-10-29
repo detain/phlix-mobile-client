@@ -52,6 +52,7 @@ import type { PlaybackEvent } from '../native/types';
 import { syncPlayService } from '../syncplay/SyncPlayService';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
+import { resolveNextEpisodeId } from '../utils/autoplayNextEpisode';
 import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
 
 // Define the native player props interface
@@ -672,6 +673,52 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
+  // ── M-MOBILE-15: Autoplay-next-episode — the toggle's ONLY reader ────────
+  // The setting persisted at SettingsScreen since its birth but nothing ever
+  // consumed it (settings theater). On a real 'ended' of a normal VOD item we
+  // resolve the positional next episode (utils/autoplayNextEpisode, a pure
+  // mirror of the server NextUpSelector ordering law over the existing
+  // /media/{id} + /media?parentId= wire — no new endpoints, no new codes) and
+  // replace() into it. Every guard lives here; ANY failure degrades to the
+  // stop-behavior this screen had before (that IS the toggle-off behavior).
+  //
+  // One-shot keyed by itemId: the resolution attempt is registered BEFORE the
+  // async fetch, so a failed next-load can never retry-storm (a second
+  // 'ended' for the same item is refused; arriving at the next item re-arms
+  // because its id differs). Reads go through getState() at event time — no
+  // new subscription, no re-render coupling.
+  const autoplayAttemptedForRef = useRef<string | null>(null);
+  const maybeAutoplayNextEpisode = useCallback(() => {
+    if (isLiveStream) {
+      return; // live / direct-URL streams have no "next"
+    }
+    if (useSyncplayStore.getState().currentGroup !== null) {
+      return; // the SyncPlay group owns media selection, not this screen
+    }
+    if (useSettingsStore.getState().autoPlayNextEpisode !== true) {
+      return; // toggle OFF (or a legacy snapshot without the key): stop
+    }
+    if (autoplayAttemptedForRef.current === itemId) {
+      return; // already tried for this item: no retry storm
+    }
+    autoplayAttemptedForRef.current = itemId;
+    resolveNextEpisodeId(itemId)
+      .then((nextId) => {
+        if (nextId === null) {
+          return; // movie / finale / unanchored: the old stop-behavior
+        }
+        // replace() (not push): the finished episode leaves the stack, so
+        // Back returns to where the viewer came from, across one-episode-
+        // at-a-time binges. Typed via the route params; optional-call keeps
+        // any container shape safe.
+        const nav = navigation as {
+          replace?: (name: string, params: PlayerRouteParams['Player']) => void;
+        };
+        nav.replace?.('Player', { itemId: nextId, startPosition: 0 });
+      })
+      .catch(() => undefined); // wire failure → silent stop, never an Alert ambush at episode end
+  }, [isLiveStream, itemId, navigation]);
+
   const handlePlaybackEvent = useCallback((event: NativeSyntheticEvent<PlaybackEvent>) => {
     const { event: playbackEvent, currentTime: ct, duration: dur } = event.nativeEvent;
     switch (playbackEvent) {
@@ -726,6 +773,10 @@ const PlayerScreen: React.FC = () => {
         // drops it from Continue Watching, and finalizes watch-time stats.
         if (!isLiveStream) {
           playbackProgressReporter.complete(itemId).catch(() => undefined);
+          // M-MOBILE-15: the Auto-play-next toggle's one and only reader. The
+          // guards (toggle/live/group/one-shot) live in the callback; the
+          // fallback for every refusal is exactly the stop-behavior above.
+          maybeAutoplayNextEpisode();
         }
         break;
       case 'buffering':
@@ -736,7 +787,7 @@ const PlayerScreen: React.FC = () => {
       setCurrentTime(ct);
       playerSetCurrentTime(ct);
     }
-  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying]);
+  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, maybeAutoplayNextEpisode]);
 
   const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
     const { currentTime: ct, duration: dur } = event.nativeEvent;
