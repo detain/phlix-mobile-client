@@ -5,6 +5,48 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Hub vault crash-residue sweep: both-copies state ends vault-won and plaintext-swept (M-MOBILE-20) — 2026-10-29
+
+- **The last unsealed window of the hub token lane is closed** (review
+  `mobile__secnet.md` M1, queue item `M-MOBILE-20`): the headline claim —
+  hub JWTs persisted plaintext in AsyncStorage — was already cured at
+  `d72dc0c` (vault slots `com.phlix.mobile.hub.access`/`.hub.refresh`,
+  sanitizing `persistSession`, migrate-on-first-read) and hardened at
+  `23482a5` (ordering pins). What stayed open was the residue of the
+  migration's own crash window: if the process died (or the blob rewrite
+  threw) AFTER `storeHubTokens` settled but BEFORE the sanitizing
+  `setItem`, the next read took the vault branch, skipped migration, and
+  **never rewrote the blob — plaintext JWTs living on** until an unrelated
+  write happened to replace them. The server precedent
+  (`SecureStorage.migrateSlot`) has no such hole: once the secure side is
+  settled the legacy copy goes unconditionally. Cure: `loadPersistedState`
+  now detects the both-copies state (vault holds the pair AND the blob
+  still carries legacy strings), keeps the vault's pair for hydration
+  (vault wins, observable via distinct fixture values), and sweeps the
+  blob to the sanitized shape; a throwing sweep is fail-soft (blob stays
+  for the next load's retry; the vault pair hydrates regardless — the
+  sweep is hygiene, never the credential source). Both sanitizing writers
+  now share one serializer (`buildSanitizedHubBlob`) so a migration
+  rewrite can never drift from the issuance shape. Field classification
+  carried from the server lane and documented at the builder: JWTs are
+  secrets (vault); `hubUrl`/`activeServerId`/`connectionMode` and the
+  `expiresAt`/`userId` envelope are configuration (blob). No token
+  material is logged on any hub auth path (zero `console.*` call sites in
+  `hubStore.ts`/`HubAuthService.ts`, pinned by grep at close).
+  Sign-out already wipes blob + vault slots (M-MOBILE-05 pin held).
+- Tests: 3 new in `src/__tests__/hub/hubStore.test.ts` (both-copies
+  sweep with stale-vs-vault value discrimination and metadata-retention
+  pins, idempotence guard for healthy v2 state — no rewrite churn, and
+  the fail-soft sweep-failure leg using a whole-test implementation swap
+  so an unconsumed rejection can never poison later suites). Mutation
+  teeth: stripping the residue branch reddens exactly the two sweep
+  tests (idempotence test stays green by design); the M-MOBILE-05
+  migration pins keep the strip-the-migration mutation red.
+- Gates: jest `--runInBand` **96 suites / 1466 pass + 1 skip (1467)** vs
+  self-baseline at tip `6ca274a` of 96 / 1463 + 1 skip (1464) — delta
+  exactly +3 new tests, zero moved; `tsc --noEmit` exit 0; eslint 0
+  errors (2 pre-existing warnings held).
+
 ### Fixed — Search rail consumes the geometry seam; screen-level law pin (M-MOBILE-19 r2) — 2026-10-29
 
 - **The 44pt law is now pinned through the RENDERED screen, not only the

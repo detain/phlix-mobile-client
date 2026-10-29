@@ -794,6 +794,119 @@ describe('hubStore', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // M-MOBILE-20 (review mobile__secnet M1, the queue's hub lane of audit-M1's
+  // plaintext class): d72dc0c moved the hub pair into the vault and migrates
+  // pre-vault blobs — but ONE state was left unswept: the crash residue of the
+  // migration itself. If the process died (or setItem threw) AFTER
+  // storeHubTokens settled and BEFORE the sanitizing rewrite, both copies
+  // exist, and the old read path took the vault branch and NEVER rewrote the
+  // blob — plaintext JWTs living on until some unrelated write happened to
+  // replace them. The server precedent (SecureStorage.migrateSlot) has no such
+  // window: once the secure side is settled the legacy copy is removed
+  // UNCONDITIONALLY ("redundant either way"). The sweep below closes the
+  // window; these tests pin it, vault-wins semantics included.
+  // ---------------------------------------------------------------------------
+  describe('hub vault crash-residue sweep (M-MOBILE-20)', () => {
+    const keychainMock = jest.requireMock('react-native-keychain') as {
+      __resetKeychainMock: () => void;
+    };
+
+    const residueBlob = JSON.stringify({
+      hubUrl: 'https://hub.example.com',
+      // STALE plaintext pair — deliberately different values from the vault
+      // so "vault wins" is observable in the hydrated session, not assumed.
+      session: { ...mockSession, accessToken: 'stale-plain-access', refreshToken: 'stale-plain-refresh' },
+      activeServerId: 'server-2',
+      connectionMode: 'relay',
+    });
+
+    beforeEach(() => {
+      keychainMock.__resetKeychainMock();
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+    });
+
+    it('both copies present: vault pair hydrates and the plaintext blob is rewritten token-free', async () => {
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(residueBlob);
+
+      await useHubStore.getState().loadPersistedState();
+
+      // Vault wins over the older plaintext pair.
+      const hydrated = {
+        accessToken: 'vault-access',
+        refreshToken: 'vault-refresh',
+        expiresAt: mockSession.expiresAt,
+        userId: mockSession.userId,
+      };
+      expect(useHubStore.getState().session).toEqual(hydrated);
+      expect(mockedHubAuthService.hubAuthService.listServers).toHaveBeenCalledWith(
+        'https://hub.example.com',
+        hydrated
+      );
+
+      // Plaintext gone: exactly one sanitizing rewrite, neither stale secret
+      // survives in it, and the metadata rides along (a sweep, not a loss).
+      const blobWrites = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
+        ([key]) => key === 'phlix_hub_session'
+      );
+      expect(blobWrites).toHaveLength(1);
+      expect(blobWrites[0][1]).not.toContain('stale-plain-access');
+      expect(blobWrites[0][1]).not.toContain('stale-plain-refresh');
+      expect(blobWrites[0][1]).not.toContain('vault-access');
+      const parsed = JSON.parse(blobWrites[0][1]);
+      expect(parsed.activeServerId).toBe('server-2');
+      expect(parsed.connectionMode).toBe('relay');
+      expect(parsed.session).toEqual({
+        expiresAt: mockSession.expiresAt,
+        userId: mockSession.userId,
+      });
+      // Mutation tooth: deleting the residue branch lands blobWrites at
+      // length 0 here — the exact window this item exists to close.
+    });
+
+    it('healthy v2 state (sanitized blob + vault) is NOT rewritten — the sweep is idempotent', async () => {
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+        JSON.stringify({
+          hubUrl: 'https://hub.example.com',
+          session: { expiresAt: mockSession.expiresAt, userId: mockSession.userId },
+          activeServerId: 'server-2',
+          connectionMode: 'relay',
+        })
+      );
+
+      await useHubStore.getState().loadPersistedState();
+
+      expect(useHubStore.getState().session?.accessToken).toBe('vault-access');
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    });
+
+    it('a throwing sweep is fail-soft: session still hydrates from the vault, next load retries', async () => {
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(residueBlob);
+      // Whole-test implementation swap (not mockRejectedValueOnce): the outer
+      // beforeEach's mockResolvedValue overrides it next case, so an
+      // unconsumed rejection can never poison later suites under mutation.
+      (AsyncStorage.setItem as jest.Mock).mockImplementation(async () => {
+        throw new Error('async storage busy');
+      });
+
+      await expect(
+        useHubStore.getState().loadPersistedState()
+      ).resolves.toBeUndefined();
+
+      // The sweep ran and failed exactly once — no crash path around it.
+      expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
+      // The sweep is hygiene, never the credential source: hydration and the
+      // server fetch proceed on the vault pair despite the failed rewrite…
+      expect(useHubStore.getState().session?.accessToken).toBe('vault-access');
+      expect(mockedHubAuthService.hubAuthService.listServers).toHaveBeenCalled();
+      // …and nothing was removed — the unswept blob stays for the retry.
+      expect(AsyncStorage.removeItem).not.toHaveBeenCalledWith('phlix_hub_session');
+    });
+  });
+
   // ── M-MOBILE-18 (review mobile__gameux M-G) ──────────────────────────────
   // The switch law at the hubStore seam: server identity MOVES → caches are
   // dropped (cascade called through the serverScope seam) and `serverGeneration`

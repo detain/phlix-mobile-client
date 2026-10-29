@@ -56,6 +56,30 @@ interface HubState {
 
 const HUB_STORAGE_KEY = 'phlix_hub_session';
 
+/**
+ * The ONE sanctioned shape of the `phlix_hub_session` blob: the JWT pair NEVER
+ * lives inside it. Both writers — `persistSession` at issuance and
+ * `loadPersistedState`'s migration/crash-residue sweep — serialize through this
+ * builder so a sanitizing write can never drift into a token-bearing shape.
+ * The retained fields are exactly the server lane's non-secret classification
+ * (see SecureStorage's ISSUED_HOST_KEY docblock: endpoints and ids are
+ * configuration, the minted JWTs are the secrets): connection metadata plus
+ * the expiresAt/userId envelope the UI reads without the vault.
+ */
+function buildSanitizedHubBlob(
+  hubUrl: string,
+  session: { expiresAt: number; userId: string },
+  activeServerId: string | null,
+  connectionMode: ConnectionMode
+): string {
+  return JSON.stringify({
+    hubUrl,
+    session: { expiresAt: session.expiresAt, userId: session.userId },
+    activeServerId,
+    connectionMode,
+  });
+}
+
 export const useHubStore = create<HubState>((set, get) => {
   /**
    * The M-MOBILE-18 switch law in one place: when the active-server identity
@@ -242,32 +266,45 @@ export const useHubStore = create<HubState>((set, get) => {
           // existing session is never orphaned.
           let accessToken: string | null = await secureStorage.getHubAccessToken();
           let refreshToken: string | null = await secureStorage.getHubRefreshToken();
+          const legacyPair: { accessToken: string; refreshToken: string } | null =
+            typeof session.accessToken === 'string' &&
+            typeof session.refreshToken === 'string'
+              ? { accessToken: session.accessToken, refreshToken: session.refreshToken }
+              : null;
           if (!accessToken || !refreshToken) {
-            if (
-              typeof session.accessToken === 'string' &&
-              typeof session.refreshToken === 'string'
-            ) {
-              const legacyAccess: string = session.accessToken;
-              const legacyRefresh: string = session.refreshToken;
-              accessToken = legacyAccess;
-              refreshToken = legacyRefresh;
+            if (legacyPair) {
+              accessToken = legacyPair.accessToken;
+              refreshToken = legacyPair.refreshToken;
               try {
-                await secureStorage.storeHubTokens(legacyAccess, legacyRefresh);
+                await secureStorage.storeHubTokens(
+                  legacyPair.accessToken,
+                  legacyPair.refreshToken
+                );
                 await AsyncStorage.setItem(
                   HUB_STORAGE_KEY,
-                  JSON.stringify({
-                    hubUrl,
-                    session: {
-                      expiresAt: session.expiresAt,
-                      userId: session.userId,
-                    },
-                    activeServerId,
-                    connectionMode,
-                  })
+                  buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)
                 );
               } catch {
                 // Vault write failed — plaintext copy stays for retry.
               }
+            }
+          } else if (legacyPair) {
+            // Crash residue (M-MOBILE-20): an earlier pass committed the vault
+            // pair but died before the sanitizing rewrite — BOTH copies now
+            // exist. The vault wins (we hydrate from its pair above), and the
+            // plaintext half is redundant either way: sweep it, the same
+            // never-orphan order law as SecureStorage.migrateSlot's
+            // unconditional legacy removeItem once the secure side settled.
+            // A throwing rewrite is fail-soft: the blob stays for the next
+            // load to retry, and the session in memory carries the vault pair
+            // regardless — the sweep is hygiene, never the credential source.
+            try {
+              await AsyncStorage.setItem(
+                HUB_STORAGE_KEY,
+                buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)
+              );
+            } catch {
+              // Next load retries the sweep; the vault holds the pair.
             }
           }
           if (!accessToken || !refreshToken) {
@@ -352,13 +389,10 @@ async function persistSession(
 ): Promise<void> {
   const { connectionMode } = useHubStore.getState();
   await secureStorage.storeHubTokens(session.accessToken, session.refreshToken);
-  const data = JSON.stringify({
-    hubUrl,
-    session: { expiresAt: session.expiresAt, userId: session.userId },
-    activeServerId,
-    connectionMode,
-  });
-  await AsyncStorage.setItem(HUB_STORAGE_KEY, data);
+  await AsyncStorage.setItem(
+    HUB_STORAGE_KEY,
+    buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)
+  );
 }
 
 // Re-export for convenience
