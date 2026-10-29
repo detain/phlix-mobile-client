@@ -58,6 +58,30 @@ class PlaybackManager {
     });
   }
 
+  /**
+   * Finalize an item's playback in a session →
+   * POST /api/v1/sessions/{id}/complete → { message, reached_end }.
+   *
+   * `reachedEnd: true` (the natural end of the media) marks the item WATCHED
+   * server-side and drops it from Continue Watching while finalizing the
+   * watch-time stats; `false` clears the resume point instead. Progress ticks
+   * alone never leave the row in a finished state — this is the only end
+   * signal the server reads.
+   */
+  async completeSession(
+    sessionId: string,
+    mediaItemId: string,
+    reachedEnd = true,
+  ): Promise<void> {
+    await apiClient.post<{ message: string; reached_end: boolean }>(
+      `/sessions/${sessionId}/complete`,
+      {
+        media_item_id: mediaItemId,
+        reached_end: reachedEnd,
+      },
+    );
+  }
+
   /** End a playback session → DELETE /api/v1/sessions/{id} → { message }. */
   async endSession(sessionId: string): Promise<void> {
     await apiClient.delete<{ message: string }>(`/sessions/${sessionId}`);

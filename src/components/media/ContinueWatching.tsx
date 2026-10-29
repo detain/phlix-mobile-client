@@ -17,6 +17,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
+import { continueWatchingProgressPercent } from '../../utils/resumePositions';
 
 interface ContinueWatchingProps {
   items: MediaItem[];
@@ -35,10 +36,10 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
 }) => {
   const renderItem = ({ item }: { item: MediaItem }) => {
     const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
-    // Server `GET /users/me/continue-watching` provides `progress_percent`
-    // (0-100) directly. Do NOT fall back to `resume_position_ticks` — that's raw
-    // 100ns ticks, not a percentage.
-    const progress = item.progress_percent ?? 0;
+    // C17 (review mobile__gameux): the rail row carries `position_ticks` /
+    // `duration_ticks` (100ns ticks); there is NO server `progress_percent`
+    // on the wire — the old read of that phantom pinned the bar at 0% forever.
+    const progress = continueWatchingProgressPercent(item);
 
     return (
       <TouchableOpacity

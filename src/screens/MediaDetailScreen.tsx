@@ -25,6 +25,8 @@ import type { MediaRatings } from '@phlix/contracts';
 import { libraryManager } from '../api/LibraryManager';
 import { favoritesManager } from '../api/FavoritesManager';
 import { markerManager } from '../api/MarkerManager';
+import { userManager } from '../api/UserManager';
+import { buildResumeMap, ticksToSeconds } from '../utils/resumePositions';
 import { MediaItem, Season, Episode } from '../types/media';
 import type { Chapter } from '../types/playback';
 import {
@@ -78,6 +80,22 @@ const MediaDetailScreen: React.FC = () => {
   const [mediaRatings, setMediaRatings] = useState<MediaRatings | null>(null);
   // P2-S5: chapter markers from getPlaybackInfo()
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  // C17 (review mobile__gameux): media id → resume position in 100ns TICKS,
+  // indexed from `GET /users/me/continue-watching`. That rail is the ONLY
+  // server source of a per-item resume position — the detail payload's
+  // `user_data` is favorites/ratings only, and the `resume_position_ticks`
+  // this screen used to read was a client-fabricated field the server has
+  // never sent, so Resume/`hasResumePosition` were permanently dead.
+  const [resumeTicks, setResumeTicks] = useState<Record<string, number>>({});
+
+  // Best-effort: logged out / offline simply leaves the map empty (Play, no
+  // Resume — honest degradation, matching HomeScreen's rail fetch).
+  useEffect(() => {
+    userManager
+      .getContinueWatching()
+      .then((items) => setResumeTicks(buildResumeMap(items)))
+      .catch(() => setResumeTicks({}));
+  }, [itemId]);
 
   useEffect(() => {
     loadMediaDetails();
@@ -173,18 +191,18 @@ const MediaDetailScreen: React.FC = () => {
   };
 
   const handleResume = () => {
-    const resumePosition = item?.user_data?.resume_position_ticks
-      ? item.user_data.resume_position_ticks / 10000000
-      : 0;
-    navigation.navigate('Player', { itemId, startPosition: resumePosition });
+    // C17: resume position comes from the continue-watching rail ticks (the
+    // server's real wire field), converted TICKS → SECONDS at this boundary.
+    const resumeTicksForItem = itemId ? resumeTicks[itemId] ?? 0 : 0;
+    navigation.navigate('Player', { itemId, startPosition: ticksToSeconds(resumeTicksForItem) });
   };
 
   const handleEpisodePress = (episode: Episode) => {
     navigation.navigate('Player', {
       itemId: episode.id,
-      startPosition: episode.user_data?.resume_position_ticks
-        ? episode.user_data.resume_position_ticks / 10000000
-        : 0,
+      // Same rail map: an episode watched (on ANY device) resumes; the old
+      // `episode.user_data.resume_position_ticks` read was a phantom field.
+      startPosition: ticksToSeconds(resumeTicks[episode.id] ?? 0),
     });
   };
 
@@ -329,7 +347,10 @@ const MediaDetailScreen: React.FC = () => {
   }
 
   const isSeries = item.type === 'series';
-  const hasResumePosition = Boolean(item.user_data?.resume_position_ticks && item.user_data.resume_position_ticks > 0);
+  // C17: Resume replaces Play only when the server's continue-watching rail
+  // actually carries a position for this item (the phantom user_data read this
+  // replaces could never be true — nothing in the app ever POSTed progress).
+  const hasResumePosition = (resumeTicks[itemId] ?? 0) > 0;
   const stars = starsFromRating(rating);
   const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
 

@@ -21,6 +21,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { libraryManager } from '../api/LibraryManager';
 import { userManager } from '../api/UserManager';
 import { MediaItem } from '../types/media';
+import { ticksToSeconds } from '../utils/resumePositions';
 import { useAuthStore } from '../stores/useAuthStore';
 import { SafeContainer } from '../components/layout';
 import { MediaList } from '../components/media/MediaList';
@@ -99,12 +100,12 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleContinueWatchingPress = (item: MediaItem) => {
-    // position_ticks (continue-watching) and resume_position_ticks are 100ns
-    // ticks → divide by 10_000_000 for the player's start position (seconds).
-    const resumeTicks = item.position_ticks ?? item.user_data?.resume_position_ticks ?? 0;
+    // C17: `position_ticks` (100ns) is the ONLY resume field the server's
+    // continue-watching rail emits — the `user_data.resume_position_ticks`
+    // fallback this used to carry is a phantom the wire never sends.
     navigation.navigate('Player', {
       itemId: item.id,
-      startPosition: resumeTicks / 10000000,
+      startPosition: ticksToSeconds(item.position_ticks ?? 0),
     });
   };
 

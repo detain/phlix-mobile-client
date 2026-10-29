@@ -47,6 +47,7 @@ import {
 } from '../components/player/quality';
 import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
+import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
 import type { PlaybackEvent } from '../native/types';
 import { syncPlayService } from '../syncplay/SyncPlayService';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
@@ -163,6 +164,11 @@ const PlayerScreen: React.FC = () => {
   const currentPositionRef = useRef(startPosition);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  // C17 (review mobile__gameux): live mirrors of duration/isPlaying so the
+  // resume reporter can read truth at event boundaries (forced pause report,
+  // unmount flush) without stale closures — same pattern as currentPositionRef.
+  const durationRef = useRef(0);
+  const isPlayingRef = useRef(false);
   // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
   // a small "Offline" badge in the top bar.
   const [isOfflineMode, setIsOfflineMode] = useState(false);
@@ -334,6 +340,36 @@ const PlayerScreen: React.FC = () => {
   useEffect(() => {
     currentPositionRef.current = currentTime;
   }, [currentTime]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  // C17 (review mobile__gameux): quitting mid-play must not lose the tail the
+  // 15s throttle has not checkpointed yet. The reporter flushes its retained
+  // snapshot (refreshed from the live refs) on teardown — the phone's final
+  // position reaches the server so Resume/Continue-Watching see it. Live TV has
+  // no VOD resume semantics, so the whole lifecycle is skipped there.
+  useEffect(() => {
+    return () => {
+      if (isLiveStream) {
+        return;
+      }
+      playbackProgressReporter
+        .flush({
+          mediaItemId: itemId,
+          positionSeconds: currentPositionRef.current,
+          durationSeconds: durationRef.current,
+          paused: !isPlayingRef.current,
+        })
+        .catch(() => undefined);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemId]);
 
   useEffect(() => {
     if (showControls && isPlaying) {
@@ -648,14 +684,49 @@ const PlayerScreen: React.FC = () => {
       case 'play':
         setIsPlaying(true);
         playerSetIsPlaying(true);
+        // C17: a resumed tick bypasses the throttle so the server row flips
+        // out of `paused` at the transition, not at the next 15s window.
+        if (!isLiveStream) {
+          playbackProgressReporter
+            .report(
+              {
+                mediaItemId: itemId,
+                positionSeconds: ct ?? currentPositionRef.current,
+                durationSeconds: dur ?? durationRef.current,
+                paused: false,
+              },
+              true,
+            )
+            .catch(() => undefined);
+        }
         break;
       case 'pause':
         setIsPlaying(false);
         playerSetIsPlaying(false);
+        // C17: a pause is the resume point — capture it immediately.
+        if (!isLiveStream) {
+          playbackProgressReporter
+            .report(
+              {
+                mediaItemId: itemId,
+                positionSeconds: ct ?? currentPositionRef.current,
+                durationSeconds: dur ?? durationRef.current,
+                paused: true,
+              },
+              true,
+            )
+            .catch(() => undefined);
+        }
         break;
       case 'ended':
         setIsPlaying(false);
         playerSetIsPlaying(false);
+        // C17: the explicit finish signal (POST /sessions/{id}/complete,
+        // reached_end=true) — the only thing that marks the item watched,
+        // drops it from Continue Watching, and finalizes watch-time stats.
+        if (!isLiveStream) {
+          playbackProgressReporter.complete(itemId).catch(() => undefined);
+        }
         break;
       case 'buffering':
         // Could show buffering indicator
@@ -665,7 +736,7 @@ const PlayerScreen: React.FC = () => {
       setCurrentTime(ct);
       playerSetCurrentTime(ct);
     }
-  }, [playerSetCurrentTime, playerSetDuration, playerSetIsPlaying]);
+  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying]);
 
   const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
     const { currentTime: ct, duration: dur } = event.nativeEvent;
@@ -675,7 +746,19 @@ const PlayerScreen: React.FC = () => {
       setDuration(dur);
       playerSetDuration(dur);
     }
-  }, [duration, playerSetCurrentTime, playerSetDuration]);
+    // C17: every tick feeds the reporter; the session/throttle logic lives in
+    // the reporter (sub-floor and in-flight ticks are cheap no-ops there).
+    if (!isLiveStream) {
+      playbackProgressReporter
+        .report({
+          mediaItemId: itemId,
+          positionSeconds: ct,
+          durationSeconds: dur,
+          paused: !isPlayingRef.current,
+        })
+        .catch(() => undefined);
+    }
+  }, [duration, isLiveStream, itemId, playerSetCurrentTime, playerSetDuration]);
 
   const handlePlayerError = useCallback((event: NativeSyntheticEvent<{ error: string }>) => {
     const { error: errorMessage } = event.nativeEvent;

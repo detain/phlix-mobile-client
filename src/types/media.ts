@@ -74,11 +74,17 @@ export interface MediaItem {
   streams?: MediaStream[];
   /** Signed direct-play URL minted by the server on the detail payload. */
   stream_url?: string;
-  // Present on `GET /users/me/continue-watching` items (resume info).
-  /** 0–100 watched percentage (continue-watching). */
-  progress_percent?: number;
+  // Present on `GET /users/me/continue-watching` items (resume info). The
+  // server re-attaches these TOP-LEVEL after shaping
+  // (`PlaybackController::getContinueWatching`); there is NO
+  // `progress_percent` on the wire — percentages are derived client-side from
+  // the tick pair (see `utils/resumePositions`).
   /** Resume position in 100ns TICKS (continue-watching). */
   position_ticks?: number;
+  /** Full media length in 100ns TICKS (continue-watching). */
+  duration_ticks?: number;
+  /** The shaped row's media id, re-attached by the continue-watching rail. */
+  media_item_id?: string;
   /** ISO timestamp from `GET /users/me/recently-watched`. */
   watched_at?: string;
   /**
@@ -90,28 +96,29 @@ export interface MediaItem {
 }
 
 /**
- * Per-user data attached to a media item.
+ * Per-user data block the server attaches on `GET /media/{id}` (when
+ * authenticated; `null` for guests) and on each `GET /users/me/favorites`
+ * item. Wire truth is the server's `user_item_data` row — exactly these four
+ * fields (`WebPortalRouter::resolveUserData`, `MediaUserDataController`).
  *
- * Two overlapping shapes share this interface:
- *  - Continue-watching / resume info (`playback_position_ticks` /
- *    `resume_position_ticks` / `is_watched`).
- *  - The FAVORITES/RATINGS block the server now sends on `GET /media/{id}` and
- *    on each `GET /users/me/favorites` item (E10 favorites). On detail the
- *    server sends `user_data: { favorite: boolean, rating: number | null }`
- *    when authenticated, and `user_data: null` when unauthenticated — hence
- *    `favorite`/`rating` are typed below to match the server payload exactly.
+ * There are NO resume fields here: the server never sends
+ * `resume_position_ticks` / `playback_position_ticks` / `is_watched`. The
+ * resume position lives ONLY on the continue-watching rail rows (top-level
+ * `position_ticks`) — see `utils/resumePositions`.
  *
  * `rating` is the USER's 1–10 score and is `null` (not absent) when unset; it is
  * distinct from `MediaItem.rating`, which is the content-rating label string.
+ * `like_level` is the signed −2..2 thumbs axis (0 = not set).
  */
 export interface UserData {
-  playback_position_ticks?: number;
-  resume_position_ticks?: number;
-  is_watched?: boolean;
   /** User's 1–10 rating; `null`/absent when unrated (server `user_data.rating`). */
   rating?: number | null;
   /** Whether the user favorited this item (server `user_data.favorite`). */
   favorite?: boolean;
+  /** Signed −2..2 thumbs axis; 0 when unset (server `user_data.like_level`). */
+  like_level?: number;
+  /** Seen/unseen flag (server `user_data.watched`). */
+  watched?: boolean;
 }
 
 export interface Series extends MediaItem {

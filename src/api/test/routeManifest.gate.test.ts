@@ -176,7 +176,9 @@ const PER_MODULE_COVERAGE: Record<string, number> = {
   'src/api/MusicManager.ts': 7,
   'src/api/ParentalControlsManager.ts': 9,
   'src/api/PhotoManager.ts': 5,
-  'src/api/PlaybackManager.ts': 3,
+  // C17 (review mobile__gameux): +1 = the completeSession POST /sessions/{id}/complete
+  // site (watch finalize / history feed); manifest tuple check passes on it.
+  'src/api/PlaybackManager.ts': 4,
   'src/api/ProfileManager.ts': 7,
   'src/api/SyncPlayManager.ts': 4,
   'src/api/TranscodeManager.ts': 2,

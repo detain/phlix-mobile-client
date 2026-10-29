@@ -36,12 +36,15 @@ describe('UserManager', () => {
   });
 
   it('getContinueWatching GETs /users/me/continue-watching and unwraps { items }', async () => {
-    mockedClient.get.mockResolvedValue({ items: [{ id: 'm1', name: 'A', type: 'movie', progress_percent: 42 }] });
+    // Wire truth: rail rows carry TOP-LEVEL `position_ticks` (100ns). There is
+    // no server `progress_percent` on the wire — the fixture used to fabricate
+    // one (review mobile__gameux C-1: the client read fields that never land).
+    mockedClient.get.mockResolvedValue({ items: [{ id: 'm1', name: 'A', type: 'movie', position_ticks: 420_000_000 }] });
 
     const items = await userManager.getContinueWatching();
 
     expect(mockedClient.get).toHaveBeenCalledWith('/users/me/continue-watching');
-    expect(items[0].progress_percent).toBe(42);
+    expect(items[0].position_ticks).toBe(420_000_000);
   });
 
   it('getRecentlyWatched GETs /users/me/recently-watched and unwraps { items }', async () => {

@@ -64,6 +64,28 @@ describe('PlaybackManager', () => {
     });
   });
 
+  it('completeSession POSTs /sessions/{id}/complete with reached_end (the watch-history finalize)', async () => {
+    mockedClient.post.mockResolvedValue({ message: 'ok', reached_end: true });
+
+    await playbackManager.completeSession('sess-1', 'm1');
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/sessions/sess-1/complete', {
+      media_item_id: 'm1',
+      reached_end: true,
+    });
+  });
+
+  it('completeSession can signal stopped-early (reached_end=false clears the resume point)', async () => {
+    mockedClient.post.mockResolvedValue({ message: 'ok', reached_end: false });
+
+    await playbackManager.completeSession('sess-1', 'm1', false);
+
+    expect(mockedClient.post).toHaveBeenCalledWith('/sessions/sess-1/complete', {
+      media_item_id: 'm1',
+      reached_end: false,
+    });
+  });
+
   it('endSession DELETEs /sessions/{id} and clears the active session id', async () => {
     mockedClient.delete.mockResolvedValue({ message: 'ok' });
 

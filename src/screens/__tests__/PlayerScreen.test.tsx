@@ -213,6 +213,32 @@ jest.mock('../../store/syncplayStore', () => {
 });
 
 jest.mock('../../api/PlaybackManager', () => ({ playbackManager: { getStreamUrl: jest.fn() } }));
+// C17 (review mobile__gameux): PlayerScreen now drives the resume reporter at
+// every lifecycle point (progress ticks, play/pause transitions, ended,
+// unmount flush). The reporter's own semantics are pinned in
+// src/services/__tests__/PlaybackProgressReporter.test.ts; here we assert the
+// WIRING — that the screen actually calls it. The async fakes keep the real
+// call sites' `.catch(() => undefined)` chain safe.
+const mockReporterRouteParams = { itemId: 'm-1' };
+jest.mock('../../services/PlaybackProgressReporter', () => ({
+  playbackProgressReporter: {
+    report: jest.fn(async () => undefined),
+    flush: jest.fn(async () => undefined),
+    complete: jest.fn(async () => undefined),
+  },
+}));
+// The global route mock (jest.setup) hands PlayerScreen empty params; the C17
+// lifecycle assertions need a real itemId on the wire calls.
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useNavigation: () => ({
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+  }),
+  useRoute: () => ({
+    params: mockReporterRouteParams,
+  }),
+}));
 jest.mock('../../api/TranscodeManager', () => ({ transcodeManager: { prepare: jest.fn() } }));
 jest.mock('../../api/MarkerManager', () => ({ markerManager: { getPlaybackInfo: jest.fn() } }));
 jest.mock('../../services/DownloadService', () => ({
@@ -259,6 +285,8 @@ const mockPlayerStore = (jest.requireMock('../../stores/usePlayerStore') as any)
 };
 const mockPlaybackManager = (jest.requireMock('../../api/PlaybackManager') as any)
   .playbackManager as { getStreamUrl: jest.Mock };
+const mockReporter = (jest.requireMock('../../services/PlaybackProgressReporter') as any)
+  .playbackProgressReporter as { report: jest.Mock; flush: jest.Mock; complete: jest.Mock };
 const mockTranscodeManager = (jest.requireMock('../../api/TranscodeManager') as any)
   .transcodeManager as { prepare: jest.Mock };
 const mockMarkerManager = (jest.requireMock('../../api/MarkerManager') as any)
@@ -925,5 +953,84 @@ describe('PlayerScreen — H4/M5 room-gated connect with authenticated identity'
     const claimedIdentity = String(svc().connect.mock.calls[0][0]);
     expect(claimedIdentity).toBe('u-9'); // JWT subject, not itemId-derived
     expect(claimedIdentity).not.toMatch(/^mobile_/);
+  });
+});
+
+// ── C17 (review mobile__gameux): playback lifecycle reaches the reporter ───
+// The phone was a resume BLACK HOLE: PlayerScreen never told the server where
+// playback stood, so Continue Watching / Watch History / Resume stayed blind
+// to phone watching. The reporter owns the session/throttle/tick math (pinned
+// in PlaybackProgressReporter.test.ts); THESE pins assert the screen actually
+// calls it at the four lifecycle points: progress tick, play transition,
+// pause transition, natural end — and flushes the final position on teardown.
+// Breaking any one wiring (e.g. reverting the `ended` → complete call) reddens
+// exactly one test here.
+describe('PlayerScreen — C17 resume reporting wiring', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+  });
+
+  const firePlaybackEvent = (h: { host: HookHost }, nativeEvent: Record<string, unknown>) => {
+    const player = findPlayer(h.host.tree);
+    (player!.props.onPlaybackEvent as (e: unknown) => void)({ nativeEvent });
+  };
+  const fireProgress = (h: { host: HookHost }, currentTime: number, duration: number) => {
+    const player = findPlayer(h.host.tree);
+    (player!.props.onProgress as (e: unknown) => void)({
+      nativeEvent: { currentTime, duration },
+    });
+  };
+
+  it('every native progress tick is fed to the reporter in PLAYER SECONDS', async () => {
+    const h = await bootDirectPlay();
+    fireProgress(h, 137, 600);
+
+    expect(mockReporter.report).toHaveBeenCalledWith(
+      { mediaItemId: 'm-1', positionSeconds: 137, durationSeconds: 600, paused: true },
+    );
+  });
+
+  it('a native play transition forces a paused=false report', async () => {
+    const h = await bootDirectPlay();
+    firePlaybackEvent(h, { event: 'play', currentTime: 150, duration: 600 });
+
+    expect(mockReporter.report).toHaveBeenCalledWith(
+      { mediaItemId: 'm-1', positionSeconds: 150, durationSeconds: 600, paused: false },
+      true,
+    );
+  });
+
+  it('a native pause transition forces a paused=true report (the resume point)', async () => {
+    const h = await bootDirectPlay();
+    firePlaybackEvent(h, { event: 'pause', currentTime: 200, duration: 600 });
+
+    expect(mockReporter.report).toHaveBeenCalledWith(
+      { mediaItemId: 'm-1', positionSeconds: 200, durationSeconds: 600, paused: true },
+      true,
+    );
+  });
+
+  it('the natural end fires the COMPLETE signal (marks watched server-side)', async () => {
+    const h = await bootDirectPlay();
+    firePlaybackEvent(h, { event: 'ended', currentTime: 600, duration: 600 });
+
+    expect(mockReporter.complete).toHaveBeenCalledTimes(1);
+    expect(mockReporter.complete).toHaveBeenCalledWith('m-1');
+  });
+
+  it('unmounting mid-play flushes the LIVE position (no lost tail on quit)', async () => {
+    const h = await bootDirectPlay();
+    firePlaybackEvent(h, { event: 'play', currentTime: 100, duration: 600 });
+    h.rerender(); // commit isPlaying → the live mirrors sync
+    fireProgress(h, 245, 600);
+    h.rerender();
+
+    mockReporter.flush.mockClear();
+    h.host.unmount();
+
+    expect(mockReporter.flush).toHaveBeenCalledWith(
+      { mediaItemId: 'm-1', positionSeconds: 245, durationSeconds: 600, paused: false },
+    );
   });
 });
