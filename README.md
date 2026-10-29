@@ -3,7 +3,7 @@
 [![CI](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml/badge.svg)](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml)
 [![Version](https://img.shields.io/github/v/tag/detain/phlix-mobile-client?label=version&sort=semver)](https://github.com/detain/phlix-mobile-client/tags)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![React Native](https://img.shields.io/badge/React%20Native-0.76-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.85-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 A cross-platform mobile application for media playback, built with React Native. Phlix connects to your media server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
@@ -96,7 +96,7 @@ Before you begin, ensure you have the following installed:
 
 ### Common Requirements
 
-- **Node.js** (v18.x or later)
+- **Node.js** (v24 or later — matches `"engines": { "node": ">=24" }` and CI)
 - **npm** (v9.x or later) or **yarn** (v1.22.x or later)
 - **Git** (v2.x or later)
 
@@ -110,9 +110,9 @@ Before you begin, ensure you have the following installed:
 ### Android Development
 
 - **Android Studio** (latest stable version)
-- **Android SDK** (API level 24 or higher)
+- **Android SDK** (build platform API 36 — `compileSdk`/`targetSdk` in `android/build.gradle`; `minSdk` 24 is the device floor)
 - **Java Development Kit** (JDK 17 or higher)
-- **Gradle** (included via Android Studio)
+- **Gradle** (no install needed — the wrapper in `android/gradle/wrapper/` downloads Gradle 9.3.1)
 
 ## Installation
 
