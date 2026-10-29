@@ -36,7 +36,12 @@ const SyncPlayOverlay: React.FC<SyncPlayOverlayProps> = ({ onPress }) => {
       <View style={styles.content}>
         <Text style={styles.icon}>👥</Text>
         <View style={styles.info}>
-          <Text style={styles.roomName} numberOfLines={1}>
+          {/* M-MOBILE-14: the room name is the bar's ONLY unbounded string
+              (server-authored). It already truncates (numberOfLines 1 under a
+              maxWidth cap), so the full title never reaches the layout —
+              announce it to screen readers instead, the accessible-name
+              pattern for a truncated label. */}
+          <Text style={styles.roomName} numberOfLines={1} accessibilityLabel={currentGroup.name}>
             {currentGroup.name}
           </Text>
           <Text style={styles.memberCount}>
@@ -62,6 +67,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     minWidth: 80,
+    // M-MOBILE-14: lives in the player top bar cluster — never squish below
+    // its content (the room name truncates under its own maxWidth instead).
+    flexShrink: 0,
   },
   content: {
     flexDirection: 'row',

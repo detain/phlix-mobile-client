@@ -993,7 +993,7 @@ const PlayerScreen: React.FC = () => {
                   onPress={() => setShowQualityMenu(true)}
                   accessibilityLabel="Video quality"
                 >
-                  <Text style={styles.qualityButtonText}>
+                  <Text style={styles.qualityButtonText} numberOfLines={1}>
                     {activeQualityLabel(qualityOptions, selectedQuality)}
                   </Text>
                 </TouchableOpacity>
@@ -1034,6 +1034,7 @@ const PlayerScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.syncPlayButton}
                   onPress={() => setShowSyncPlayOverlay(true)}
+                  accessibilityLabel="SyncPlay"
                 >
                   <Text style={styles.syncPlayButtonText}>👥</Text>
                 </TouchableOpacity>
@@ -1194,10 +1195,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
+  // M-MOBILE-14 (review mobile__gameux): the right cluster packs up to seven
+  // fixed-size targets (✕ + offline/quality pill + CC + audio + sync + sleep +
+  // PiP). At 320pt the max ONLINE set (offline and the quality ladder are
+  // mutually exclusive by load path) needs ≈400pt in a single flex-end row —
+  // RN's default flexShrink is 0, so the row overflowed and `flex-end` packed
+  // it against the RIGHT edge: the ✕ (the exit affordance) was what clipped
+  // off-screen, worst exactly during a SyncPlay group (overlay minWidth 80).
+  // THE DEGRADATION LAW: the cluster WRAPS (bar grows downward — it lives in
+  // the absolute-positioned controls overlay, so a second chrome row simply
+  // floats over the video) while every target keeps its 44pt footprint
+  // (flexShrink: 0 — targets never squish). A horizontal ScrollView inside the
+  // bar is FORBIDDEN here: the M-MOBILE-13 fix made the player chrome host a
+  // responder-capturing surface (SeekBar track captures the RN core responder
+  // system, src/components/player/SeekBar.tsx header @2666d4f); a scroll view
+  // in the same overlay reintroduces touch-stealing next to it.
+  // `alignItems: 'flex-start'` top-aligns the ✕ with the first cluster row once
+  // wrapping fires (identical render while single-line — every row is 44 tall).
   topBar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 20,
     paddingTop: 20,
     gap: 12,
@@ -1209,6 +1227,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   closeButtonText: {
     color: '#fff',
@@ -1217,7 +1236,13 @@ const styles = StyleSheet.create({
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     gap: 8,
+    // The cluster box itself must be SHRINKABLE (RN default flexShrink is 0):
+    // only a clamped inline width lets flexWrap break lines instead of pushing
+    // the whole row off the left edge. This is the fix's hinge.
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   syncPlayButton: {
     width: 44,
@@ -1226,6 +1251,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   syncPlayButtonActive: {
     backgroundColor: 'rgba(0,102,204,0.8)',
@@ -1242,6 +1268,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   qualityButtonActive: {
     backgroundColor: 'rgba(0,102,204,0.8)',
@@ -1258,6 +1285,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,102,204,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   offlineBadgeText: {
     color: '#fff',

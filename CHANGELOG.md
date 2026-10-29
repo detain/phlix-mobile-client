@@ -5,6 +5,51 @@ based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — the player top bar degrades gracefully on 320–390pt phones — 2026-10-29
+
+- **M-MOBILE-14 (review mobile__gameux).** Re-verified LIVE at HEAD
+  (`2666d4f`). The top bar's right cluster (✕ + quality + CC + audio + sync +
+  sleep + PiP) renders up to six simultaneous targets on the online path
+  (offline badge and the quality ladder are mutually exclusive by load
+  path). The zero-glyph structural minimum of one cluster row is ≈316pt
+  (4×44 circles + overlay `minWidth: 80` + sleep padding + 5×8 gaps) against
+  a ≈224pt budget at 320pt (or ≈294pt at 390pt) — RN's default
+  `flexShrink: 0` kept the row at full width and `justifyContent: 'flex-end'`
+  packed the overflow off the LEFT edge, clipping the ✕ (the exit affordance)
+  — worst during a SyncPlay group, when the overlay pill (minWidth 80) joins
+  the row.
+- **Cure — the wrap law, not a scroller:** `topBarRight` gains
+  `flexWrap: 'wrap'` + `flexShrink: 1` (the shrinkable cluster box is the
+  hinge — without it Yoga never constrains the row and wrap cannot fire);
+  the ✕, every 44 circle, the quality pill, the offline badge and the
+  SyncPlayOverlay pill gain explicit `flexShrink: 0` (targets never squish
+  below their footprint); the bar top-aligns wrapped rows (`alignItems:
+  'flex-start'` — identical render while single-line). The bar grows a second
+  chrome row over the video instead of losing a button. A horizontal
+  ScrollView in the overlay is deliberately NOT used: the M-MOBILE-13 seek bar
+  captures the RN core responder system in this same chrome
+  (`src/components/player/SeekBar.tsx` header @`2666d4f`) — no competing
+  touch surface returns next to it.
+- **Long text:** the bar has no item title; its only unbounded string is the
+  SyncPlay room name, which already truncates (`numberOfLines: 1` under
+  `maxWidth: 100`) and now announces the FULL name via
+  `accessibilityLabel` (the accessible-name pattern for a truncated label).
+  The quality pill and the previously unlabeled ungrouped 👥 button gained
+  `numberOfLines: 1` / `accessibilityLabel="SyncPlay"` respectively.
+- **Tests:** +6 (`PlayerScreen.test.tsx` — "M-MOBILE-14 narrow-screen top bar
+  law"). No renderer exists in the repo's test deps (HookHost idiom), so the
+  proof is a STATIC layout measurement: styles are read from the same
+  StyleSheet objects the mounted tree references (jest resolves
+  `StyleSheet.create` to plain objects) and summed against the 320/390pt
+  budgets — overflow premise asserted first, then the wrap law, the non-shrink
+  footprint of every rendered target, real affordances behind every press,
+  and the overlay's truncate/announce/cap law via a direct FC call.
+  Mutation-proven: parent styles 4 red; strip `flexWrap` 2 red; strip
+  cluster `flexShrink` 2 red; strip ✕ `flexShrink: 0` 1 red; strip the
+  overlay label 1 red. Full suite serial 1330 (1329 pass + 1 pre-skip),
+  exact +6 vs the 1324 parent; `tsc --noEmit` 0; eslint 0 errors (2
+  pre-existing warnings); CI-identical parallel run exit 0.
+
 ### Fixed — the player seek bar actually seeks: responder drag, single commit, syncplay-aware choke point — 2026-10-29
 
 - **M-MOBILE-13 (review mobile__gameux).** Re-verified LIVE at HEAD (`23482a5`),

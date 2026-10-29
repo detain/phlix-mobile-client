@@ -35,6 +35,8 @@ import { Alert as RNAlert } from 'react-native';
 import type { AudioTrack, SubtitleTrack } from '../../types/playback';
 import { SubtitleTrackList } from '../../components/player/SubtitleTrackList';
 import { AudioTrackList } from '../../components/player/AudioTrackList';
+import { SleepTimerMenu, SleepTimerDisplay } from '../../components/player/SleepTimer';
+import { SyncPlayOverlay } from '../../components/syncplay';
 
 // ── controlled hook host ──────────────────────────────────────────────────
 // A minimal, single-component hooks runtime. Slots are keyed by call order,
@@ -1112,5 +1114,250 @@ describe('PlayerScreen — M-MOBILE-13 syncplay-aware seek routing', () => {
 
     expect(mockSyncPlaySvc().sendSeek).not.toHaveBeenCalled();
     expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(480);
+  });
+});
+
+// ── M-MOBILE-14 (review mobile__gameux): the top bar survives 320–390pt ───
+// The bar packs ✕ + up to six right-cluster targets; at 320pt the row's
+// structural minimum (≈312pt, computed below IGNORING all glyph widths) blew
+// past the ≈224pt cluster budget, and RN's flexShrink:0 default +
+// `justifyContent: 'flex-end'` packed the overflow off the LEFT edge — the ✕
+// (the exit affordance) clipped, worst during a SyncPlay group. The cure is
+// the degradation law in `styles.topBar*` (flexWrap + shrinkable cluster box
+// + non-shrinking targets), NOT a ScrollView (the M-MOBILE-13 responder
+// SeekBar owns touch in this overlay — see src/components/player/SeekBar.tsx
+// header @2666d4f).
+//
+// There is NO renderer in this repo's test deps, so the fit proof is a
+// STATIC LAYOUT MEASUREMENT: widths, paddings and gaps are read from the very
+// StyleSheet objects the mounted tree references (jest resolves
+// StyleSheet.create to plain objects) and summed against the device budget.
+// Reverting any law line turns the corresponding assertion red (the parent
+// shipped none of it) — mutation-proven, see fixlog.
+describe('PlayerScreen — M-MOBILE-14 narrow-screen top bar law', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    mockSyncplayStore.currentGroup = null;
+    mockSyncplayStore.isHost = false;
+  });
+
+  /** StyleSheet props arrive as object | array | falsy — fold to one record. */
+  const flat = (style: unknown): Record<string, unknown> => {
+    if (!style) return {};
+    if (Array.isArray(style)) {
+      return style.reduce<Record<string, unknown>>(
+        (acc, s) => Object.assign(acc, flat(s)),
+        {},
+      );
+    }
+    return style as Record<string, unknown>;
+  };
+
+  /** Ancestor chain (root → match) for the first node satisfying pred. */
+  function findPath(node: unknown, pred: (el: El) => boolean, trail: El[] = []): El[] | null {
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const r = findPath(child, pred, trail);
+        if (r) return r;
+      }
+      return null;
+    }
+    if (isEl(node)) {
+      const next = [...trail, node];
+      if (pred(node)) return next;
+      return findPath(node.props.children, pred, next);
+    }
+    return null;
+  }
+
+  /** The ✕ Text is bar-local identity: climb from it to (closeButton, topBar). */
+  function barParts(tree: unknown): { close: El; topBar: El; cluster: El } {
+    const path = findPath(tree, (el) => el.props.children === '✕');
+    expect(path).not.toBeNull();
+    const close = path![path!.length - 2];
+    const topBar = path![path!.length - 3];
+    const cluster = (Array.isArray(topBar.props.children) ? topBar.props.children : [])
+      .filter(isEl)
+      .find((c) => c !== close);
+    expect(cluster).toBeDefined();
+    return { close, topBar, cluster: cluster as El };
+  }
+
+  // Max crowded ONLINE state: ladder (quality pill) + subtitle rail (CC) +
+  // audio rail (🎧) + group (SyncPlayOverlay pill) + running sleep timer
+  // (countdown badge) + PiP = the full six-child right cluster. The offline
+  // badge is EXCLUSIVE with the ladder by load path (a local file never
+  // transcodes), so seven-simultaneous is unreachable — six is the worst set.
+  async function bootMaxCrowding() {
+    mockMarkerManager.getPlaybackInfo.mockResolvedValue(GOLDEN_PLAYBACK_INFO);
+    mockSyncplayStore.currentGroup = {
+      id: 'sp_bar14',
+      name: 'The Very Long Room Name Of Endless Wonder',
+      members: [],
+      hostId: 'u-bar14',
+    };
+    mockSyncplayStore.isHost = false;
+    const h = mount();
+    h.render();
+    await flush();
+    h.rerender();
+    // Ladder WITH one subtitle row so the transcode rail keeps CC alive.
+    mockTranscodeManager.prepare.mockReturnValue({
+      promise: Promise.resolve({
+        ...LADDER,
+        subtitles: [{ language: 'en', url: 'https://cdn.example/sub_en.vtt?sig=x' }],
+      }),
+      cancel: jest.fn(),
+    });
+    (findPlayer(h.host.tree)!.props.onError as (e: unknown) => void)({
+      nativeEvent: { error: 'boom' },
+    });
+    await flush();
+    h.rerender();
+    // Start the sleep timer so the countdown badge replaces the 🌙 button.
+    const menu = findEl(h.host.tree, (el) => el.type === SleepTimerMenu);
+    (menu!.props.onSelect as (m: number) => void)(15);
+    h.rerender();
+    return h;
+  }
+
+  it('the cluster box wraps and shrinks; the row packs right and top-aligns', async () => {
+    const h = await bootMaxCrowding();
+    const { topBar, cluster } = barParts(h.host.tree);
+
+    const bar = flat(topBar.props.style);
+    expect(bar.flexDirection).toBe('row');
+    expect(bar.justifyContent).toBe('flex-end');
+    expect(bar.alignItems).toBe('flex-start'); // ✕ top-aligns the first wrap row
+    expect(bar.paddingHorizontal).toBe(20);
+    expect(bar.gap).toBe(12);
+
+    const right = flat(cluster.props.style);
+    expect(right.flexDirection).toBe('row');
+    expect(right.flexWrap).toBe('wrap');
+    expect(right.flexShrink).toBe(1); // THE hinge: shrinkable box lets wrap fire
+    expect(right.justifyContent).toBe('flex-end');
+    expect(right.gap).toBe(8);
+  });
+
+  it('the full six-target cluster renders, and every target keeps a pressable 44pt+ footprint', async () => {
+    const h = await bootMaxCrowding();
+    const { close, cluster } = barParts(h.host.tree);
+
+    // All six members present in the tree (component-reference identity).
+    const kids = (Array.isArray(cluster.props.children) ? cluster.props.children : [])
+      .filter(isEl);
+    expect(kids.some((k) => k.props.accessibilityLabel === 'Video quality')).toBe(true);
+    expect(kids.some((k) => k.props.accessibilityLabel === 'Subtitles')).toBe(true);
+    expect(kids.some((k) => k.props.accessibilityLabel === 'Audio tracks')).toBe(true);
+    expect(kids.some((k) => k.type === SyncPlayOverlay)).toBe(true);
+    expect(kids.some((k) => k.type === SleepTimerDisplay)).toBe(true);
+    expect(kids.some((k) => k.props.accessibilityLabel === 'Picture in picture')).toBe(true);
+
+    // Non-shrink law on the ✕ and every INLINE-styled target (the two pill
+    // components enforce theirs in their own style sheets — asserted below).
+    expect(flat(close.props.style).flexShrink).toBe(0);
+    for (const k of kids) {
+      if (k.type === SyncPlayOverlay || k.type === SleepTimerDisplay) continue;
+      expect(flat(k.props.style).flexShrink).toBe(0);
+    }
+
+    // Hittable: every rendered target carries a real press handler.
+    for (const k of kids) {
+      expect(typeof k.props.onPress).toBe('function');
+    }
+    expect(typeof close.props.onPress).toBe('function');
+  });
+
+  it('static 320pt measurement: overflow premise is real, the wrap law resolves it', async () => {
+    const h = await bootMaxCrowding();
+    const { topBar, cluster } = barParts(h.host.tree);
+    const bar = flat(topBar.props.style);
+    const right = flat(cluster.props.style);
+    const kids = (Array.isArray(cluster.props.children) ? cluster.props.children : [])
+      .filter(isEl);
+
+    // Device budgets (logical pt; topBar spans the full width edge-to-edge
+    // inside the absolute overlay, safe-area insets only cost vertical space).
+    const NARROWEST = 320; // iPhone SE (1st gen) class
+    const mainstreamMax = 390; // iPhone 14/15, Pixel 7 class
+    const structural = (bar.paddingHorizontal as number) * 2 + 44 /* ✕ */ + (bar.gap as number);
+
+    // ZERO-Glyph structural minimum of one row (TEXT WIDTHS DELIBERATELY
+    // EXCLUDED — the premise must not depend on font metrics):
+    // 4 inline 44 circles + overlay minWidth + sleep badge paddingH only.
+    const oneRowMin =
+      kids.length * (right.gap as number) - (right.gap as number) +
+      44 * 4 + // CC, audio, PiP, quality (quality: minWidth 44)
+      80 + // SyncPlayOverlay minWidth
+      10 * 2; // SleepTimerDisplay paddingHorizontal, no text
+    const clusterBudgetAt = (w: number) => w - structural;
+
+    // PREMISE (the bug, style-mathematically): one row exceeds the cluster
+    // budget even at 390pt…
+    expect(oneRowMin).toBeGreaterThan(clusterBudgetAt(mainstreamMax));
+    expect(oneRowMin).toBeGreaterThan(clusterBudgetAt(NARROWEST));
+    // …and on the parent the cluster could neither shrink nor wrap (both law
+    // lines below were absent → RN default flexShrink 0 + flexWrap nowrap →
+    // the overflow packed off the left edge and clipped the ✕).
+    expect(right.flexWrap).toBe('wrap');
+    expect(right.flexShrink).toBe(1);
+    // RESOLUTION: with wrapping, clipping is impossible iff every single
+    // target fits the narrowest cluster line by itself.
+    for (const w of [NARROWEST, mainstreamMax]) {
+      expect(44).toBeLessThanOrEqual(clusterBudgetAt(w));
+      expect(80).toBeLessThanOrEqual(clusterBudgetAt(w));
+    }
+  });
+
+  it('bar presses drive their real affordances (CC picker, quality menu)', async () => {
+    const h = await bootMaxCrowding();
+    const { cluster } = barParts(h.host.tree);
+    const kids = (Array.isArray(cluster.props.children) ? cluster.props.children : [])
+      .filter(isEl);
+
+    const cc = kids.find((k) => k.props.accessibilityLabel === 'Subtitles')!;
+    (cc.props.onPress as () => void)();
+    h.rerender();
+    expect(findRailModal(h.host.tree, SubtitleTrackList)!.props.visible).toBe(true);
+
+    const quality = kids.find((k) => k.props.accessibilityLabel === 'Video quality')!;
+    (quality.props.onPress as () => void)();
+    h.rerender();
+    expect(findQualityMenu(h.host.tree)!.props.visible).toBe(true);
+  });
+
+  it('SyncPlayOverlay: long room name truncates under its cap, full title stays announced, pill never squishes', () => {
+    const LONG = 'The Very Long Room Name Of Endless Wonder — Season 4 Finale Watch Party';
+    // The component reads the mocked store at CALL time (plain FC — no
+    // renderer needed): set the group, then invoke.
+    mockSyncplayStore.currentGroup = { id: 'sp_ov', name: LONG, members: [], hostId: 'u' };
+    const tree = (SyncPlayOverlay as unknown as (p: { onPress: () => void }) => unknown)({
+      onPress: () => undefined,
+    });
+
+    const path = findPath(tree, (el) => el.props.children === LONG);
+    expect(path).not.toBeNull();
+    const name = path![path!.length - 1];
+    expect(name.props.numberOfLines).toBe(1); // truncates instead of pushing
+    expect(name.props.accessibilityLabel).toBe(LONG); // FULL title still announced
+    const nameStyle = flat(name.props.style);
+    expect(typeof nameStyle.maxWidth).toBe('number'); // bounded growth
+    expect(nameStyle.maxWidth as number).toBeLessThanOrEqual(100);
+
+    // Container: non-shrink + a bounded min so the fit math above stays honest.
+    const container = path![0];
+    const containerStyle = flat(container.props.style);
+    expect(containerStyle.flexShrink).toBe(0);
+    expect(containerStyle.minWidth).toBe(80);
+  });
+
+  it('ungrouped 👥 button carries its accessibility label and a press handler', async () => {
+    const h = await bootDirectPlay();
+    const groupButton = findButton(h.host.tree, 'SyncPlay');
+    expect(groupButton).not.toBeNull();
+    expect(typeof groupButton!.props.onPress).toBe('function');
+    expect(flat(groupButton!.props.style).flexShrink).toBe(0);
   });
 });
