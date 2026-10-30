@@ -96,27 +96,47 @@ const DownloadItemRow: React.FC<{
       </View>
       <View style={styles.actions}>
         {isPaused && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onResume(task.id)}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => onResume(task.id)}
+            accessibilityLabel="Resume download"
+          >
             <Text style={styles.actionBtnText}>▶️</Text>
           </TouchableOpacity>
         )}
         {isDownloading && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onPause(task.id)}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => onPause(task.id)}
+            accessibilityLabel="Pause download"
+          >
             <Text style={styles.actionBtnText}>⏸️</Text>
           </TouchableOpacity>
         )}
         {isFailed && (
-          <TouchableOpacity style={styles.actionBtn} onPress={() => onRetry(task.id)}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => onRetry(task.id)}
+            accessibilityLabel="Retry download"
+          >
             <Text style={styles.actionBtnText}>🔄</Text>
           </TouchableOpacity>
         )}
         {(isQueued || isDownloading || isPaused) && (
-          <TouchableOpacity style={styles.actionBtn} onPress={handleCancel}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleCancel}
+            accessibilityLabel="Cancel download"
+          >
             <Text style={styles.actionBtnText}>✕</Text>
           </TouchableOpacity>
         )}
         {isCompleted && (
-          <TouchableOpacity style={styles.actionBtn} onPress={handleDelete}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={handleDelete}
+            accessibilityLabel="Delete download"
+          >
             <Text style={styles.actionBtnText}>🗑️</Text>
           </TouchableOpacity>
         )}
@@ -219,7 +239,9 @@ const styles = StyleSheet.create({
   progressText: { color: '#888', fontSize: 12, minWidth: 38 },
   statusText: { fontSize: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#2d2d44', justifyContent: 'center', alignItems: 'center' },
+  // M-MOBILE-46 (review mobile__gameux): 36pt row actions under the 44pt
+  // platform floor, all now carrying screen-reader labels.
+  actionBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2d2d44', justifyContent: 'center', alignItems: 'center' },
   actionBtnText: { fontSize: 16 },
 });
 

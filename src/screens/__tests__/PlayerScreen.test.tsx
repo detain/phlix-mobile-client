@@ -31,7 +31,7 @@
 // wiring (feed → store → picker props / native `subtitleUrl` prop).
 
 import { AUTO_QUALITY } from '@phlix/contracts';
-import { Alert as RNAlert } from 'react-native';
+import { Alert as RNAlert, Platform as RNPlatform } from 'react-native';
 import type { AudioTrack, SubtitleTrack } from '../../types/playback';
 import { SubtitleTrackList } from '../../components/player/SubtitleTrackList';
 import { AudioTrackList } from '../../components/player/AudioTrackList';
@@ -1461,6 +1461,12 @@ describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
   it('toggle OFF (default) → the wire is never even asked; stop-behavior holds', async () => {
     installWire(wireItem(EPISODE_M1) as never);
     const h = await bootDirectPlay();
+    // M-MOBILE-44 added a boot-time title read (getMediaItem(itemId)) to the
+    // screen's lifecycle; the autoplay-arm law below is about the ENDED arm,
+    // so clear the boot read before counting. (Live-title discipline is a
+    // separate assertion; see the E8 case, which never clears because the
+    // boot read is gated OFF for streams.)
+    mockLibrary.getMediaItem.mockClear();
     fireEnded(h);
     await flush();
     expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
@@ -1483,6 +1489,7 @@ describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
     mockSettings.autoPlayNextEpisode = true;
     mockLibrary.getMediaItem.mockRejectedValue(new Error('500 from the wire'));
     const h = await bootDirectPlay();
+    mockLibrary.getMediaItem.mockClear(); // boot title read (rejected, swallowed) is not an autoplay attempt
     fireEnded(h);
     await flush();
     fireEnded(h); // a second 'ended' for the same item must NOT retry-storm
@@ -1495,6 +1502,7 @@ describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
     mockSettings.autoPlayNextEpisode = true;
     installWire(wireItem(EPISODE_M1) as never);
     const h = await bootDirectPlay();
+    mockLibrary.getMediaItem.mockClear(); // see boot-read note above
     fireEnded(h);
     await flush();
     fireEnded(h);
@@ -1538,6 +1546,7 @@ describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
     mockSyncplayStore.currentGroup = { id: 'g-1', name: 'watch party' };
     installWire(wireItem(EPISODE_M1) as never);
     const h = await bootDirectPlay();
+    mockLibrary.getMediaItem.mockClear(); // boot title read is not a group-aware autoplay read
     fireEnded(h);
     await flush();
     expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
@@ -1555,5 +1564,104 @@ describe('PlayerScreen — M-MOBILE-15 autoplay-next wiring', () => {
     expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
     expect(mockNavigation.replace).not.toHaveBeenCalled();
     expect(mockReporter.complete).not.toHaveBeenCalled();
+  });
+});
+
+// ── M-MOBILE-44 (review mobile__gameux): the chrome says WHAT plays and
+// every control names itself to screen readers ─────────────────────────────
+// Pre-cure the player carried no title anywhere (liveTitle was a dead route
+// param; on-demand items never surfaced their name) and the ✕/play/±15 glyphs
+// were unlabeled emoji-text buttons. Law: title comes from liveTitle on the
+// live lane (NO catalog read — the E8 lifecycle stays read-free, pinned by
+// the M-MOBILE-15 suite's untouched "no wire reads" case) or from ONE
+// fail-soft getMediaItem(itemId) on the on-demand lane; a failed/absent
+// lookup renders no title, never an error.
+describe('PlayerScreen — M-MOBILE-44 title + control labels', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    delete mockReporterRouteParams.liveTitle;
+    mockLibrary.getMediaItem.mockReset();
+  });
+
+  const titleEl = (tree: unknown) =>
+    findEl(tree, (el) => el.props.testID === 'playerMediaTitle');
+  const labeled = (tree: unknown, label: string) =>
+    findEl(tree, (el) => el.props.accessibilityLabel === label);
+
+  it('liveTitle param renders verbatim and the catalog is NEVER asked', async () => {
+    mockReporterRouteParams.streamUrl = 'https://live.example/cam.m3u8';
+    mockReporterRouteParams.liveTitle = 'Friday Night Live';
+    const h = await bootDirectPlay();
+    expect(titleEl(h.host.tree)?.props.children).toBe('Friday Night Live');
+    expect(mockLibrary.getMediaItem).not.toHaveBeenCalled();
+    delete mockReporterRouteParams.streamUrl;
+  });
+
+  it('on-demand boot resolves the title from ONE getMediaItem(itemId) read', async () => {
+    mockLibrary.getMediaItem.mockImplementation(async () => ({
+      id: 'm-1',
+      name: 'Big Buck Bunny',
+    }));
+    const h = await bootDirectPlay();
+    await flush();
+    h.rerender();
+    expect(titleEl(h.host.tree)?.props.children).toBe('Big Buck Bunny');
+    expect(mockLibrary.getMediaItem).toHaveBeenCalledTimes(1);
+    expect(mockLibrary.getMediaItem).toHaveBeenCalledWith('m-1');
+  });
+
+  it('a failing lookup degrades to NO title — silent, never an error arm', async () => {
+    mockLibrary.getMediaItem.mockRejectedValue(new Error('500 from the wire'));
+    const h = await bootDirectPlay();
+    await flush();
+    h.rerender();
+    expect(titleEl(h.host.tree)).toBeNull();
+  });
+
+  it('✕, ±15 and play/pause carry screen-reader labels; the toggle flips live', async () => {
+    const h = await bootDirectPlay();
+    expect(labeled(h.host.tree, 'Close player')).not.toBeNull();
+    expect(labeled(h.host.tree, 'Rewind 15 seconds')).not.toBeNull();
+    expect(labeled(h.host.tree, 'Forward 15 seconds')).not.toBeNull();
+    const pp = labeled(h.host.tree, 'Play');
+    expect(pp).not.toBeNull();
+    (pp!.props.onPress as () => void)();
+    h.rerender();
+    expect(labeled(h.host.tree, 'Pause')).not.toBeNull();
+    expect(labeled(h.host.tree, 'Play')).toBeNull();
+  });
+});
+
+// ── M-MOBILE-02 (review mobile__casualgamer): the 📺 PiP control is not
+// decorative on Android any more ───────────────────────────────────────────
+// Android's native receiveCommand handles ONLY play|pause|seekTo|setVolume|
+// setMuted (PhlixPlayerViewManager.kt:56-75 — `startPiP` matches no branch),
+// so before this cure the button existed on Android to silently do nothing
+// (finding: "renders unconditionally … on Android it's decorative"). The
+// button is now an iOS-only affordance: the iOS PiP surface genuinely exists
+// (PhlixPlayerView.swift). The full Android background story (MediaSession /
+// foreground service) stays feature-scale and is disclosed in the README.
+describe('PlayerScreen — M-MOBILE-02 PiP affordance is iOS-only', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    (RNPlatform as unknown as { OS: 'ios' | 'android' }).OS = 'ios';
+  });
+
+  const pipEl = (tree: unknown) =>
+    findEl(tree, (el) => el.props.accessibilityLabel === 'Picture in picture');
+
+  it('iOS boot renders the PiP control (gate is platform, not removal)', async () => {
+    const h = await bootDirectPlay();
+    expect(pipEl(h.host.tree)).not.toBeNull();
+  });
+
+  it('Android boot renders NO PiP control — the decorative affordance is gone', async () => {
+    (RNPlatform as unknown as { OS: 'ios' | 'android' }).OS = 'android';
+    const h = await bootDirectPlay();
+    expect(pipEl(h.host.tree)).toBeNull();
+    // The rest of the top cluster still renders (this is a gate, not a wipe).
+    expect(findEl(h.host.tree, (el) => el.props.accessibilityLabel === 'Close player')).not.toBeNull();
   });
 });

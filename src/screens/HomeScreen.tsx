@@ -134,6 +134,8 @@ const HomeScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.profilesButton}
           onPress={() => navigation.navigate('Profiles')}
+          accessibilityLabel="Switch profile"
+          accessibilityRole="button"
         >
           <Text style={styles.profilesButtonText}>👤</Text>
         </TouchableOpacity>
@@ -207,10 +209,12 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 4,
   },
+  // M-MOBILE-38 (review mobile__gameux): 40pt sat below the platform's 44pt
+  // touch minimum.
   profilesButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#2d2d44',
     justifyContent: 'center',
     alignItems: 'center',

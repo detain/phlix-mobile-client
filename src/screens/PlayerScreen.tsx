@@ -19,12 +19,14 @@ import {
   NativeSyntheticEvent,
   findNodeHandle,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { playbackManager } from '../api/PlaybackManager';
 import { transcodeManager } from '../api/TranscodeManager';
 import { markerManager } from '../api/MarkerManager';
+import { libraryManager } from '../api/LibraryManager';
 import type { PrepareHandle } from '../api/TranscodeManager';
 import { usePlayerStore } from '../stores/usePlayerStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -143,10 +145,33 @@ type PlayerRouteParams = {
 const PlayerScreen: React.FC = () => {
   const route = useRoute<RouteProp<PlayerRouteParams, 'Player'>>();
   const navigation = useNavigation();
-  const { itemId, startPosition = 0, streamUrl: directStreamUrl } = route.params;
+  const { itemId, startPosition = 0, streamUrl: directStreamUrl, liveTitle } =
+    route.params;
   // E8: live-stream mode is driven SOLELY by a present `streamUrl` param — the
   // existing itemId playback path is untouched when this is absent.
   const isLiveStream = typeof directStreamUrl === 'string' && directStreamUrl !== '';
+
+  // M-MOBILE-44: the chrome never said WHAT is playing. Live streams carry
+  // their display title as a route param (liveTitle — previously dead copy);
+  // on-demand titles are resolved in-player from itemId so no caller has to
+  // thread the string through every navigate() site. Fail-soft: an offline
+  // download or a failed lookup simply renders no title, never an error.
+  const [mediaTitle, setMediaTitle] = useState<string | null>(liveTitle ?? null);
+  useEffect(() => {
+    if (liveTitle || isLiveStream || !itemId) return undefined;
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => libraryManager.getMediaItem(itemId))
+      .then((item) => {
+        if (!cancelled && item && typeof item.name === 'string' && item.name) {
+          setMediaTitle(item.name);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [itemId, liveTitle, isLiveStream]);
 
   // Player state
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
@@ -1022,9 +1047,19 @@ const PlayerScreen: React.FC = () => {
       {showControls && (
         <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]}>
           <View style={styles.topBar}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => navigation.goBack()}
+              accessibilityLabel="Close player"
+            >
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
+
+            {mediaTitle ? (
+              <Text testID="playerMediaTitle" style={styles.topBarTitle} numberOfLines={1}>
+                {mediaTitle}
+              </Text>
+            ) : null}
 
             <View style={styles.topBarRight}>
               {/* E4: offline badge — shown when playing a local downloaded file */}
@@ -1104,30 +1139,48 @@ const PlayerScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* P3-S4: Picture-in-Picture button */}
-              <TouchableOpacity
-                style={styles.syncPlayButton}
-                onPress={handleStartPiP}
-                accessibilityLabel="Picture in picture"
-              >
-                <Text style={styles.syncPlayButtonText}>📺</Text>
-              </TouchableOpacity>
+              {/* P3-S4: Picture-in-Picture button. M-MOBILE-02 (review
+                  mobile__casualgamer): Android's native receiveCommand
+                  implements only play|pause|seekTo|setVolume|setMuted
+                  (PhlixPlayerViewManager.kt) — a tap here dispatched a
+                  command no branch matched, so the control was decorative
+                  there. It is now iOS-only, where PiP genuinely exists
+                  (PhlixPlayerView.swift); the README discloses the Android
+                  background/MediaSession gap as feature-scale. */}
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity
+                  style={styles.syncPlayButton}
+                  onPress={handleStartPiP}
+                  accessibilityLabel="Picture in picture"
+                >
+                  <Text style={styles.syncPlayButtonText}>📺</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           <View style={styles.centerControls}>
-            <TouchableOpacity style={styles.seekButton} onPress={handleSeekBackward}>
+            <TouchableOpacity
+              style={styles.seekButton}
+              onPress={handleSeekBackward}
+              accessibilityLabel="Rewind 15 seconds"
+            >
               <Text style={styles.seekButtonText}>-15</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.playPauseButton}
               onPress={handlePlayPause}
+              accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
             >
               <Text style={styles.playPauseButtonText}>{isPlaying ? '⏸' : '▶'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.seekButton} onPress={handleSeekForward}>
+            <TouchableOpacity
+              style={styles.seekButton}
+              onPress={handleSeekForward}
+              accessibilityLabel="Forward 15 seconds"
+            >
               <Text style={styles.seekButtonText}>+15</Text>
             </TouchableOpacity>
           </View>
@@ -1279,6 +1332,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  topBarTitle: {
+    flex: 1,
+    marginTop: 10,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   closeButtonText: {
     color: '#fff',

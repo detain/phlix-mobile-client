@@ -46,6 +46,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onChangeText('');
               onClear?.();
             }}
+            // M-MOBILE-46: the ✕ is ~30pt laid out; slop lifts the touch
+            // rect past 44 without resizing the glyph.
+            accessibilityLabel="Clear search"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.clearButtonText}>✕</Text>
           </TouchableOpacity>

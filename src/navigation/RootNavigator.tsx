@@ -11,6 +11,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../stores/useAuthStore';
 import {
@@ -130,7 +131,13 @@ const LibraryStackNavigator = () => (
 );
 
 // Tab Navigator
-const TabNavigator = () => (
+// M-MOBILE-36 (review mobile__gameux): the fixed 60/8 box ignored the device
+// bottom inset, so on gesture-home phones the home indicator sat ON the tab
+// labels and clipped the lowest points of the targets. The bar now GROWS by
+// the inset (paddingBottom carries it; height follows) instead of fighting it.
+const TabNavigator = () => {
+  const insets = useSafeAreaInsets();
+  return (
   <Tab.Navigator
     id={undefined}
     screenOptions={({ route }) => ({
@@ -138,8 +145,8 @@ const TabNavigator = () => (
       tabBarStyle: {
         backgroundColor: '#1a1a2e',
         borderTopColor: '#2d2d44',
-        height: 60,
-        paddingBottom: 8,
+        height: 60 + Math.max(0, insets.bottom - 8),
+        paddingBottom: Math.max(8, insets.bottom),
         paddingTop: 8,
       },
       tabBarActiveTintColor: '#0066cc',
@@ -166,7 +173,8 @@ const TabNavigator = () => (
       options={{ headerShown: false }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Root Navigator
 const RootNavigator = () => {
@@ -444,8 +452,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // M-MOBILE-36: scale 1.1 on an emoji was nearly invisible as a "selected"
+  // signal; the active tab now also sits in a tinted pill (same 0066cc family
+  // as the active tint).
   tabIconFocused: {
     transform: [{ scale: 1.1 }],
+    backgroundColor: 'rgba(0,102,204,0.22)',
+    borderRadius: 15,
   },
   tabIconText: {
     fontSize: 20,

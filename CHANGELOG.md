@@ -32,6 +32,56 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min55 minors cluster: iOS background audio + PiP honesty, player title & control labels, tab-bar insets + focus pill, 44pt chrome targets outside/inside the player, README feature-truth (SyncPlay/volume/speed), signing-doc contradictions — 2026-10-30
+
+- **M-MOBILE-02 (background/lock-screen media, casualgamer)**: iOS gains the
+  missing half of the "music in pocket" story — `UIBackgroundModes = [audio]`
+  in `Info.plist` plus a `.playback` `AVAudioSession` activated before
+  play/autoplay in `PhlixPlayerView.swift` (fail-soft: a refused session
+  configuration degrades only the background promise, never the video). The
+  📺 PiP button was decorative on Android (native `receiveCommand` implements
+  only play|pause|seekTo|setVolume|setMuted — `startPiP` matched no branch);
+  it now renders iOS-only, pinned both ways by a new PlayerScreen suite. The
+  Android MediaSession/foreground-service gap stays feature-scale and is now
+  disclosed in the README. The S407 iOS-boundary law was amended from a bare
+  `/audio/i` substring ban (whose iOS quietness was incidental) to
+  selection-specific tokens — the anti-fakery teeth are preserved and
+  mutation-probed; the Kotlin-side substring pin is untouched.
+- **M-MOBILE-44 (player chrome orientation, gameux)**: the top bar now shows
+  WHAT is playing — the `liveTitle` route param verbatim when present (zero
+  catalog reads), else exactly ONE fail-soft `getMediaItem(itemId)` lookup
+  for on-demand; a failing lookup renders no title rather than an error arm.
+  ✕ / ±15 / play-pause carry screen-reader labels that flip live. Four new
+  PlayerScreen tests pin the dispatch law.
+- **M-MOBILE-36 (tab-bar geometry, gameux)**: the bottom bar grows with
+  `insets.bottom` instead of the fixed `height: 60` that collided with home
+  indicators, and the focused tab gains a tinted pill behind the existing
+  scale so selection is legible at a glance.
+- **M-MOBILE-38 (Home profile button, gameux)**: 40×40 → 44×44 with an
+  accessibility label ("Switch profile").
+- **M-MOBILE-46 (sub-44 targets outside the player, gameux)**: Downloads
+  action buttons 36 → 44 (five labels added), SearchBar clear gains hitSlop +
+  label, MediaDetail back 40 → 44 and favorite/star/season controls get
+  hitSlop + labels.
+- **M-MOBILE-58 (README never mentions SyncPlay, writer)**: the feature list
+  now states watch-parties/SyncPlay — the shipped `SyncPlayModal`/`Overlay`,
+  contracts-pinned error catalog and wsEndpoint law make the claim true.
+- **M-MOBILE-04 (README feature-trust, casualgamer)**: the README no longer
+  promises an in-app volume slider or playback speed (system-volume is
+  honest); the Jellyfin/Emby mis-claim was already cured at tip — verified,
+  not re-fixed.
+- **M-MOBILE-21 (docs/signing.md contradicts the project, devops)**: bundle
+  id corrected to the committed `com.phlixmobile.PhlixMobile` (with the
+  Android-vs-iOS id trap called out); the impossible unsigned-APK walk-through
+  now leads with the truth that the committed release config debug-signs
+  `app-release.apk` (and is conditionalized on removing it); all three
+  `base64 --decode --output` snippets — broken on GNU (no `--output` at all,
+  verified) and BSD alike — became portable `base64 -d > FILE`; and a new
+  block documents the half-manual pbxproj vestige (`CODE_SIGN_IDENTITY[
+  sdk=iphoneos*] = "iPhone Developer"`, zero `DEVELOPMENT_TEAM`/
+  `CODE_SIGN_STYLE`, CI compile-gate only). The README-links-signing sub-claim
+  was already cured pre-lane (three links at HEAD).
+
 ### Fixed — W-min54 minors cluster: security-rationale comments, dormant-flag truth, deployment/docs inventories, unified sign-in/sign-out + sentence-case alert copy — 2026-10-30
 
 - **M-MOBILE-12 (cleartext rationale, crossfe)**: `usesCleartextTraffic="true"`

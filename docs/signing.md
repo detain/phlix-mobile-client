@@ -59,7 +59,7 @@ security import cert.p12 -k ~/Library/Keychains/login.keychain
 1. Go to [developer.apple.com → Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/profiles)
 2. Create a new **Provisioning Profile**:
    - Type: **App Store** (for TestFlight/App Store) or **Ad Hoc** (for direct device testing)
-   - App ID: Select the App ID matching your bundle identifier (`com.phlixmobile` by default)
+   - App ID: Select the App ID matching your bundle identifier (`com.phlixmobile.PhlixMobile` — the value committed in `ios/PhlixMobile.xcodeproj/project.pbxproj` `PRODUCT_BUNDLE_IDENTIFIER`; note the Android `applicationId` is the shorter `com.phlixmobile`, they are NOT the same string)
    - Select your Distribution Certificate
    - Add device UDIDs if using Ad Hoc
 3. Download the `.mobileprovision` file
@@ -85,6 +85,19 @@ Alternatively, configure signing in the Xcode project directly:
 - **Signing & Capabilities** tab: Set "Automatically manage signing" = OFF for manual control
 - Set Code Signing Identity → Release → "Apple Distribution: Your Name (TEAMID)"
 - Set Provisioning Profile → your profile
+
+> **What the committed project actually carries** (M-MOBILE-21, review
+> mobile__devops MIN-4): the project ships **half-manual** — the app target
+> configurations set `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer"`
+> (a deprecated generic identity; `project.pbxproj:317,402`) and define **no
+> `DEVELOPMENT_TEAM` and no `CODE_SIGN_STYLE`** anywhere (greps: zero hits).
+> CI never exercises any of it (both `build-ios.yml` invocations pass
+> `CODE_SIGNING_ALLOWED=NO`, `:40,:98` — a compile gate only). So the first
+> real manual archive on your machine must explicitly set your team and your
+> distribution identity — leaving the committed values in place means
+> Xcode/codesign picks an identity that no longer exists on modern Apple
+> programs, which is exactly the "no profiles / identity not found" class
+> below.
 
 #### 5. Build a Signed IPA (Manual)
 
@@ -112,7 +125,7 @@ Create `exportOptions.plist`:
     <string>Apple Distribution: Your Name (TEAMID)</string>
     <key>provisioningProfiles</key>
     <dict>
-        <key>com.phlixmobile</key>
+        <key>com.phlixmobile.PhlixMobile</key>
         <string>Your Provisioning Profile Name</string>
     </dict>
 </dict>
@@ -139,15 +152,24 @@ When you are ready to wire CI to sign builds automatically:
     CERTIFICATE: ${{ secrets.CERTIFICATE }}
     CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
   run: |
-    echo "$CERTIFICATE" | base64 --decode --output /tmp/cert.p12
+    echo "$CERTIFICATE" | base64 -d > /tmp/cert.p12
     security import /tmp/cert.p12 -k ~/Library/Keychains/login.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/codesign_allocate
 
 - name: Install Provisioning Profile
   env:
     PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
   run: |
-    echo "$PROVISIONING_PROFILE" | base64 --decode --output ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+    echo "$PROVISIONING_PROFILE" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 ```
+
+> **base64 portability (M-MOBILE-21, review mobile__devops MIN-4)**: these
+> decode steps previously read `base64 --decode --output FILE`. That form is
+> broken on BOTH platforms a reader would paste it into: GNU coreutils
+> `base64` has no `--output` option at all (verified against `base64 --help`,
+> coreutils 9.x), and the `/usr/bin/base64` macOS runners ship is BSD-derived
+> with no GNU-style long options. `base64 -d` + shell redirection is the one
+> invocation that decodes identically on GNU (ubuntu runners) and BSD
+> (macos runners); keep it that way.
 
 3. Remove `CODE_SIGNING_ALLOWED=NO` from the release build step and provide `EXPORT_OPTIONS_PATH` pointing to a plist with `method`, `signingCertificate`, and `provisioningProfiles` entries.
 
@@ -193,6 +215,18 @@ keytool -genkey -v -storetype JKS \
 
 ### Step-by-Step Manual Signing
 
+> **Read this first** (M-MOBILE-21, review mobile__devops MIN-4): the
+> committed release configuration **debug-signs** the build — the `release`
+> block in `android/app/build.gradle:43-48` sets
+> `signingConfig signingConfigs.debug`, so `assembleRelease` emits an
+> installable, debug-signed **`app-release.apk`**, never an
+> `app-release-unsigned.apk` (that is exactly the file
+> `.github/workflows/build-android.yml:84` uploads). The walkthrough below
+> therefore only applies AFTER you remove (or replace with your own
+> `signingConfigs.release`) that committed `signingConfig` line — otherwise
+> there is no unsigned artifact to sign and the steps operate on a file that
+> never appears.
+
 #### 1. Build the Release APK
 
 ```bash
@@ -200,7 +234,10 @@ cd android
 ./gradlew assembleRelease
 ```
 
-The unsigned APK is output to: `android/app/build/outputs/apk/release/app-release-unsigned.apk`
+With the committed `signingConfig signingConfigs.debug` removed (see the read-this-first note), `assembleRelease` produces the unsigned APK at:
+`android/app/build/outputs/apk/release/app-release-unsigned.apk`
+
+(If you left the committed debug signing in place, you instead get a signed `app-release.apk` and there is nothing to sign below.)
 
 #### 2. Sign the APK
 
@@ -279,7 +316,7 @@ When you are ready to wire CI to sign builds automatically:
     KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
     KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
   run: |
-    echo "$KEYSTORE_FILE" | base64 --decode --output app-signing.jks
+    echo "$KEYSTORE_FILE" | base64 -d > app-signing.jks
     echo "storePassword=$KEYSTORE_PASSWORD" >> keystore.properties
     echo "keyPassword=$KEY_PASSWORD" >> keystore.properties
     echo "keyAlias=$KEY_ALIAS" >> keystore.properties

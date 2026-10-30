@@ -421,6 +421,10 @@ const MediaDetailScreen: React.FC = () => {
                   style={styles.favoriteButton}
                   onPress={handleToggleFavorite}
                   disabled={favBusy}
+                  // M-MOBILE-46: vertical slop grows the touch rect past 44pt;
+                  // horizontal neighbours make x-slop a bleed risk (the
+                  // M-MOBILE-19 responder law), so the growth is vertical.
+                  hitSlop={{ top: 6, bottom: 6 }}
                   accessibilityLabel={isFavorite ? 'Remove favorite' : 'Add favorite'}
                   accessibilityState={{ selected: isFavorite }}
                 >
@@ -441,6 +445,9 @@ const MediaDetailScreen: React.FC = () => {
                       style={styles.starButton}
                       onPress={() => handleStarPress(idx + 1)}
                       disabled={rateBusy}
+                      // M-MOBILE-46: stars are shoulder-to-shoulder, so the
+                      // touch growth is vertical-only (see the rail law).
+                      hitSlop={{ top: 10, bottom: 10 }}
                       accessibilityLabel={`Rate ${ratingForStar(idx + 1)} out of ${STAR_COUNT * 2}`}
                     >
                       <Text
@@ -577,6 +584,9 @@ const MediaDetailScreen: React.FC = () => {
                       selectedSeason?.id === season.id && styles.seasonTabActive,
                     ]}
                     onPress={() => setSelectedSeason(season)}
+                    // M-MOBILE-46: season tabs sit in a horizontal row —
+                    // vertical-only slop, per the neighbour-bleed law.
+                    hitSlop={{ top: 8, bottom: 8 }}
                   >
                     <Text
                       style={[
@@ -629,6 +639,7 @@ const MediaDetailScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
+        accessibilityLabel="Back"
       >
         <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
@@ -891,13 +902,14 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100,
   },
+  // M-MOBILE-46 (review mobile__gameux): 44pt floor (was 40).
   backButton: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 50 : 20,
     left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',

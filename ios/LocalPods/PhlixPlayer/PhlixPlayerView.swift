@@ -127,6 +127,7 @@ class PhlixPlayerViewWrapper: UIView {
         }
 
         if autoPlay {
+            ensureAudioSession()
             player?.play()
         }
 
@@ -153,8 +154,27 @@ class PhlixPlayerViewWrapper: UIView {
         onPlaybackEvent?(["event": "ended"])
     }
 
+    // M-MOBILE-02 (review mobile__casualgamer): a .playback-category audio
+    // session is what actually buys background/lockscreen playback (paired
+    // with UIBackgroundModes=[audio] in Info.plist). Without it AVPlayer
+    // silences the moment the app backgrounds — the "music in pocket" path
+    // died here. Fail-soft: a session that refuses to configure must never
+    // block the video itself; only the background promise degrades.
+    private func ensureAudioSession() {
+        #if os(iOS)
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback)
+            try session.setActive(true)
+        } catch {
+            // Foreground playback continues; nothing else to do.
+        }
+        #endif
+    }
+
     // React Native methods
     @objc func play() {
+        ensureAudioSession()
         player?.play()
         onPlaybackEvent?(["event": "play"])
     }

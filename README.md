@@ -24,12 +24,36 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 
 - **User Authentication**: Secure login with token-based authentication and automatic token refresh
 - **Media Library**: Browse movies, series, music, and photos organized by library
-- **Media Playback**: Full-featured video player with seek, volume, playback speed controls
+- **Media Playback**: Full-screen video player with a draggable seek bar plus
+  ±15-second jump buttons, subtitle and audio track selection, quality
+  pinning (see Quality Selection below), a sleep timer, and offline playback
+  of downloaded items. Volume follows the **system hardware volume** (there
+  is no in-app slider), and there is **no playback-speed control** yet.
+
+> **Background/lock-screen playback is iOS-only today** (review
+> mobile__casualgamer M-MOBILE-02). The iOS player now activates a
+> `.playback` `AVAudioSession` and the app declares `UIBackgroundModes =
+> [audio]`, so a "music in pocket" track keeps playing — and Picture in
+> picture is genuinely live there. Android has **no MediaSession /
+> foreground service**: backgrounding stops playback, and the 📺 PiP
+> control does not render there at all (Android's native player command
+> surface implements no PiP — a visible button would be decorative).
+> The Android side is a feature-scale gap, not a configuration oversight.
 - **Subtitle Support**: Multiple subtitle tracks and audio tracks
 - **Quality Selection**: When a title falls back to on-demand transcoding (the direct file isn't natively playable), a quality menu in the player lets you pick **Auto** — native adaptive bitrate — or pin a specific resolution rung; the menu is hidden entirely for titles that play back directly. Your choice is remembered as your default for next time, and switching mid-playback resumes from where you left off instead of restarting.
 - **Search**: Global text search across all media types, plus an **advanced filter sheet** (filter by genre, content rating, and year range, and choose the sort field — name, year, rating, date added, or runtime — with an ascending/descending toggle). When browsing (no text query) with name sorting, an **A–Z jump rail** appears down the right edge so you can leap straight to titles starting with any letter (letters with no matches are greyed out); results page in as you scroll.
 - **User Preferences**: Customizable playback settings and app preferences
 - **Continue Watching**: Resume playback from where you left off
+- **SyncPlay watch parties**: The player carries a SyncPlay control for
+  synchronized co-watching: create a room (optionally **public**, with an
+  optional password), or join one by room ID from the modal's browse/join
+  surface. The host's play/pause/seek commands drive the group — members'
+  timelines follow the host and manual member seeks defer to the room
+  clock. Failures arrive as stable server error codes and are shown as
+  readable sentences from a client-side catalog instead of raw protocol
+  text. The feature runs over BOTH connection shapes: a direct server
+  WebSocket and the hub-relay lane (bearer subprotocol) when the session
+  came through a hub.
 - **Downloads**: Download media for offline playback
 - **Multi-user Profiles**: Manage per-user profiles (name, max content rating, optional PIN gate) and switch the active profile from Settings → Profiles
 - **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section).

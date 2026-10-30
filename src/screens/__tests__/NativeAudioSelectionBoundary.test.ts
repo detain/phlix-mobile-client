@@ -145,7 +145,15 @@ describe('S407 native bridge surface — the audio refusal is the TRUTH, not an 
   it('iOS Swift view exposes no media-selection API (selectMediaOption et al. are absent)', () => {
     const src = read(IOS_SWIFT_VIEW);
     expect(src).not.toMatch(/selectMediaOption|AVMediaSelectionGroup|AVAudioMediaSelectionOption/);
-    expect(src).not.toMatch(AUDIO_SELECTION_RE);
+    // M-MOBILE-02 (review mobile__casualgamer): this arm formerly reused the
+    // Kotlin-side AUDIO_SELECTION_RE — a bare /audio/i SUBSTRING ban whose
+    // quietness on iOS was incidental (HEAD's Swift had zero audio words).
+    // The file now legitimately configures `AVAudioSession` to `.playback`
+    // for background/lock-screen audio — session plumbing, not a track
+    // selection API. The anti-fakery law is kept on the tokens that would
+    // actually fake selection; the Kotlin-side substring pin (autoPlay
+    // caveat above) is untouched.
+    expect(src).not.toMatch(/switchAudio|selectTrack|setTrackSelection|audioTrack|audioStream|mediaOption/i);
   });
 
   it('Android @ReactProp set contains NO audio surface (subtitleUrl is the only track prop)', () => {
