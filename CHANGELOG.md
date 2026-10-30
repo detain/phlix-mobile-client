@@ -32,6 +32,18 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — Forward-fix W-min57 version stamping: the Gradle package.json lookup resolved one directory too shallow, failing `:app` evaluation (and the CI Android build) — 2026-10-30
+
+- The JsonSlurper line shipped in the W-min57 cluster read
+  `new File(projectDir, '../package.json')`. In `:app` that is
+  `android/app/../package.json` = `android/package.json`, which does not
+  exist — Gradle died with "Unable to process file" during configuration.
+  Caught by a local `./gradlew :app:properties` probe before CI verdicts.
+  The lookup now reads `new File(rootProject.projectDir.parentFile,
+  'package.json')` (`android/..` — the repo root), and
+  `src/__tests__/versionSync.test.ts` pins the corrected spelling plus a
+  regression pin forbidding the wrong-depth one.
+
 ### Fixed — W-min57 minors cluster: committed Podfile.lock + CI stops deleting it, fail-loud CI artifact uploads (the iOS job had uploaded NOTHING while green), per-ref concurrency with master-safe cancellation, AGENTS.md drift (React Navigation v7, three-tier base URL), version stamping single-sourced to package.json with a drift gate test, README env-key truth (`PHLIX_SYNCPLAY_WS_PORT`, yarn float, versioning story), gradle lint gag narrowed to the one by-design suppression — 2026-10-30
 
 - **M-MOBILE-09 (CURED)**: `ios/Podfile.lock` committed (242 dependency pins,

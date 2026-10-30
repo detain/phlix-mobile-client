@@ -52,8 +52,11 @@ describe('version stamping is single-sourced and in sync (M-MOBILE-15/25)', () =
   it('build.gradle derives versionCode/versionName from package.json instead of hardcoding', () => {
     const gradle = read('android/app/build.gradle');
     // The derivation exists…
-    expect(gradle).toContain('new JsonSlurper().parse(new File(projectDir,');
-    expect(gradle).toContain("../package.json");
+    expect(gradle).toContain('new JsonSlurper().parse(new File(rootProject.projectDir.parentFile,');
+    expect(gradle).toContain("'package.json')");
+    // Regression pin: the wrong-depth spelling dies at Gradle evaluation
+    // (android/package.json does not exist) — never let it back in.
+    expect(gradle).not.toContain("new File(projectDir, '../package.json')");
     expect(gradle).toMatch(/versionCode\s+phlixVersionCode/);
     expect(gradle).toMatch(/versionName\s+phlixPackageJson\.version\.toString\(\)/);
     // …and the old frozen literals are gone from defaultConfig.

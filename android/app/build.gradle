@@ -16,7 +16,10 @@ apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.grad
 // major*1_000_000 + minor*1_000 + patch — monotonic for normal bumps. The iOS
 // side stays literal in `project.pbxproj` (Xcode cannot read package.json),
 // so `src/__tests__/versionSync.test.ts` fails loudly when the stores drift.
-def phlixPackageJson = new JsonSlurper().parse(new File(projectDir, '../package.json'))
+// rootProject.projectDir is `android/`; its parent is the repo root where
+// package.json lives. (A `projectDir/../` spelling resolves to `android/` and
+// fails evaluation — pinned honestly by versionSync.test.ts.)
+def phlixPackageJson = new JsonSlurper().parse(new File(rootProject.projectDir.parentFile, 'package.json'))
 def phlixVersionCore = phlixPackageJson.version.toString().tokenize('-')[0].tokenize('.')
 def phlixVersionCode = (phlixVersionCore[0].toInteger() * 1000000 +
                         phlixVersionCore[1].toInteger() * 1000 +
