@@ -912,8 +912,11 @@ describe('SyncPlayService - playback_sync', () => {
     });
 
     expect(updatePlaybackState).toHaveBeenCalledWith('playing', 33);
+    // R-MOBILE-01: this fixture's server_time 1_700_000_000 is the HONEST
+    // :8097 seconds shape (was inert before the decode normalization landed —
+    // the command now must speak ms like every other consumer path).
     expect(command).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'play', position: 33 })
+      expect.objectContaining({ type: 'play', position: 33, serverTime: 1_700_000_000_000 })
     );
 
     syncPlayService.off('onPlaybackCommand');
@@ -1188,6 +1191,149 @@ describe('SyncPlayService - Playback command receipt', () => {
     expect(hostCallback).toHaveBeenCalledWith('member-456');
 
     syncPlayService.off('onHostChanged');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R-MOBILE-01 — server_time unit law at the mobile decode boundary
+// ---------------------------------------------------------------------------
+
+describe('SyncPlayService - server_time unit normalization (R-MOBILE-01)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    setupMocks();
+    MockWebSocket.reset();
+    syncPlayService.disconnect();
+  });
+
+  // Wire law (phlix-syncplay SPEC §4/§8.4, cured upstream by M-SYNCPLAY-04):
+  // `server_time` is the ONE mixed-unit inbound stamp — UNIX seconds from the
+  // :8097 server worker (SyncPlayManager `time()` echoes and `?? time()`
+  // fallbacks), milliseconds from the hub relay (`nowMs()`). The library
+  // normalizes at decode in `SyncPlayClient.serverTimeToMs` (threshold 1e12);
+  // that export postdates the frozen `#v0.1.5` pin, so the service's local
+  // `wireServerTimeMs` mirror carries the law here until the v0.1.6 re-pin
+  // cascade retires it (helper docblock owns the swap note). Pre-fix mobile
+  // delivered the raw mixed value on `onPlaybackCommand.serverTime` — the
+  // event signature declares ms, so the :8097 carrier leaked a 1000x-small
+  // stamp past the boundary.
+
+  it('normalizes a :8097 seconds echo to ms on the play leg (server carrier vector)', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const command = jest.fn();
+    syncPlayService.on('onPlaybackCommand', command as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_play',
+      position: 25_000,
+      server_time: 1_700_000_000,
+    });
+
+    const call = command.mock.calls[0][0];
+    expect(call.position).toBe(25); // position law untouched (S441: wire ms)
+    expect(call.serverTime).toBe(1_700_000_000_000); // raw leak reads 1.7e9 — red
+    syncPlayService.off('onPlaybackCommand');
+  });
+
+  it('passes a hub ms stamp through untouched on the pause leg (hub carrier vector)', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const command = jest.fn();
+    syncPlayService.on('onPlaybackCommand', command as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_pause',
+      position: 30_000,
+      server_time: 1_700_000_000_000,
+    });
+
+    const call = command.mock.calls[0][0];
+    expect(call.serverTime).toBe(1_700_000_000_000); // an unconditional x1000 reads 1.7e15 — red
+    syncPlayService.off('onPlaybackCommand');
+  });
+
+  it('pins the discrimination boundary pair on the seek leg (1e12-1 scales, 1e12 passes)', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const command = jest.fn();
+    syncPlayService.on('onPlaybackCommand', command as any);
+
+    // Largest value still believed to be seconds: must x1000.
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_seek',
+      from_position: 1,
+      to_position: 35_000,
+      server_time: 999_999_999_999,
+    });
+    // Smallest value already believed to be ms: must pass through.
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_seek',
+      from_position: 1,
+      to_position: 36_000,
+      server_time: 1_000_000_000_000,
+    });
+
+    expect(command.mock.calls[0][0].serverTime).toBe(999_999_999_999_000);
+    expect(command.mock.calls[1][0].serverTime).toBe(1_000_000_000_000);
+    syncPlayService.off('onPlaybackCommand');
+  });
+
+  it('falls back to the synchronized clock for an absent or non-numeric stamp (M-SYNCPLAY-19 law)', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const command = jest.fn();
+    syncPlayService.on('onPlaybackCommand', command as any);
+
+    const before = Date.now();
+    MockWebSocket.simulateMessage({ type: 'syncplay_playback_play', position: 25_000 });
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_play',
+      position: 25_000,
+      server_time: '1700000000', // string on the wire is not a number — parse, don't cast
+    });
+    const after = Date.now();
+
+    // No samples yet ⇒ the synchronized clock is the Date.now() domain; both
+    // legs must fall back there, never to a fabricated stamp.
+    expect(command.mock.calls[0][0].serverTime).toBeGreaterThanOrEqual(before);
+    expect(command.mock.calls[0][0].serverTime).toBeLessThanOrEqual(after);
+    expect(command.mock.calls[1][0].serverTime).toBeGreaterThanOrEqual(before);
+    expect(command.mock.calls[1][0].serverTime).toBeLessThanOrEqual(after);
+    syncPlayService.off('onPlaybackCommand');
+  });
+
+  it('leaves the time_pong t2 RAW — pong is ms on BOTH carriers, NOT the mixed-unit field', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const t1 = Date.now() - 100;
+    // Deliberately NOT a live pong shape: both carriers stamp ms there
+    // (server TimeSync.php `(int)(microtime(true)*1000)`, hub nowMs()). The
+    // seconds-scale vector pins the JURISDICTION boundary — the normalization
+    // belongs to the playback/seek/sync decode family only. A helper that
+    // (mis)shared into handleTimePong would deliver offset ≈ -7e10; the raw
+    // law computes ≈ t2 - t1 + 50 ≈ -1.77e12, two orders apart.
+    const t2 = 1_700_000_000;
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_time_pong',
+      client_time: t1,
+      server_time: t2,
+    });
+
+    const status = syncPlayService.getTimeSyncStatus();
+    expect(status.offset).toBeGreaterThanOrEqual(t2 - t1 + 30);
+    expect(status.offset).toBeLessThanOrEqual(t2 - t1 + 70);
   });
 });
 

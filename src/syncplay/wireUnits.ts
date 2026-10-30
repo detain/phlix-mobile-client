@@ -32,6 +32,35 @@ export function wireMsToSeconds(positionMs: number | undefined): number | undefi
 }
 
 /**
+ * Normalize a wire `server_time` stamp to MILLISECONDS (R-MOBILE-01).
+ *
+ * The ONE mixed-unit field on the SyncPlay wire (phlix-syncplay SPEC §4/§8.4):
+ * the :8097 server worker stamps `time()` — UNIX SECONDS (SyncPlayManager
+ * group echo, S446 nudge echo, and the `?? time()` command fallbacks) — while
+ * the hub relay stamps milliseconds (`nowMs()`). This is a byte-mirror of the
+ * library's `SyncPlayClient.serverTimeToMs` (law shipped post-v0.1.5 by
+ * M-SYNCPLAY-04/12): a stamp below the 1e12 discrimination threshold is
+ * seconds and is scaled x1000; anything at-or-above is already ms and passes
+ * through. Epoch-seconds reach 1e12 only in year 33658 — the window is
+ * ambiguity-free for the lifetime of this pin.
+ *
+ * Pure and total on finite numbers, exactly like `wireMsToSeconds` — the
+ * parse (finite-check) stays at the service's `wireNumber` boundary. RETIRE
+ * this mirror and import the library export in the v0.1.6 re-pin cascade
+ * (this repo does not bump tag-pins in rider lanes; the wave is
+ * owner-scheduled).
+ *
+ * Scope law (same as the library): `time_pong`'s `t2` and the `time_sync`
+ * advisory are NOT consumers of this function — the pong is ms on BOTH
+ * carriers (server TimeSync.php `(int)(microtime(true)*1000)`; hub `nowMs()`),
+ * so `handleTimePong` reads it RAW; the advisory carries an explicit
+ * `serverTimeSec` name and stays seconds by contract.
+ */
+export function serverTimeToMs(raw: number): number {
+  return raw < 1e12 ? raw * 1000 : raw;
+}
+
+/**
  * The sanity ceiling applied when the media duration is NOT yet known
  * (metadata still loading, exotic live-ish items): 24 hours in seconds.
  * A host-sent position beyond that is not a seek target any player can

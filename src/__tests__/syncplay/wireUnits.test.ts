@@ -14,6 +14,7 @@
 
 import {
   clampSeekSeconds,
+  serverTimeToMs,
   wireMsToSeconds,
   SEEK_UNKNOWN_DURATION_CEILING_SECONDS,
 } from '../../syncplay/wireUnits';
@@ -22,6 +23,29 @@ describe('wireMsToSeconds', () => {
   it('decodes ms to seconds and passes undefined through', () => {
     expect(wireMsToSeconds(42500)).toBe(42.5);
     expect(wireMsToSeconds(undefined)).toBeUndefined();
+  });
+});
+
+describe('serverTimeToMs (R-MOBILE-01 — mirror of the library law)', () => {
+  // Carrier vectors: :8097 stamps UNIX seconds (SyncPlayManager time()),
+  // the hub relay stamps ms (nowMs()). Threshold 1e12 — epoch-seconds cross
+  // it only in year 33658, so the discrimination window is exact.
+  it('scales an :8097 seconds stamp x1000 (server carrier vector)', () => {
+    expect(serverTimeToMs(1_700_000_000)).toBe(1_700_000_000_000);
+  });
+
+  it('passes a hub ms stamp through untouched (hub carrier vector)', () => {
+    expect(serverTimeToMs(1_700_000_000_000)).toBe(1_700_000_000_000);
+  });
+
+  it('pins the discrimination boundary pair (1e12-1 scales, 1e12 passes)', () => {
+    expect(serverTimeToMs(999_999_999_999)).toBe(999_999_999_999_000);
+    expect(serverTimeToMs(1_000_000_000_000)).toBe(1_000_000_000_000);
+  });
+
+  it('keeps zero and negative stamps in the seconds arm (pure, total)', () => {
+    expect(serverTimeToMs(0)).toBe(0);
+    expect(serverTimeToMs(-5)).toBe(-5000);
   });
 });
 

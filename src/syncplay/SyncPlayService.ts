@@ -55,7 +55,7 @@
 
 import { useSyncplayStore } from '../store/syncplayStore';
 import { useHubStore } from '../store/hubStore';
-import { wireMsToSeconds } from './wireUnits';
+import { serverTimeToMs, wireMsToSeconds } from './wireUnits';
 import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
 import {
   resolveSyncPlayWsEndpoint,
@@ -280,6 +280,19 @@ function wireString(value: unknown): string | undefined {
  * strings, objects, NaN/Infinity — the same parse-not-cast doctrine). */
 function wireNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * Boundary composition for the decode sites: parse a wire `server_time` with
+ * `wireNumber` (non-numeric stays undefined so the consumer's `?? fallback`
+ * keeps deciding — the M-SYNCPLAY-19 law), then normalize the unit via
+ * `serverTimeToMs`. The unit law itself (mixed carriers, 1e12 threshold, v0.1.6
+ * retirement, pong/advisory scope) lives in ./wireUnits next to its siblings.
+ * handleTimePong deliberately does NOT use this — it reads `wireNumber` raw.
+ */
+function wireServerTimeMs(value: unknown): number | undefined {
+  const raw = wireNumber(value);
+  return raw === undefined ? undefined : serverTimeToMs(raw);
 }
 
 /**
@@ -1001,7 +1014,7 @@ class SyncPlayService {
     // never a time machine (upper bounds belong to the consumer that knows
     // the duration: PlayerScreen's clamped seek arm).
     const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
-    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
+    const serverTime = wireServerTimeMs(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('playing', position);
     this.events.onPlaybackCommand?.({ type: 'play', position, serverTime });
@@ -1011,7 +1024,7 @@ class SyncPlayService {
     // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
     // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
     const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
-    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
+    const serverTime = wireServerTimeMs(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('paused', position);
     this.events.onPlaybackCommand?.({ type: 'pause', position, serverTime });
@@ -1021,7 +1034,7 @@ class SyncPlayService {
     // S441 — `to_position` arrives in MILLISECONDS; store + event get SECONDS.
     // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
     const toPosition = Math.max(0, wireMsToSeconds(wireNumber(msg.to_position)) ?? 0);
-    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
+    const serverTime = wireServerTimeMs(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState(
       useSyncplayStore.getState().currentGroup?.playbackState ?? 'paused',
@@ -1042,7 +1055,7 @@ class SyncPlayService {
     // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
     const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
     const isPlaying = msg.is_playing === true;
-    const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
+    const serverTime = wireServerTimeMs(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState(
       isPlaying ? 'playing' : 'paused',

@@ -32,6 +32,41 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — R-MOBILE-01: the `server_time` carrier unit is normalized at the decode boundary — the mixed-unit field no longer leaks :8097 seconds into the ms-declaring command event — 2026-10-31
+
+- **R-MOBILE-01 (review rider):** the four playback-family decode sites in
+  `SyncPlayService` (`handlePlaybackPlay/Pause/Seek/Sync`) read
+  `msg.server_time` through the plain finite-check parser, bypassing the
+  carrier normalization the library itself applies (`SyncPlayClient.serverTimeToMs`,
+  shipped post-v0.1.5 by M-SYNCPLAY-04): the :8097 server worker stamps that
+  field UNIX SECONDS (`SyncPlayManager` `time()` echoes and `?? time()`
+  fallbacks) while the hub relay stamps ms (`nowMs()`) — so over the server
+  carrier the event's `serverTime`, whose contract declares milliseconds,
+  arrived 1000×-small. The frozen `#v0.1.5` tag-pin predates the library
+  export (the v0.1.6 wave is owner-scheduled and rider lanes do not bump
+  pins), so the law now lives as `serverTimeToMs` in `src/syncplay/wireUnits.ts`
+  — a byte-mirror of the library function beside its unit-decode siblings —
+  composed with the boundary parse as `wireServerTimeMs` at the four sites.
+  Scope kept exact: the `time_pong` `t2` stays RAW (ms on BOTH carriers —
+  server `TimeSync.php` `microtime(true)*1000`, hub `nowMs()`), the
+  `time_sync` advisory keeps its seconds-by-contract name, outbound frames
+  keep the local synchronized clock, and the absent/non-numeric fallback to
+  `getSynchronizedTime()` is untouched (M-SYNCPLAY-19 law).
+  -9 tests: five service-level pins (server/hub carrier vectors, the 1e12
+    boundary pair, the non-numeric fallback, the pong-raw jurisdiction pin)
+    + four `wireUnits` table pins; the existing `playback_sync` fixture's
+    honest seconds-shaped `server_time` now also pins its ms delivery —
+    inert before the cure, decisive after (the raw leak reads 1.7e9).
+  -`onPlaybackCommand` consumers (`PlayerScreen`, `HomeScreen`) never read
+    `serverTime` today, so nothing downstream changes behavior; the fix
+    makes the declared ms contract true the moment they do.
+
+  Gates: jest `--runInBand` 108 suites / 1606 tests (1 skipped, 1605 passed;
+  baseline 1597 + 9, exact) exit 0; `tsc --noEmit` clean; eslint on all four
+  touched files 0 errors. Tag-pins frozen and untouched: contracts `#v0.5.3`,
+  syncplay `#v0.1.5`; no plaintext-token surfaces added (SecureStorage law
+  era untouched); CHANGELOG history verbatim.
+
 ### Fixed — W-min58 rework (M-MOBILE-20): README CI/CD note corrected to truth — manual dispatch is real, additive, and present on all three workflows — 2026-10-30
 
 - **M-MOBILE-20 (REWORK cure)**: the batch's doc-only cure had replaced the
