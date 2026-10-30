@@ -32,6 +32,55 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min61 minors cluster (M-MOBILE-26, -27, -28, -32, -41, -48, -49, -50): seek clamped at the native boundary, frame admission capped, hold-to-delete discovered, detail-page IA untangled, hub roster scheme-allowlisted, WS predicate unified — 2026-10-30
+
+- **M-MOBILE-26 (CURED — same defect as M-MOBILE-54)**: the review's number/
+  object payload vector is the un-narrowed `playback_state` cast; the W-min60
+  `wirePlaybackState` whitelist parser landed the cure, and its hostile-shape
+  it.each (number 7, object, null, absent, garbage string) already pins this
+  exact clause. Proof-over-recode: `wmin61UiPins` additionally pins the
+  routing so the checked cast inside the parser is the only one left.
+- **M-MOBILE-27**: seek targets are now BOUNDED, not just finite —
+  `clampSeekSeconds(position, duration)` caps at the known duration (24 h
+  sanity ceiling when it is unknown, 0 floor for negatives/NaN) and the
+  `PlayerScreen` seek arm runs every host command through it before the
+  native module; the SyncPlayService decodes floor at 0, and `formatTime`
+  answers `0:00` for non-finite/negative input instead of sci-notation
+  garble. The review's `1e303` vector lands exactly on the duration edge.
+- **M-MOBILE-28**: both inbound JSON lanes ask the size question BEFORE the
+  parse — `MAX_INBOUND_FRAME_BYTES` (1 MiB, shared `syncplay/frameLimits`)
+  caps `SyncPlayService.handleMessage` and the `hubRelay` socket alike;
+  oversize frames are dropped loud and the socket keeps running (one bad
+  byte must not evict every member).
+- **M-MOBILE-32 (CURED BY SIBLING — verified, not re-implemented)**: the
+  badge this finding asked for shipped in the W-min62 lane as
+  `useConnectionSecurityStore` + the root-mounted `InsecureConnectionBanner`
+  (recorded there as M-MOBILE-51; the two asks are the same cure — a
+  VISIBLE cleartext indicator instead of silent degradation). Disk-verified
+  at 3b4ef40: all three dial seams report, the banner listens, and the
+  platform-file posture (usesCleartextTraffic/NSAllowsArbitraryLoads) stays
+  the ratified LAN tradeoff.
+- **M-MOBILE-41**: the long-press delete on WatchHistory and Collections is
+  now DISCOVERABLE — a stated hint rides the existing header row
+  ("Press and hold an item to remove it" / "…a collection to delete it").
+- **M-MOBILE-48**: five detail-page IA tangles — the poster's dead
+  `onPress={() => {}}` Pressable now starts/resumes playback for playable
+  items; Resume keeps a start-over path (long-press + stated caption); the
+  duplicate rating UI is gone (inline optimistic row stays, the
+  zero-call-site `UserRatingPicker` component was deleted with it); tapping
+  a queued/downloading download answers with an Alert pointing at the
+  Downloads tab instead of silently no-oping; and the Login footer stopped
+  asserting agreement to a Terms of Service that does not exist.
+- **M-MOBILE-49**: `resolveEffectiveUrl` parses the hub roster instead of
+  trusting it verbatim — only `https://`/`http://` may become the base URL
+  (the http LAN lane stays reachable and is made visible by the banner);
+  scheme-less or foreign-scheme hostnames are refused loud into the
+  existing no-server degradation.
+- **M-MOBILE-50**: the two WS scheme predicates (`startsWith('https')` on
+  the direct lane, `startsWith('https://')` on the relay lane) collapsed
+  into ONE shared strict helper, `utils/serverHost.isHttpsBase` — the
+  security-relevant direction of the drift is what stayed.
+
 ### Fixed — W-min60 minors cluster (M-MOBILE-05, -06, -16, -29, -31, -33, -54): signup path wired, private Room ID surfaced, safe-area back button, path-param encoding + relay server_id gate, restore shaping, biometric gate made real, `playback_state` boundary parser — 2026-10-30
 
 - **M-MOBILE-05**: `AuthManager.register` had no call site — the app could not

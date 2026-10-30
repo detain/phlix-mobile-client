@@ -391,6 +391,15 @@ export const useHubStore = create<HubState>((set, get) => {
 
 /**
  * Resolve the effective server URL based on the active server and connection mode.
+ *
+ * M-MOBILE-49: the hub's roster strings are HUB-PROVIDED, so they are
+ * parsed here rather than trusted verbatim — only `https://` and `http://`
+ * (the ratified LAN lane, made VISIBLE by the insecure banner that
+ * client.ts's rest-lane report drives) may reach the axios base. A
+ * scheme-less or foreign-scheme hostname is refused with a loud drop to
+ * `''`, which consumers already read as "no hub server selected" — the
+ * worst silence before was a malformed string surfacing later as an axios
+ * Invalid URL on every call.
  */
 function resolveEffectiveUrl(
   server: HubServer | null,
@@ -400,11 +409,20 @@ function resolveEffectiveUrl(
     return '';
   }
 
-  if (mode === 'relay') {
-    return server.relayHostname ?? `https://relay.phlix.app/relay/${server.serverId}`;
+  const candidate =
+    mode === 'relay'
+      ? server.relayHostname ?? `https://relay.phlix.app/relay/${server.serverId}`
+      : server.hostname;
+
+  if (candidate.startsWith('https://') || candidate.startsWith('http://')) {
+    return candidate;
   }
 
-  return server.hostname;
+  console.warn(
+    `hubStore: refusing non-http(s) server URL '${candidate}' from the hub roster ` +
+      `(server ${server.serverId}) — falling back to the direct lane`
+  );
+  return '';
 }
 
 /**

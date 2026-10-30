@@ -103,6 +103,8 @@ export interface HubRelayConfig {
 // dependency-free consumer carries — the dial seam reports its cleartext
 // verdict to the security store (write-gated; see the store's law header).
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
+import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
+import { isHttpsBase } from '../utils/serverHost';
 
 /** Maximum reconnect attempts before giving up (mirrors the SyncPlay socket). */
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -161,7 +163,10 @@ export function parsePendingCommandFrame(raw: unknown): PendingPlayMediaCommand 
  * authority string rather than throwing. Exported for tests.
  */
 export function buildHubRelayUrl(hubBaseUrl: string, serverId: string): string {
-  const scheme = hubBaseUrl.startsWith('https://') ? 'wss:' : 'ws:';
+  // M-MOBILE-50: the predicate is the shared strict one (utils/serverHost) —
+  // this lane was the STRICT sibling of wsEndpoint's loose `startsWith('https')`,
+  // both now read the same helper so the pair cannot drift again.
+  const scheme = isHttpsBase(hubBaseUrl) ? 'wss:' : 'ws:';
   let host: string;
   try {
     host = new URL(hubBaseUrl).hostname;
@@ -277,9 +282,18 @@ async function connectHubRelaySocket(): Promise<void> {
     if (!hubConfig) {
       return;
     }
+    // M-MOBILE-28: admission is size-capped BEFORE the parse — JSON.parse is
+    // the resource the cap protects (drop-loud; the socket keeps running).
+    const text = typeof event.data === 'string' ? event.data : String(event.data ?? '');
+    if (text.length > MAX_INBOUND_FRAME_BYTES) {
+      console.error(
+        `HubRelay: dropping oversize frame (${text.length} chars > ${MAX_INBOUND_FRAME_BYTES} cap)`
+      );
+      return;
+    }
     let raw: unknown;
     try {
-      raw = JSON.parse(event.data as string);
+      raw = JSON.parse(text);
     } catch {
       return; // malformed frame — ignore
     }

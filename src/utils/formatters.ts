@@ -10,6 +10,12 @@
  * Format time in seconds to human-readable string
  */
 export const formatTime = (seconds: number): string => {
+  // M-MOBILE-27: total on the garbage end too. A non-finite or negative
+  // input (an unclamped host position that reached UI state) used to render
+  // `1e+299:59:...`-class nonsense; time labels answer "0:00" instead.
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00';
+  }
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);

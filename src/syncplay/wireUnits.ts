@@ -30,3 +30,34 @@ export function wireMsToSeconds(positionMs: number | undefined): number | undefi
   }
   return positionMs / 1000;
 }
+
+/**
+ * The sanity ceiling applied when the media duration is NOT yet known
+ * (metadata still loading, exotic live-ish items): 24 hours in seconds.
+ * A host-sent position beyond that is not a seek target any player can
+ * survive — it is malformed data (M-MOBILE-27 shipped exactly the example:
+ * `1e303` is finite, so the old finite-check let it reach the native API).
+ */
+export const SEEK_UNKNOWN_DURATION_CEILING_SECONDS = 86_400;
+
+/**
+ * Clamp a decoded-seconds seek target into what the player can honor
+ * (M-MOBILE-27): non-finite or negative becomes 0; with a known positive
+ * duration the target caps AT the duration; without one it caps at the
+ * 24-hour sanity ceiling. The upper bound is the whole point — iOS AVPlayer
+ * refuses an out-of-range CMTime (permanent stall) and Android's ExoPlayer
+ * seek takes a Long whose saturation behavior is nobody's friend.
+ */
+export function clampSeekSeconds(
+  positionSeconds: number,
+  durationSeconds: number
+): number {
+  if (!Number.isFinite(positionSeconds) || positionSeconds <= 0) {
+    return 0;
+  }
+  const ceiling =
+    Number.isFinite(durationSeconds) && durationSeconds > 0
+      ? durationSeconds
+      : SEEK_UNKNOWN_DURATION_CEILING_SECONDS;
+  return Math.min(positionSeconds, ceiling);
+}

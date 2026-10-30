@@ -56,6 +56,7 @@
 import { useSyncplayStore } from '../store/syncplayStore';
 import { useHubStore } from '../store/hubStore';
 import { wireMsToSeconds } from './wireUnits';
+import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
 import {
   resolveSyncPlayWsEndpoint,
   SyncPlayHostPinError,
@@ -852,9 +853,18 @@ class SyncPlayService {
    * RN's WebSocketMessageEvent shapes both satisfy the handler.
    */
   private handleMessage(event: { data?: unknown }): void {
+    // M-MOBILE-28: admission is size-capped BEFORE the parse — JSON.parse is
+    // the resource the cap protects (drop-loud; the socket keeps running).
+    const text = String(event.data);
+    if (text.length > MAX_INBOUND_FRAME_BYTES) {
+      console.error(
+        `SyncPlay: dropping oversize frame (${text.length} chars > ${MAX_INBOUND_FRAME_BYTES} cap)`
+      );
+      return;
+    }
     let msg: WsMessage;
     try {
-      msg = JSON.parse(String(event.data)) as WsMessage;
+      msg = JSON.parse(text) as WsMessage;
     } catch (error) {
       console.error('SyncPlay: dropping malformed frame', error);
       return;
@@ -962,7 +972,8 @@ class SyncPlayService {
       playbackState: wirePlaybackState(groupData.playback_state),
       // S441 — the snapshot anchor arrives in WIRE ms; the group (and every
       // consumer below it) speaks SECONDS.
-      playbackPosition: wireMsToSeconds(wireNumber(groupData.playback_position)) ?? 0,
+      // M-MOBILE-27: floored at the decode like the command handlers.
+      playbackPosition: Math.max(0, wireMsToSeconds(wireNumber(groupData.playback_position)) ?? 0),
       hostId,
       hasPassword: groupData.has_password === true,
     };
@@ -986,7 +997,10 @@ class SyncPlayService {
 
   private handlePlaybackPlay(msg: WsMessage): void {
     // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
-    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    // M-MOBILE-27: floored at the decode — a negative position is malformed,
+    // never a time machine (upper bounds belong to the consumer that knows
+    // the duration: PlayerScreen's clamped seek arm).
+    const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
     const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('playing', position);
@@ -995,7 +1009,8 @@ class SyncPlayService {
 
   private handlePlaybackPause(msg: WsMessage): void {
     // S441 — the frame carries MILLISECONDS; the store and the event speak SECONDS.
-    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
+    const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
     const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState('paused', position);
@@ -1004,7 +1019,8 @@ class SyncPlayService {
 
   private handlePlaybackSeek(msg: WsMessage): void {
     // S441 — `to_position` arrives in MILLISECONDS; store + event get SECONDS.
-    const toPosition = wireMsToSeconds(wireNumber(msg.to_position)) ?? 0;
+    // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
+    const toPosition = Math.max(0, wireMsToSeconds(wireNumber(msg.to_position)) ?? 0);
     const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 
     useSyncplayStore.getState().updatePlaybackState(
@@ -1023,7 +1039,8 @@ class SyncPlayService {
    * that keeps drifted members honest, and it used to fall through unrouted.
    */
   private handlePlaybackSync(msg: WsMessage): void {
-    const position = wireMsToSeconds(wireNumber(msg.position)) ?? 0;
+    // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
+    const position = Math.max(0, wireMsToSeconds(wireNumber(msg.position)) ?? 0);
     const isPlaying = msg.is_playing === true;
     const serverTime = wireNumber(msg.server_time) ?? this.getSynchronizedTime();
 

@@ -321,8 +321,14 @@ const LoginScreen: React.FC = () => {
 
           {/* Footer */}
           <View style={styles.footer}>
+            {/* M-MOBILE-48: the old footer asserted agreement to a
+                "Terms of Service" that rendered as dead prose — no link,
+                no sheet, nothing to agree to exists in this app. Honest
+                copy states what actually governs the session: the user's
+                own server. */}
             <Text style={styles.footerText}>
-              By signing in, you agree to our Terms of Service
+              You sign in to your own Phlix server; its access terms are set
+              by your server admin.
             </Text>
           </View>
         </ScrollView>

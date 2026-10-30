@@ -28,6 +28,7 @@ import {
   buildDirectSyncPlayWsUrl,
   resolveSyncPlayWsEndpoint,
   syncPlayWsPort,
+  wsScheme,
   SYNCPLAY_WS_DEFAULT_PORT,
   SyncPlayHostPinError,
   __resetRelayTokenProvidersForTests,
@@ -79,6 +80,18 @@ describe('buildDirectSyncPlayWsUrl — direct transport law', () => {
       .toBe('wss://home.lan:8097/api/v1/syncplay/ws');
     expect(buildDirectSyncPlayWsUrl('http://192.168.1.7:8096'))
       .toBe('ws://192.168.1.7:8097/api/v1/syncplay/ws');
+  });
+
+  // M-MOBILE-50 — one STRICT predicate for both WS lanes: only the exact
+  // `https://` prefix dials wss. The old `startsWith('https')` counted
+  // `httpsfoo://` (and a bare `https.example.com`) as TLS on this lane
+  // while the relay lane required the full prefix — drift unified on the
+  // security-relevant strict side, shared via utils/serverHost.isHttpsBase.
+  it('maps only the exact https:// prefix to wss (shared strict predicate)', () => {
+    expect(wsScheme('https://home.lan')).toBe('wss');
+    expect(wsScheme('http://home.lan')).toBe('ws');
+    expect(wsScheme('httpsfoo://home.lan')).toBe('ws');
+    expect(wsScheme('https.home.lan')).toBe('ws');
   });
 
   it('carries NO credential in the URL (bearer-subprotocol flip, 424c14d0)', () => {

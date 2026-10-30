@@ -27,6 +27,7 @@
 
 import { createHash } from 'crypto';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
+import { MAX_INBOUND_FRAME_BYTES } from '../../syncplay/frameLimits';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { useHubStore } from '../../store/hubStore';
 import { secureStorage } from '../../services/SecureStorage';
@@ -1296,6 +1297,49 @@ describe('SyncPlayService - Error handling', () => {
       }).not.toThrow();
       // H2 doctrine: the drop must be LOGGED, not silently swallowed.
       expect(errorSpy).toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  // M-MOBILE-28 (review mobile__exploiter m3): an oversize frame never
+  // reaches JSON.parse (the cap guards the parser, not the router) and the
+  // socket keeps running — frames after the drop still route.
+  it('drops an oversize frame before parsing, socket stays usable', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      syncPlayService.connect('member-123');
+      await pump();
+      MockWebSocket.simulateOpen();
+
+      MockWebSocket.instance?.onmessage?.({
+        data: 'x'.repeat(MAX_INBOUND_FRAME_BYTES + 10),
+      } as any);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('oversize'));
+
+      // Still alive: a well-formed group_state after the oversize frame routes.
+      const stateUpdate = jest.fn();
+      syncPlayService.on('onGroupStateUpdate', stateUpdate as any);
+      MockWebSocket.simulateMessage({
+        type: 'syncplay_group_state',
+        your_id: 'user-2',
+        group: {
+          group_id: 'sp_alive1',
+          group_name: 'Post-Cap Group',
+          member_count: 1,
+          members: { 'user-1': { id: 'user-1', name: 'Alice', is_host: true } },
+          host_id: 'user-1',
+          current_media_id: 'media-9',
+          current_media_duration: 5400,
+          playback_position: 60_000,
+          playback_state: 'playing',
+          queue: [],
+          created_at: 1_700_000_000,
+          last_activity_at: 1_700_000_500,
+        },
+      });
+      expect(stateUpdate).toHaveBeenCalledTimes(1);
+      syncPlayService.off('onGroupStateUpdate');
     } finally {
       errorSpy.mockRestore();
     }

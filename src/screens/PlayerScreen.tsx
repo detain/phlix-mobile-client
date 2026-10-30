@@ -52,6 +52,7 @@ import { downloadService } from '../services/DownloadService';
 import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
 import type { PlaybackEvent } from '../native/types';
 import { syncPlayService } from '../syncplay/SyncPlayService';
+import { clampSeekSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { resolveNextEpisodeId } from '../utils/autoplayNextEpisode';
@@ -300,9 +301,17 @@ const PlayerScreen: React.FC = () => {
             // S441 — `cmd.position` arrives in app-internal SECONDS: the wire's
             // ms were decoded once at the SyncPlayService boundary, so it feeds
             // the native `seekTo` (a seconds API) with no unit math here.
-            dispatchPlayerCommand(playerRef, 'seekTo', [cmd.position]);
-            setCurrentTime(cmd.position);
-            playerSetCurrentTime(cmd.position);
+            // M-MOBILE-27: decoded is not the same as HONORABLE — a hostile or
+            // buggy host can send a finite-but-absurd position (1e303), which
+            // iOS turns into an invalid CMTime (stall) and Android into a
+            // saturating Long. Clamp against the known duration at THIS
+            // boundary; it is the last stop before the native module.
+            {
+              const seekTarget = clampSeekSeconds(cmd.position, durationRef.current);
+              dispatchPlayerCommand(playerRef, 'seekTo', [seekTarget]);
+              setCurrentTime(seekTarget);
+              playerSetCurrentTime(seekTarget);
+            }
             break;
         }
       }

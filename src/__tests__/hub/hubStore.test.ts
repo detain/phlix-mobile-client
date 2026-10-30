@@ -209,6 +209,66 @@ describe('hubStore', () => {
 
       expect(useHubStore.getState().effectiveServerUrl).toBe(initialUrl);
     });
+
+    // M-MOBILE-49 — hub-provided hostnames pass a scheme allowlist before
+    // they may drive REST/WS: https and http (the ratified LAN lane) ride;
+    // anything else is refused loud into the '' (no-server) degradation.
+    it('accepts an http:// hostname from the hub roster (LAN lane stays reachable)', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue([
+        {
+          serverId: 'server-lan',
+          serverName: 'LAN Box',
+          version: '1.0.0',
+          status: 'online' as const,
+          hostname: 'http://192.168.1.50:8096',
+          capabilities: [],
+        },
+      ]);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      useHubStore.getState().setActiveServer('server-lan');
+      expect(useHubStore.getState().effectiveServerUrl).toBe(
+        'http://192.168.1.50:8096'
+      );
+    });
+
+    it('refuses a foreign-scheme hostname from the hub roster', async () => {
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      try {
+        mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+        mockedHubAuthService.hubAuthService.listServers.mockResolvedValue([
+          {
+            serverId: 'server-evil',
+            serverName: 'Roster Poison',
+            version: '1.0.0',
+            status: 'online' as const,
+            hostname: 'ftp://evil.example.com',
+            relayHostname: 'file:///etc/passwd',
+            capabilities: [],
+          },
+        ]);
+        await useHubStore.getState().signInToHub(
+          'https://hub.example.com',
+          'testuser',
+          'testpass'
+        );
+
+        useHubStore.getState().setActiveServer('server-evil');
+        expect(useHubStore.getState().effectiveServerUrl).toBe('');
+
+        useHubStore.getState().setConnectionMode('relay');
+        // No relayHostname fallback either — the file:// string is refused
+        // (the default relay URL only applies when relayHostname is absent).
+        expect(useHubStore.getState().effectiveServerUrl).toBe('');
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe('setConnectionMode', () => {

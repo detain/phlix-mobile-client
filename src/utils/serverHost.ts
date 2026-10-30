@@ -36,3 +36,17 @@ export function hostOf(baseUrl: string): string {
   }
   return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
 }
+
+/**
+ * THE https-liveness predicate (M-MOBILE-50): exactly the `https://`
+ * prefix, nothing looser. The two WS lanes used to disagree —
+ * `wsEndpoint.wsScheme` asked `startsWith('https')` (so `httpsfoo://` or a
+ * bare `https.example.com` counted as TLS) while `hubRelay.buildHubRelayUrl`
+ * asked `startsWith('https://')`. A predicate pair that drifts is two
+ * predicates; the security-relevant one was the STRICT one, so strictness
+ * is what got unified. Both lanes (and any future scheme decision) read
+ * THIS function.
+ */
+export function isHttpsBase(baseUrl: string): boolean {
+  return baseUrl.startsWith('https://');
+}

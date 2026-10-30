@@ -138,6 +138,10 @@ const WatchHistoryScreen: React.FC = () => {
     <SafeContainer edges={['top']}>
       {items.length > 0 && (
         <View style={styles.headerActions}>
+          {/* M-MOBILE-41: long-press-delete was undiscoverable — the ONLY
+              affordance was a 500ms hold nobody would find by accident.
+              The gesture stays, the discovery ships. */}
+          <Text style={styles.deleteHint}>Press and hold an item to remove it</Text>
           <TouchableOpacity
             style={styles.clearButton}
             onPress={handleClearAll}
@@ -185,10 +189,15 @@ const WatchHistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 5,
+  },
+  deleteHint: {
+    color: '#888888',
+    fontSize: 12,
   },
   clearButton: {
     paddingHorizontal: 12,

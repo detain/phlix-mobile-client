@@ -41,7 +41,8 @@ import { PosterCard } from '../components/media/PosterCard';
 import { ErrorView } from '../components/ui/ErrorView';
 import { CastButton } from '../components/cast';
 import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
-import { UserRatingPicker } from '../components/UserRatingPicker';
+// M-MOBILE-48: the UserRatingPicker import is gone with its duplicate-
+// rating section — one rating UI per screen (the inline row above).
 import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
 import { isDownloadableType, isPlayableType } from '../utils/mediaType';
@@ -264,7 +265,16 @@ const MediaDetailScreen: React.FC = () => {
         handleRetryDownload();
         break;
       default:
-        // queued / downloading / paused — no-op tap (managed from Downloads tab).
+        // M-MOBILE-48: queued / downloading / paused taps used to be a SILENT
+        // no-op — the button looked pressable and did nothing observable.
+        // Same destination as before (manage it from the Downloads tab), but
+        // now it says so.
+        Alert.alert(
+          'Already in the queue',
+          downloadTask.status === 'paused'
+            ? 'This download is paused — manage it from the Downloads tab.'
+            : 'This download is in progress — manage it from the Downloads tab.'
+        );
         break;
     }
   };
@@ -393,7 +403,19 @@ const MediaDetailScreen: React.FC = () => {
             item={item}
             width={screenWidth * 0.35}
             height={screenWidth * 0.35 * 1.5}
-            onPress={() => {}}
+            // M-MOBILE-48: the poster used to sit behind a Pressable whose
+            // onPress was `() => {}` — a dead tap on the most expected
+            // gesture on the page. Playable items now start/continue
+            // playback from the poster (same handler as the primary button,
+            // so Resume semantics match); non-playable items keep a no-op
+            // because the tap has nothing honest to do.
+            onPress={
+              isPlayableType(item.type)
+                ? hasResumePosition
+                  ? handleResume
+                  : handlePlay
+                : () => {}
+            }
           />
 
           <View style={styles.infoContent}>
@@ -479,12 +501,23 @@ const MediaDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.playButton, styles.playButtonPrimary]}
               onPress={hasResumePosition ? handleResume : handlePlay}
+              // M-MOBILE-48: 'Resume' used to REPLACE 'Play' with no path
+              // back to the start. Long-pressing the same button starts
+              // over — and says so in the caption below.
+              onLongPress={hasResumePosition ? handlePlay : undefined}
+              accessibilityLabel={hasResumePosition ? 'Resume playback' : 'Play'}
+              accessibilityHint={hasResumePosition ? 'Press and hold to start from the beginning' : undefined}
             >
               <Text style={styles.playButtonIcon}>▶</Text>
               <Text style={styles.playButtonText}>
                 {hasResumePosition ? 'Resume' : 'Play'}
               </Text>
             </TouchableOpacity>
+            {hasResumePosition && (
+              <Text style={styles.startOverHint}>
+                Press and hold to start from the beginning
+              </Text>
+            )}
 
             {/* E7: Cast — server-mediated; needs the signed stream URL + id. */}
             {isPlayableType(item.type) && item.stream_url ? (
@@ -527,18 +560,13 @@ const MediaDetailScreen: React.FC = () => {
           </View>
         )}
 
-        {/* P1-S8: User rating picker - interactive rating below description.
-            Shown only when authenticated (user_data present). */}
-        {userDataPresent && (
-          <View style={styles.ratingPickerSection}>
-            <Text style={styles.sectionLabel}>Your Rating</Text>
-            <UserRatingPicker
-              itemId={itemId}
-              initialRating={rating}
-              onRatingChange={setRating}
-            />
-          </View>
-        )}
+        {/* M-MOBILE-48: the second rating UI removed. The authenticated
+            inline row above (favorite ♥ + 1–10 stars, optimistic with
+            revert) and this UserRatingPicker wrote the SAME endpoint from
+            the same screen — two sources of truth a patch apart. The
+            inline row stays (it sits with its favorite twin and shows the
+            numeric rating); the picker section is gone, and so is the
+            now-zero-call-site component file. */}
 
         {/* Genres */}
         {item.genres && item.genres.length > 0 && (
@@ -799,10 +827,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
-  // P1-S8: user rating picker section
-  ratingPickerSection: {
-    paddingHorizontal: 20,
-    marginTop: 20,
+  // M-MOBILE-48: the 'start from the beginning' caption under Resume.
+  startOverHint: {
+    color: '#888',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
   },
   sectionLabel: {
     color: '#888',

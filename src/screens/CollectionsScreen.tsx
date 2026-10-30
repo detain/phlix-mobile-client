@@ -178,6 +178,12 @@ const CollectionsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      {/* M-MOBILE-41: the delete gesture is long-press-only; without a
+          stated hint it is undiscoverable. Gesture stays, discovery ships. */}
+      {collections.length > 0 && (
+        <Text style={styles.deleteHint}>Press and hold a collection to delete it</Text>
+      )}
+
       <FlatList
         data={collections}
         renderItem={renderItem}
@@ -287,6 +293,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#2d2d44',
+  },
+  deleteHint: {
+    color: '#888888',
+    fontSize: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   headerTitle: {
     color: '#fff',

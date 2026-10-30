@@ -25,6 +25,7 @@ import {
   HUB_SYNC_PLAY_PORT,
 } from '../../syncplay/hubRelay';
 import type { PendingPlayMediaCommand } from '../../syncplay/hubRelay';
+import { MAX_INBOUND_FRAME_BYTES } from '../../syncplay/frameLimits';
 
 // ── fake WebSocket swapped into the global (mirrors the ui S298 suite) ────────
 
@@ -205,6 +206,17 @@ describe('buildHubRelayUrl', () => {
   it('exposes the relay port constant', () => {
     expect(HUB_SYNC_PLAY_PORT).toBe(8804);
   });
+
+  // M-MOBILE-50 — the shared STRICT predicate: a look-alike that merely
+  // starts with the letters `https` is NOT TLS on either lane now.
+  it('treats only the exact https:// prefix as secure (strict predicate)', () => {
+    expect(buildHubRelayUrl('httpsfoo://h', 'srv-1')).toBe(
+      'ws://h:8804/syncplay/srv-1'
+    );
+    expect(buildHubRelayUrl('https://h', 'srv-1')).toBe(
+      'wss://h:8804/syncplay/srv-1'
+    );
+  });
 });
 
 // ── open-whenever lifecycle + carrier ─────────────────────────────────────────
@@ -291,6 +303,30 @@ describe('openHubRelayConnection', () => {
       title: 'Inception',
     });
     expect(onPendingCommand).not.toHaveBeenCalled();
+  });
+
+  // M-MOBILE-28 — admission is size-capped BEFORE the parse: an oversize
+  // frame is dropped loud (never fed to JSON.parse), and the socket keeps
+  // running — good frames after it still deliver.
+  it('drops an oversize frame before parsing, socket stays usable', () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onPendingCommand = jest.fn();
+    try {
+      openHubRelayConnection(config({ onPendingCommand }));
+      socket().onmessage?.({ data: 'x'.repeat(MAX_INBOUND_FRAME_BYTES + 10) });
+      expect(onPendingCommand).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('oversize'));
+      socket().deliver({
+        type: 'pending_command',
+        command: 'play_media',
+        server_id: 'srv-1',
+        media_id: 'media-after-oversize',
+        title: 'Still Working',
+      });
+      expect(onPendingCommand).toHaveBeenCalledTimes(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it('ignores non-pending_command frames (room vocabulary) and malformed JSON', () => {

@@ -61,7 +61,7 @@ import Config from 'react-native-config';
 import { buildHubRelayUrl } from './hubRelay';
 import { createHubRelayTokenProvider } from '../hub/RelayTokenProvider';
 import { secureStorage } from '../services/SecureStorage';
-import { hostOf } from '../utils/serverHost';
+import { hostOf, isHttpsBase } from '../utils/serverHost';
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import {
   SYNCPLAY_HOST_MISMATCH_CODE,
@@ -121,9 +121,13 @@ export function syncPlayWsPort(): number {
   return SYNCPLAY_WS_DEFAULT_PORT;
 }
 
-/** `https:`/`http:` → `wss:`/`ws:` (anything non-https maps to plain ws). */
+/**
+ * `https://` → `wss`, everything else → `ws` (M-MOBILE-50: the predicate is
+ * the shared STRICT `isHttpsBase` — a malformed look-alike like
+ * `httpsfoo://x` is NOT TLS and must not be dialed as if it were).
+ */
 export function wsScheme(baseUrl: string): 'ws' | 'wss' {
-  return baseUrl.startsWith('https') ? 'wss' : 'ws';
+  return isHttpsBase(baseUrl) ? 'wss' : 'ws';
 }
 
 /**

@@ -38,6 +38,15 @@ describe('formatters', () => {
       expect(formatTime(30.7)).toBe('0:30');
       expect(formatTime(59.9)).toBe('0:59');
     });
+
+    // M-MOBILE-27: garbage in, honest zero out — never NaN/-x artifacts.
+    // (Finite-but-absurd values like 1e303 are the SEEK clamp's business,
+    // not the label formatter's — see clampSeekSeconds.)
+    it('answers 0:00 for non-finite and negative inputs', () => {
+      expect(formatTime(Number.POSITIVE_INFINITY)).toBe('0:00');
+      expect(formatTime(NaN)).toBe('0:00');
+      expect(formatTime(-5)).toBe('0:00');
+    });
   });
 
   describe('formatFileSize', () => {
