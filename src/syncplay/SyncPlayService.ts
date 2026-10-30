@@ -281,6 +281,26 @@ function wireNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
+/**
+ * Narrow an untrusted `playback_state` into the typed union at the boundary.
+ *
+ * A rogue/compromised server (or MITM on an `http://` lane) can send ANY value
+ * here; the old `as` cast let a number/object/garbage string flow into the
+ * typed `SyncPlayGroup['playbackState']`, which downstream consumers compare
+ * against 'playing'/'paused' to drive the native player. Anything not in the
+ * whitelist falls back to 'stopped' (review M-MOBILE-26/54).
+ */
+const PLAYBACK_STATES: readonly SyncPlayGroup['playbackState'][] = [
+  'playing',
+  'paused',
+  'stopped',
+];
+function wirePlaybackState(value: unknown): SyncPlayGroup['playbackState'] {
+  return (PLAYBACK_STATES as readonly unknown[]).includes(value)
+    ? (value as SyncPlayGroup['playbackState'])
+    : 'stopped';
+}
+
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface SyncPlayServiceEvents {
@@ -939,7 +959,7 @@ class SyncPlayService {
       name: wireString(groupData.group_name) ?? wireString(groupData.name) ?? '',
       members,
       currentMediaId: wireString(groupData.current_media_id) ?? null,
-      playbackState: ((groupData.playback_state as string) ?? 'stopped') as SyncPlayGroup['playbackState'],
+      playbackState: wirePlaybackState(groupData.playback_state),
       // S441 — the snapshot anchor arrives in WIRE ms; the group (and every
       // consumer below it) speaks SECONDS.
       playbackPosition: wireMsToSeconds(wireNumber(groupData.playback_position)) ?? 0,

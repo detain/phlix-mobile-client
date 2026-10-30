@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import type { MediaRatings } from '@phlix/contracts';
 import { libraryManager } from '../api/LibraryManager';
@@ -61,6 +62,7 @@ const MediaDetailScreen: React.FC = () => {
   const route = useRoute<RouteProp<DetailRouteParams, 'MediaDetail'>>();
   const navigation = useNavigation<DetailNavigationProp>();
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { itemId } = route.params;
 
   const [item, setItem] = useState<MediaItem | null>(null);
@@ -642,9 +644,12 @@ const MediaDetailScreen: React.FC = () => {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* Back Button */}
+      {/* Back Button — M-MOBILE-16: sits BELOW the status bar via the repo's
+          standard useSafeAreaInsets idiom (PhotoViewerScreen:255 precedent).
+          The old `top: Platform.OS === 'ios' ? 50 : 20` hack buried the button
+          under Android's 24-28px status bar and missed notched iOS devices. */}
       <TouchableOpacity
-        style={styles.backButton}
+        style={[styles.backButton, { top: insets.top + 8 }]}
         onPress={() => navigation.goBack()}
         accessibilityLabel="Back"
       >
@@ -912,9 +917,11 @@ const styles = StyleSheet.create({
     height: 100,
   },
   // M-MOBILE-46 (review mobile__gameux): 44pt floor (was 40).
+  // M-MOBILE-16: vertical placement comes from the inline insets style at the
+  // use-site (was `top: Platform.OS === 'ios' ? 50 : 20`, an Android status-bar
+  // collision).
   backButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 50 : 20,
     left: 20,
     width: 44,
     height: 44,

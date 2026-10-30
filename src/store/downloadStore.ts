@@ -12,6 +12,48 @@ import { MediaItem } from '../types/media';
 
 export type DownloadStatus = 'queued' | 'downloading' | 'paused' | 'completed' | 'failed' | 'cancelled';
 
+/** Runtime whitelist for the persisted status union (M-MOBILE-31). */
+const DOWNLOAD_STATUSES: readonly string[] = [
+  'queued',
+  'downloading',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+];
+
+/** One persisted task is usable only if it is an object with the identity and
+ * status fields every consumer reads. Anything else is dropped at the restore
+ * boundary rather than trusted into state. */
+function isUsablePersistedTask(value: unknown): value is DownloadTask {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const task = value as Record<string, unknown>;
+  return (
+    typeof task.id === 'string' &&
+    typeof task.itemId === 'string' &&
+    typeof task.status === 'string' &&
+    DOWNLOAD_STATUSES.includes(task.status)
+  );
+}
+
+function sanitizeTasksBlob(parsed: unknown): Record<string, DownloadTask> {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    console.warn('[downloadStore] Ignoring non-object persisted tasks blob');
+    return {};
+  }
+  const tasks: Record<string, DownloadTask> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (isUsablePersistedTask(value)) {
+      tasks[key] = value;
+    } else {
+      console.warn(`[downloadStore] Dropping malformed persisted task '${key}'`);
+    }
+  }
+  return tasks;
+}
+
 export interface DownloadTask {
   id: string;
   itemId: string;
@@ -253,11 +295,27 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         AsyncStorage.getItem(STORAGE_KEY),
       ]);
       if (data) {
-        set({ tasks: JSON.parse(data) });
+        // M-MOBILE-31 — the restored map feeds `Object.values(tasks)` loops in
+        // the queue scheduler; a corrupted/tampered blob (scalar, array, or
+        // entries missing `id`/`status`) used to land in state verbatim.
+        // Shape-check the container AND every task at this boundary; bad
+        // entries are dropped, not trusted.
+        set({ tasks: sanitizeTasksBlob(JSON.parse(data)) });
       }
       if (storageData) {
-        const { totalStorageUsed = 0, availableStorage = 0 } = JSON.parse(storageData);
-        set({ totalStorageUsed, availableStorage });
+        const parsed = JSON.parse(storageData) as Record<string, unknown>;
+        // Same boundary law: numbers only — the old destructure let a string
+        // 'totalStorageUsed' render garbage in the storage bar.
+        set({
+          totalStorageUsed:
+            typeof parsed?.totalStorageUsed === 'number' && Number.isFinite(parsed.totalStorageUsed)
+              ? parsed.totalStorageUsed
+              : 0,
+          availableStorage:
+            typeof parsed?.availableStorage === 'number' && Number.isFinite(parsed.availableStorage)
+              ? parsed.availableStorage
+              : 0,
+        });
       }
     } catch (err) { console.error('[downloadStore] Failed to load:', err); }
   },

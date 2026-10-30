@@ -51,7 +51,7 @@ class UserManager {
 
   // DELETE /api/v1/users/me/history/{mediaItemId} → { message }
   async deleteHistoryItem(mediaItemId: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/users/me/history/${mediaItemId}`);
+    await apiClient.delete<{ message: string }>(`/users/me/history/${encodeURIComponent(mediaItemId)}`);
   }
 
   // DELETE /api/v1/users/me/history → { message }

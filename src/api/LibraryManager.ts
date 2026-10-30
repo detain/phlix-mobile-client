@@ -58,7 +58,7 @@ class LibraryManager {
     } = {}
   ): Promise<PaginatedResponse<MediaItem>> {
     return apiClient.get<PaginatedResponse<MediaItem>>(
-      `/libraries/${libraryId}/items`,
+      `/libraries/${encodeURIComponent(libraryId)}/items`,
       options
     );
   }
@@ -95,7 +95,7 @@ class LibraryManager {
 
   // Media item details → GET /api/v1/media/{id} → { item }
   async getMediaItem(itemId: string): Promise<MediaItem> {
-    const res = await apiClient.get<{ item: MediaItem }>(`/media/${itemId}`);
+    const res = await apiClient.get<{ item: MediaItem }>(`/media/${encodeURIComponent(itemId)}`);
     return res.item;
   }
 

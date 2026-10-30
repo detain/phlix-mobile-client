@@ -29,7 +29,7 @@ class MarkerManager {
    * item has no detected intro/outro.
    */
   async getPlaybackInfo(itemId: string): Promise<PlaybackInfo> {
-    return apiClient.get<PlaybackInfo>(`/media/${itemId}/playback-info`);
+    return apiClient.get<PlaybackInfo>(`/media/${encodeURIComponent(itemId)}/playback-info`);
   }
 
   /**
@@ -38,7 +38,7 @@ class MarkerManager {
    * raw typed list (e.g. chapter rendering).
    */
   async getMarkers(itemId: string): Promise<RawMarker[]> {
-    const res = await apiClient.get<MarkersResponse>(`/media/${itemId}/markers`);
+    const res = await apiClient.get<MarkersResponse>(`/media/${encodeURIComponent(itemId)}/markers`);
     return res.markers ?? [];
   }
 }

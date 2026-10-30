@@ -69,7 +69,7 @@ class LiveTvManager {
   // GET /api/v1/admin/livetv/channels/{id} → { success, channel }
   async getChannel(id: string): Promise<Channel> {
     const res = await apiClient.get<{ success: boolean; channel: Channel }>(
-      `/admin/livetv/channels/${id}`
+      `/admin/livetv/channels/${encodeURIComponent(id)}`
     );
     return res.channel;
   }
@@ -77,7 +77,7 @@ class LiveTvManager {
   // PUT /api/v1/admin/livetv/channels/{id} → { success, channel }
   async updateChannel(id: string, input: UpdateChannelInput): Promise<Channel> {
     const res = await apiClient.put<{ success: boolean; channel: Channel }>(
-      `/admin/livetv/channels/${id}`,
+      `/admin/livetv/channels/${encodeURIComponent(id)}`,
       input
     );
     return res.channel;
@@ -100,7 +100,7 @@ class LiveTvManager {
    * expose a `GET .../stream-url` JSON route or a signed-livetv-url.
    */
   async getChannelStreamUrl(id: string): Promise<string> {
-    const endpointUrl = `${getApiBaseUrl()}/admin/livetv/channels/${id}/stream`;
+    const endpointUrl = `${getApiBaseUrl()}/admin/livetv/channels/${encodeURIComponent(id)}/stream`;
     try {
       const headers = await buildRequestHeaders();
       const response = await fetch(endpointUrl, {
@@ -144,7 +144,7 @@ class LiveTvManager {
   // GET /api/v1/admin/livetv/guide/programs/{id} → { success, program }
   async getProgram(id: string): Promise<Program> {
     const res = await apiClient.get<{ success: boolean; program: Program }>(
-      `/admin/livetv/guide/programs/${id}`
+      `/admin/livetv/guide/programs/${encodeURIComponent(id)}`
     );
     return res.program;
   }
@@ -176,7 +176,7 @@ class LiveTvManager {
   // GET /api/v1/admin/livetv/recordings/{id} → { success, recording }
   async getRecording(id: string): Promise<Recording> {
     const res = await apiClient.get<{ success: boolean; recording: Recording }>(
-      `/admin/livetv/recordings/${id}`
+      `/admin/livetv/recordings/${encodeURIComponent(id)}`
     );
     return res.recording;
   }
@@ -193,7 +193,7 @@ class LiveTvManager {
   // DELETE /api/v1/admin/livetv/recordings/{id} → { success }
   async deleteRecording(id: string): Promise<void> {
     await apiClient.delete<{ success: boolean; message?: string }>(
-      `/admin/livetv/recordings/${id}`
+      `/admin/livetv/recordings/${encodeURIComponent(id)}`
     );
   }
 

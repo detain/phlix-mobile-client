@@ -163,6 +163,25 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
               {isHost ? 'You are the host' : `Host: ${currentGroup.members.find((m) => m.id === currentGroup.hostId)?.name ?? 'Unknown'}`}
             </Text>
 
+            {/* M-MOBILE-06 — private rooms were unjoinable because the id the
+                Join-by-ID tab needs was never surfaced: after create, the
+                modal closed with the id only in a discarded result object.
+                The id now lives in the in-group panel as SELECTABLE text —
+                press-and-hold copies it (both platforms), no new dependency
+                — and the host can hand it to friends. */}
+            {currentGroup.id !== '' && (
+              <View style={styles.roomIdRow}>
+                <Text style={styles.roomIdLabel}>Room ID</Text>
+                <Text style={styles.roomIdValue} selectable numberOfLines={1}>
+                  {currentGroup.id}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.roomIdHint}>
+              Sharing a private room? Send the Room ID above to friends — they
+              enter it on the Join tab.
+            </Text>
+
             <ScrollView style={styles.memberList}>
               {currentGroup.members.map((member) => (
                 <View key={member.id} style={styles.memberRow}>
@@ -563,6 +582,28 @@ const styles = StyleSheet.create({
   groupInfo: {
     color: '#888',
     fontSize: 14,
+    marginBottom: 16,
+  },
+  // M-MOBILE-06 — Room ID affordance in the in-group panel.
+  roomIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  roomIdLabel: {
+    color: '#888',
+    fontSize: 13,
+    marginRight: 8,
+  },
+  roomIdValue: {
+    color: '#0066cc',
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  roomIdHint: {
+    color: '#666',
+    fontSize: 12,
     marginBottom: 16,
   },
 });

@@ -16,6 +16,7 @@ jest.mock('../../api/AuthManager', () => ({
   authManager: {
     login: jest.fn(),
     logout: jest.fn(),
+    register: jest.fn(),
     isAuthenticated: jest.fn(),
     getCurrentUser: jest.fn(),
     getMe: jest.fn(),
@@ -202,6 +203,64 @@ describe('useAuthStore', () => {
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+
+    // M-MOBILE-33 — when the OS biometric marker read throws (prompt armed and
+    // denied/cancelled), checkAuth must NOT reach authManager: the vault stays
+    // closed this launch and the session is left intact (no wipe).
+    it('is gated by the biometric marker when armed and denied', async () => {
+      const keychain = jest.requireMock('react-native-keychain') as {
+        getGenericPassword: jest.Mock;
+      };
+      keychain.getGenericPassword.mockRejectedValueOnce(new Error('biometry denied'));
+      mockedAuthManager.isAuthenticated.mockClear();
+
+      await useAuthStore.getState().checkAuth();
+
+      expect(mockedAuthManager.isAuthenticated).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+  });
+
+  describe('register', () => {
+    // M-MOBILE-05 — the signup path: token envelope lands the session and
+    // persists the target host first; `{status:'pending'}` reports the
+    // server's approval notice without authenticating.
+    it('authenticates on a token response', async () => {
+      const tokenResponse = {
+        access_token: 'a',
+        refresh_token: 'r',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        user: mockUser,
+      };
+      mockedAuthManager.register.mockResolvedValue(tokenResponse);
+
+      const result = await useAuthStore
+        .getState()
+        .register('https://box.test:8096', 'alice', 'a@x.test', 'pw12345');
+
+      expect(result).toEqual({ outcome: 'authenticated' });
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().user).toEqual(mockUser);
+    });
+
+    it('reports the server notice on a pending approval', async () => {
+      mockedAuthManager.register.mockResolvedValue({
+        status: 'pending',
+        message: 'Ask an admin to approve your account.',
+      });
+
+      const result = await useAuthStore
+        .getState()
+        .register('https://box.test:8096', 'bob', 'b@x.test', 'pw12345');
+
+      expect(result).toEqual({
+        outcome: 'pending',
+        message: 'Ask an admin to approve your account.',
+      });
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
   });
 

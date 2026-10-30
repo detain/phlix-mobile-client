@@ -84,7 +84,7 @@ class MusicManager {
 
   // GET /api/v1/music/tracks/{id} → { track }  ({id} = media_item UUID)
   async getTrack(id: string): Promise<Track> {
-    const res = await apiClient.get<{ track: Track }>(`/music/tracks/${id}`);
+    const res = await apiClient.get<{ track: Track }>(`/music/tracks/${encodeURIComponent(id)}`);
     return res.track;
   }
 

@@ -59,7 +59,7 @@ class ParentalControlsManager {
    */
   async getSchedules(profileId: string): Promise<AccessSchedule[]> {
     const res = await apiClient.get<{ schedules: WireSchedule[] }>(
-      `/profiles/${profileId}/schedules`
+      `/profiles/${encodeURIComponent(profileId)}/schedules`
     );
     return (res.schedules ?? []).map(mapProfileId);
   }
@@ -78,7 +78,7 @@ class ParentalControlsManager {
       is_active: boolean;
     }
   ): Promise<AccessSchedule> {
-    return apiClient.post<AccessSchedule>(`/profiles/${profileId}/schedules`, input);
+    return apiClient.post<AccessSchedule>(`/profiles/${encodeURIComponent(profileId)}/schedules`, input);
   }
 
   /**
@@ -96,7 +96,7 @@ class ParentalControlsManager {
       is_active: boolean;
     }
   ): Promise<AccessSchedule> {
-    return apiClient.post<AccessSchedule>(`/profiles/${profileId}/schedules`, input);
+    return apiClient.post<AccessSchedule>(`/profiles/${encodeURIComponent(profileId)}/schedules`, input);
   }
 
   /**
@@ -104,7 +104,7 @@ class ParentalControlsManager {
    * DELETE /api/v1/profiles/{profileId}/schedules/{scheduleId} → { message: string }
    */
   async deleteSchedule(profileId: string, scheduleId: number): Promise<void> {
-    await apiClient.delete(`/profiles/${profileId}/schedules/${scheduleId}`);
+    await apiClient.delete(`/profiles/${encodeURIComponent(profileId)}/schedules/${encodeURIComponent(scheduleId)}`);
   }
 
   // ── Tags ─────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ class ParentalControlsManager {
    */
   async getTags(profileId: string): Promise<ProfileTag[]> {
     const res = await apiClient.get<{ tags: WireTag[] }>(
-      `/profiles/${profileId}/tags`
+      `/profiles/${encodeURIComponent(profileId)}/tags`
     );
     return (res.tags ?? []).map(mapProfileId);
   }
@@ -132,7 +132,7 @@ class ParentalControlsManager {
     profileId: string,
     input: { tag: string; tag_type: 'blocked' | 'allowed' }
   ): Promise<ProfileTag> {
-    return apiClient.post<ProfileTag>(`/profiles/${profileId}/tags`, input);
+    return apiClient.post<ProfileTag>(`/profiles/${encodeURIComponent(profileId)}/tags`, input);
   }
 
   /**
@@ -140,7 +140,7 @@ class ParentalControlsManager {
    * DELETE /api/v1/profiles/{profileId}/tags/{tagId} → { message: string }
    */
   async removeTag(profileId: string, tagId: number): Promise<void> {
-    await apiClient.delete(`/profiles/${profileId}/tags/${tagId}`);
+    await apiClient.delete(`/profiles/${encodeURIComponent(profileId)}/tags/${encodeURIComponent(tagId)}`);
   }
 
   // ── Stream Limits ────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ class ParentalControlsManager {
    */
   async getStreamLimit(profileId: string): Promise<ProfileStreamLimit> {
     return apiClient.get<ProfileStreamLimit>(
-      `/profiles/${profileId}/stream-limits`
+      `/profiles/${encodeURIComponent(profileId)}/stream-limits`
     );
   }
 
@@ -164,7 +164,7 @@ class ParentalControlsManager {
     input: { maxConcurrentStreams: number; maxTotalBandwidthKbps: number | null }
   ): Promise<ProfileStreamLimit> {
     return apiClient.put<ProfileStreamLimit>(
-      `/profiles/${profileId}/stream-limits`,
+      `/profiles/${encodeURIComponent(profileId)}/stream-limits`,
       input
     );
   }

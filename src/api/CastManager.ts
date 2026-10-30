@@ -146,7 +146,7 @@ class CastManager {
     switch (device.backend) {
       case 'chromecast': {
         const res = await apiClient.post<CastSessionDto>(
-          `/cast/devices/${device.id}/cast`,
+          `/cast/devices/${encodeURIComponent(device.id)}/cast`,
           {
             media_url: media.mediaUrl,
             mime_type: media.mimeType ?? 'application/x-mpegurl',
@@ -158,7 +158,7 @@ class CastManager {
       }
       case 'roku': {
         const res = await apiClient.post<CastSessionDto>(
-          `/roku/devices/${device.id}/send`,
+          `/roku/devices/${encodeURIComponent(device.id)}/send`,
           {
             media_url: media.mediaUrl,
             mime_type: media.mimeType ?? 'application/x-mpegurl',
@@ -170,7 +170,7 @@ class CastManager {
       }
       case 'airplay': {
         const res = await apiClient.post<CastSessionDto>(
-          `/airplay/devices/${device.id}/stream`,
+          `/airplay/devices/${encodeURIComponent(device.id)}/stream`,
           {
             audio_url: media.mediaUrl,
             content_type: media.mimeType ?? 'audio/mp4',
@@ -181,7 +181,7 @@ class CastManager {
       }
       case 'dlna': {
         const res = await apiClient.post<CastSessionDto>(
-          `/dlna/renderers/${device.id}/play`,
+          `/dlna/renderers/${encodeURIComponent(device.id)}/play`,
           {
             media_item_id: media.mediaItemId,
             uri: media.mediaUrl,
@@ -204,16 +204,16 @@ class CastManager {
   async pause(device: CastDevice): Promise<void> {
     switch (device.backend) {
       case 'chromecast':
-        await apiClient.post(`/cast/devices/${device.id}/pause`);
+        await apiClient.post(`/cast/devices/${encodeURIComponent(device.id)}/pause`);
         break;
       case 'roku':
-        await apiClient.post(`/roku/devices/${device.id}/key/Play`);
+        await apiClient.post(`/roku/devices/${encodeURIComponent(device.id)}/key/Play`);
         break;
       case 'airplay':
-        await apiClient.post(`/airplay/devices/${device.id}/pause`);
+        await apiClient.post(`/airplay/devices/${encodeURIComponent(device.id)}/pause`);
         break;
       case 'dlna':
-        await apiClient.post(`/dlna/renderers/${device.id}/pause`);
+        await apiClient.post(`/dlna/renderers/${encodeURIComponent(device.id)}/pause`);
         break;
       default:
         break;
@@ -231,13 +231,13 @@ class CastManager {
     }
     switch (device.backend) {
       case 'chromecast':
-        await apiClient.post(`/cast/devices/${device.id}/play`);
+        await apiClient.post(`/cast/devices/${encodeURIComponent(device.id)}/play`);
         break;
       case 'roku':
-        await apiClient.post(`/roku/devices/${device.id}/key/Play`);
+        await apiClient.post(`/roku/devices/${encodeURIComponent(device.id)}/key/Play`);
         break;
       case 'airplay':
-        await apiClient.post(`/airplay/devices/${device.id}/resume`);
+        await apiClient.post(`/airplay/devices/${encodeURIComponent(device.id)}/resume`);
         break;
       default:
         break;
@@ -252,13 +252,13 @@ class CastManager {
     }
     switch (device.backend) {
       case 'chromecast':
-        await apiClient.post(`/cast/devices/${device.id}/stop`);
+        await apiClient.post(`/cast/devices/${encodeURIComponent(device.id)}/stop`);
         break;
       case 'airplay':
-        await apiClient.post(`/airplay/devices/${device.id}/stop`);
+        await apiClient.post(`/airplay/devices/${encodeURIComponent(device.id)}/stop`);
         break;
       case 'dlna':
-        await apiClient.post(`/dlna/renderers/${device.id}/stop`);
+        await apiClient.post(`/dlna/renderers/${encodeURIComponent(device.id)}/stop`);
         break;
       default:
         break;
@@ -276,12 +276,12 @@ class CastManager {
     }
     switch (device.backend) {
       case 'chromecast':
-        await apiClient.post(`/cast/devices/${device.id}/seek`, {
+        await apiClient.post(`/cast/devices/${encodeURIComponent(device.id)}/seek`, {
           position_ms: positionMs,
         });
         break;
       case 'dlna':
-        await apiClient.post(`/dlna/renderers/${device.id}/seek`, {
+        await apiClient.post(`/dlna/renderers/${encodeURIComponent(device.id)}/seek`, {
           position_ticks: positionMs * POSITION_TICKS_PER_MS,
         });
         break;
@@ -301,16 +301,16 @@ class CastManager {
     let dto: CastStatusDto;
     switch (device.backend) {
       case 'chromecast':
-        dto = await apiClient.get<CastStatusDto>(`/cast/devices/${device.id}/status`);
+        dto = await apiClient.get<CastStatusDto>(`/cast/devices/${encodeURIComponent(device.id)}/status`);
         break;
       case 'roku':
-        dto = await apiClient.get<CastStatusDto>(`/roku/devices/${device.id}/status`);
+        dto = await apiClient.get<CastStatusDto>(`/roku/devices/${encodeURIComponent(device.id)}/status`);
         break;
       case 'airplay':
-        dto = await apiClient.get<CastStatusDto>(`/airplay/devices/${device.id}/status`);
+        dto = await apiClient.get<CastStatusDto>(`/airplay/devices/${encodeURIComponent(device.id)}/status`);
         break;
       case 'dlna':
-        dto = await apiClient.get<CastStatusDto>(`/dlna/renderers/${device.id}/status`);
+        dto = await apiClient.get<CastStatusDto>(`/dlna/renderers/${encodeURIComponent(device.id)}/status`);
         break;
       default:
         return { active: false };

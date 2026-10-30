@@ -50,7 +50,7 @@ class PlaybackManager {
    * `positionTicks` / `durationTicks` are 100ns TICKS (not seconds).
    */
   async reportProgress(sessionId: string, progress: ReportProgressParams): Promise<void> {
-    await apiClient.post<{ message: string }>(`/sessions/${sessionId}/progress`, {
+    await apiClient.post<{ message: string }>(`/sessions/${encodeURIComponent(sessionId)}/progress`, {
       media_item_id: progress.mediaItemId,
       position_ticks: progress.positionTicks,
       duration_ticks: progress.durationTicks,
@@ -74,7 +74,7 @@ class PlaybackManager {
     reachedEnd = true,
   ): Promise<void> {
     await apiClient.post<{ message: string; reached_end: boolean }>(
-      `/sessions/${sessionId}/complete`,
+      `/sessions/${encodeURIComponent(sessionId)}/complete`,
       {
         media_item_id: mediaItemId,
         reached_end: reachedEnd,
@@ -84,7 +84,7 @@ class PlaybackManager {
 
   /** End a playback session → DELETE /api/v1/sessions/{id} → { message }. */
   async endSession(sessionId: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/sessions/${sessionId}`);
+    await apiClient.delete<{ message: string }>(`/sessions/${encodeURIComponent(sessionId)}`);
     setActiveSessionId(null);
   }
 

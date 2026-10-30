@@ -638,8 +638,62 @@ describe('SyncPlayService - Group state parsing (wire law)', () => {
     ...extra,
   });
 
-  it('parses dictionary-keyed members without throwing (H2)', async () => {
+  // M-MOBILE-26/54 — `playback_state` arrives from an untrusted server (or a
+  // MITM on a cleartext lane). The old cast pushed ANY value into the typed
+  // union; the boundary parser must land on the whitelist or 'stopped'.
+  it.each([
+    ['a garbage string', 'playing-fast'],
+    ['a number', 7],
+    ['an object', { state: 'playing' }],
+    ['null', null],
+    ['absent', undefined],
+  ])('narrows hostile playback_state (%s) to stopped-safe group state', async (_label, hostile) => {
     syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const stateUpdate = jest.fn();
+    syncPlayService.on('onGroupStateUpdate', stateUpdate as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_group_state',
+      your_id: 'user-2',
+      group: wireGroup(
+        { 'user-1': { id: 'user-1', name: 'Alice', is_host: true } },
+        { playback_state: hostile }
+      ),
+    });
+
+    const group = stateUpdate.mock.calls[0][0];
+    expect(['playing', 'paused', 'stopped']).toContain(group.playbackState);
+    expect(group.playbackState).toBe('stopped');
+
+    syncPlayService.off('onGroupStateUpdate');
+  });
+
+  it('passes a whitelisted playback_state through unchanged', async () => {
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const stateUpdate = jest.fn();
+    syncPlayService.on('onGroupStateUpdate', stateUpdate as any);
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_group_state',
+      your_id: 'user-2',
+      group: wireGroup(
+        { 'user-1': { id: 'user-1', name: 'Alice', is_host: true } },
+        { playback_state: 'paused' }
+      ),
+    });
+
+    expect(stateUpdate.mock.calls[0][0].playbackState).toBe('paused');
+
+    syncPlayService.off('onGroupStateUpdate');
+  });
+
+  it('parses dictionary-keyed members without throwing (H2)', async () => {    syncPlayService.connect('member-123');
     await pump();
     MockWebSocket.simulateOpen();
 

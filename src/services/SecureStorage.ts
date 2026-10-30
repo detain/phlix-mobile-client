@@ -223,8 +223,14 @@ class SecureStorage {
     await Keychain.resetGenericPassword({ service: HUB_REFRESH_SERVICE });
   }
 
-  // ── Biometric gate (unchanged surface) ───────────────────────────────────
+  // ── Biometric gate (M-MOBILE-33: the switch now GATES, not decorates) ────
 
+  /**
+   * Arm the OS-enforced biometric gate by writing the marker slot under
+   * `BIOMETRY_ANY` + `WHEN_PASSCODE_SET_THIS_DEVICE_ONLY` access control.
+   * Devices without enrolled biometrics/passcode fail the secure write →
+   * `false`, so the UI can say so instead of persisting theater.
+   */
   async enableBiometric(): Promise<boolean> {
     try {
       const result = await Keychain.setGenericPassword(
@@ -253,18 +259,44 @@ class SecureStorage {
     }
   }
 
+  /** Disarm the gate: wipe the protected marker slot (SettingsScreen toggle-off). */
+  async disableBiometric(): Promise<void> {
+    await Keychain.resetGenericPassword({ service: `${SERVICE_NAME}.biometric` });
+  }
+
+  /**
+   * Cold-start gate check (M-MOBILE-33).
+   *
+   * The marker slot is the ONLY storage whose reads the OS protects with
+   * `BIOMETRY_ANY` (the token slots are plain vault entries), so reading the
+   * marker IS the authentication — one prompt, not two. Truth table:
+   * - slot absent (gate never armed / disarmed) → `true`: nothing is gated,
+   *   the caller proceeds exactly as before this feature existed;
+   * - slot present, read succeeds → the OS accepted the biometric → `true`;
+   * - slot present, read fails/cancels → `false`: the caller must NOT read
+   *   the vault this launch (tokens stay intact for a retry).
+   *
+   * Platform caveat (honest): enforcement lives in the OS keystore — iOS
+   * honors `BIOMETRY_ANY` fully; Android's prompt binding depends on the
+   * device's keystore/biometric stack, where an unsupported control fails
+   * the ENABLE write (→ the switch never sticks) rather than pretending.
+   */
   async authenticateWithBiometric(): Promise<boolean> {
     try {
-      const credentials = await Keychain.getGenericPassword({
-        service: REFRESH_SERVICE,
+      await Keychain.getGenericPassword({
+        service: `${SERVICE_NAME}.biometric`,
         authenticationPrompt: {
           title: 'Authenticate to access Phlix',
           subtitle: 'Use biometric authentication',
           cancel: 'Cancel',
         },
       });
-      return !!credentials;
+      // Resolved — either the slot is absent (no prompt happened, gate not
+      // armed) or the OS accepted the biometric and returned the marker.
+      return true;
     } catch {
+      // The protected read failed: prompt cancelled, biometric rejected, or
+      // the OS refuses the item. The gate says no.
       return false;
     }
   }

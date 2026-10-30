@@ -367,6 +367,25 @@ describe('hubStore', () => {
 
       await expect(useHubStore.getState().loadPersistedState()).resolves.toBeUndefined();
     });
+
+    // M-MOBILE-31 — the old gate was truthiness-only: a non-object blob, a
+    // non-string hubUrl, or a session without typed expiresAt/userId used to
+    // flow straight into fetch()/HubSession hydration. All refused at the
+    // boundary now, leaving state untouched.
+    it.each([
+      ['a scalar blob', JSON.stringify('pwned')],
+      ['an array blob', JSON.stringify([{ pwn: true }])],
+      ['a non-string hubUrl', JSON.stringify({ hubUrl: { proto: 'http' }, session: mockSession, activeServerId: 'server-2' })],
+      ['a session without typed fields', JSON.stringify({ hubUrl: 'https://hub.example.com', session: { expiresAt: 'never' }, activeServerId: 'server-2' })],
+    ])('refuses %s without touching state', async (_label, blob) => {
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(blob);
+      mockedHubAuthService.hubAuthService.listServers.mockClear();
+
+      await useHubStore.getState().loadPersistedState();
+
+      expect(mockedHubAuthService.hubAuthService.listServers).not.toHaveBeenCalled();
+      expect(useHubStore.getState().hubUrl).toBeNull();
+    });
   });
 
   describe('clearError', () => {

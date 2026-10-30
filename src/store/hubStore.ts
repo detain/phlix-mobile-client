@@ -263,9 +263,36 @@ export const useHubStore = create<HubState>((set, get) => {
     try {
       const data = await AsyncStorage.getItem(HUB_STORAGE_KEY);
       if (data) {
-        const { hubUrl, session, activeServerId, connectionMode } =
-          JSON.parse(data);
-        if (hubUrl && session && activeServerId) {
+        const parsed: unknown = JSON.parse(data);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          // M-MOBILE-31 — a non-object blob is corruption/tampering: nothing
+          // below this line may run against it.
+          return;
+        }
+        const { hubUrl, session, activeServerId } = parsed as Record<string, unknown>;
+        const rawMode = (parsed as Record<string, unknown>).connectionMode;
+        const connectionMode: ConnectionMode =
+          rawMode === 'direct' || rawMode === 'relay' ? rawMode : 'direct';
+        // Shape-validate the whole restored envelope before use (review
+        // M-MOBILE-31): the old truthiness-only gate let a non-string hubUrl
+        // reach fetch() and a garbage `session` reach the hydrated HubSession.
+        if (
+          typeof hubUrl === 'string' &&
+          hubUrl !== '' &&
+          typeof activeServerId === 'string' &&
+          activeServerId !== '' &&
+          typeof session === 'object' &&
+          session !== null &&
+          typeof (session as Record<string, unknown>).expiresAt === 'number' &&
+          Number.isFinite((session as Record<string, unknown>).expiresAt) &&
+          typeof (session as Record<string, unknown>).userId === 'string'
+        ) {
+          const envelope = session as {
+            expiresAt: number;
+            userId: string;
+            accessToken?: unknown;
+            refreshToken?: unknown;
+          };
           // Resolve the JWT pair: vault first. A pre-vault blob carries
           // them in plaintext inside `session` — migrate on first read
           // (secure-write BEFORE the sanitized blob replaces it, the
@@ -276,9 +303,9 @@ export const useHubStore = create<HubState>((set, get) => {
           let accessToken: string | null = await secureStorage.getHubAccessToken();
           let refreshToken: string | null = await secureStorage.getHubRefreshToken();
           const legacyPair: { accessToken: string; refreshToken: string } | null =
-            typeof session.accessToken === 'string' &&
-            typeof session.refreshToken === 'string'
-              ? { accessToken: session.accessToken, refreshToken: session.refreshToken }
+            typeof envelope.accessToken === 'string' &&
+            typeof envelope.refreshToken === 'string'
+              ? { accessToken: envelope.accessToken, refreshToken: envelope.refreshToken }
               : null;
           if (!accessToken || !refreshToken) {
             if (legacyPair) {
@@ -291,7 +318,7 @@ export const useHubStore = create<HubState>((set, get) => {
                 );
                 await AsyncStorage.setItem(
                   HUB_STORAGE_KEY,
-                  buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)
+                  buildSanitizedHubBlob(hubUrl, envelope, activeServerId, connectionMode)
                 );
               } catch {
                 // Vault write failed — plaintext copy stays for retry.
@@ -310,7 +337,7 @@ export const useHubStore = create<HubState>((set, get) => {
             try {
               await AsyncStorage.setItem(
                 HUB_STORAGE_KEY,
-                buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)
+                buildSanitizedHubBlob(hubUrl, envelope, activeServerId, connectionMode)
               );
             } catch {
               // Next load retries the sweep; the vault holds the pair.
@@ -328,8 +355,8 @@ export const useHubStore = create<HubState>((set, get) => {
           const hydrated: HubSession = {
             accessToken,
             refreshToken,
-            expiresAt: session.expiresAt,
-            userId: session.userId,
+            expiresAt: envelope.expiresAt,
+            userId: envelope.userId,
           };
           const servers = await hubAuthService.listServers(hubUrl, hydrated);
           const server = servers.find((s) => s.serverId === activeServerId);

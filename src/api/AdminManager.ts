@@ -193,7 +193,7 @@ class AdminManager {
 
   // GET /api/v1/admin/users/{id} → { user }
   async getUser(id: string): Promise<AdminUser> {
-    const res = await apiClient.get<{ user: AdminUser }>(`/admin/users/${id}`);
+    const res = await apiClient.get<{ user: AdminUser }>(`/admin/users/${encodeURIComponent(id)}`);
     return res.user;
   }
 
@@ -204,17 +204,17 @@ class AdminManager {
 
   // PUT /api/v1/admin/users/{id} → { message }
   async updateUser(id: string, input: UpdateUserInput): Promise<void> {
-    await apiClient.put<{ message: string }>(`/admin/users/${id}`, input);
+    await apiClient.put<{ message: string }>(`/admin/users/${encodeURIComponent(id)}`, input);
   }
 
   // DELETE /api/v1/admin/users/{id} → { message } (400 if self / last admin)
   async deleteUser(id: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/admin/users/${id}`);
+    await apiClient.delete<{ message: string }>(`/admin/users/${encodeURIComponent(id)}`);
   }
 
   // POST /api/v1/admin/users/{id}/set-admin → { message }
   async setUserAdmin(id: string, isAdmin: boolean): Promise<void> {
-    await apiClient.post<{ message: string }>(`/admin/users/${id}/set-admin`, {
+    await apiClient.post<{ message: string }>(`/admin/users/${encodeURIComponent(id)}/set-admin`, {
       is_admin: isAdmin,
     });
   }
@@ -222,23 +222,23 @@ class AdminManager {
   // POST /api/v1/admin/users/{id}/reset-password → { message, new_password }
   async resetPassword(id: string): Promise<ResetPasswordResult> {
     return apiClient.post<ResetPasswordResult>(
-      `/admin/users/${id}/reset-password`
+      `/admin/users/${encodeURIComponent(id)}/reset-password`
     );
   }
 
   // POST /api/v1/admin/users/{id}/approve → { message }
   async approveUser(id: string): Promise<void> {
-    await apiClient.post<{ message: string }>(`/admin/users/${id}/approve`);
+    await apiClient.post<{ message: string }>(`/admin/users/${encodeURIComponent(id)}/approve`);
   }
 
   // POST /api/v1/admin/users/{id}/disable → { message }
   async disableUser(id: string): Promise<void> {
-    await apiClient.post<{ message: string }>(`/admin/users/${id}/disable`);
+    await apiClient.post<{ message: string }>(`/admin/users/${encodeURIComponent(id)}/disable`);
   }
 
   // POST /api/v1/admin/users/{id}/reject → { message }
   async rejectUser(id: string): Promise<void> {
-    await apiClient.post<{ message: string }>(`/admin/users/${id}/reject`);
+    await apiClient.post<{ message: string }>(`/admin/users/${encodeURIComponent(id)}/reject`);
   }
 
   // ── Libraries (`/libraries*` → BARE envelopes; admin-gated internally) ──
@@ -251,7 +251,7 @@ class AdminManager {
 
   // GET /api/v1/libraries/{id} → { library }
   async getLibrary(id: string): Promise<Library> {
-    const res = await apiClient.get<{ library: Library }>(`/libraries/${id}`);
+    const res = await apiClient.get<{ library: Library }>(`/libraries/${encodeURIComponent(id)}`);
     return res.library;
   }
 
@@ -262,33 +262,33 @@ class AdminManager {
 
   // PUT /api/v1/libraries/{id} → { message }
   async updateLibrary(id: string, input: UpdateLibraryInput): Promise<void> {
-    await apiClient.put<{ message: string }>(`/libraries/${id}`, input);
+    await apiClient.put<{ message: string }>(`/libraries/${encodeURIComponent(id)}`, input);
   }
 
   // DELETE /api/v1/libraries/{id} → { message }
   async deleteLibrary(id: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/libraries/${id}`);
+    await apiClient.delete<{ message: string }>(`/libraries/${encodeURIComponent(id)}`);
   }
 
   // POST /api/v1/libraries/{id}/scan → { job_id, status, message } (202)
   async scanLibrary(id: string): Promise<JobTriggerResult> {
-    return apiClient.post<JobTriggerResult>(`/libraries/${id}/scan`);
+    return apiClient.post<JobTriggerResult>(`/libraries/${encodeURIComponent(id)}/scan`);
   }
 
   // POST /api/v1/libraries/{id}/rescan → { job_id, status, message } (202)
   async rescanLibrary(id: string): Promise<JobTriggerResult> {
-    return apiClient.post<JobTriggerResult>(`/libraries/${id}/rescan`);
+    return apiClient.post<JobTriggerResult>(`/libraries/${encodeURIComponent(id)}/rescan`);
   }
 
   // POST /api/v1/libraries/{id}/match-metadata → { job_id, status, message } (202)
   async matchMetadata(id: string): Promise<JobTriggerResult> {
-    return apiClient.post<JobTriggerResult>(`/libraries/${id}/match-metadata`);
+    return apiClient.post<JobTriggerResult>(`/libraries/${encodeURIComponent(id)}/match-metadata`);
   }
 
   // GET /api/v1/libraries/{id}/scan-status → { scan_status }
   async getScanStatus(id: string): Promise<ScanJob | null> {
     const res = await apiClient.get<{ scan_status: ScanJob | null }>(
-      `/libraries/${id}/scan-status`
+      `/libraries/${encodeURIComponent(id)}/scan-status`
     );
     return res.scan_status;
   }
@@ -296,7 +296,7 @@ class AdminManager {
   // GET /api/v1/libraries/{id}/scan-history?limit= → { history }
   async getScanHistory(id: string, limit = 20): Promise<ScanJob[]> {
     const res = await apiClient.get<{ history: ScanJob[] }>(
-      `/libraries/${id}/scan-history`,
+      `/libraries/${encodeURIComponent(id)}/scan-history`,
       { limit }
     );
     return res.history;

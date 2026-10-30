@@ -277,6 +277,22 @@ describe('openHubRelayConnection', () => {
     expect(command.title).toBe('Inception');
   });
 
+  // M-MOBILE-29 — the socket is bound to ONE server (path + token scope);
+  // a frame naming a DIFFERENT server_id must never drive navigation on
+  // this device, even though the frame itself is well-formed.
+  it('drops a pending_command whose server_id contradicts the bound socket', () => {
+    const onPendingCommand = jest.fn();
+    openHubRelayConnection(config({ serverId: 'srv-1', onPendingCommand }));
+    socket().deliver({
+      type: 'pending_command',
+      command: 'play_media',
+      server_id: 'srv-OTHER',
+      media_id: 'media-9',
+      title: 'Inception',
+    });
+    expect(onPendingCommand).not.toHaveBeenCalled();
+  });
+
   it('ignores non-pending_command frames (room vocabulary) and malformed JSON', () => {
     const onPendingCommand = jest.fn();
     openHubRelayConnection(config({ onPendingCommand }));

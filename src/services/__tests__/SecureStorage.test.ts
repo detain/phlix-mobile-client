@@ -205,16 +205,17 @@ describe('SecureStorage (token vault)', () => {
   });
 
   describe('authenticateWithBiometric', () => {
-    it('returns true when credentials retrieved with auth prompt', async () => {
-      await keychainMock.setGenericPassword('phlix', 'refresh-token', {
-        service: 'com.phlix.mobile.refresh',
+    it('reads the OS-protected MARKER slot with the auth prompt (M-MOBILE-33)', async () => {
+      await keychainMock.setGenericPassword('biometric_enabled', 'true', {
+        service: 'com.phlix.mobile.biometric',
+        accessControl: 'BiometryAny',
       });
 
       const result = await secureStorage.authenticateWithBiometric();
 
       expect(result).toBe(true);
       expect(keychainMock.getGenericPassword).toHaveBeenCalledWith({
-        service: 'com.phlix.mobile.refresh',
+        service: 'com.phlix.mobile.biometric',
         authenticationPrompt: {
           title: 'Authenticate to access Phlix',
           subtitle: 'Use biometric authentication',
@@ -223,12 +224,17 @@ describe('SecureStorage (token vault)', () => {
       });
     });
 
-    it('returns false when no credentials found', async () => {
+    it('allows entry when no gate is armed (marker slot absent)', async () => {
+      // The gate must not exist by default: an absent marker resolves the
+      // protected read to `false` (no throw) and the caller proceeds —
+      // byte-identical cold-start behavior to pre-feature installs.
       const result = await secureStorage.authenticateWithBiometric();
-      expect(result).toBe(false);
+      expect(result).toBe(true);
     });
 
     it('returns false when authentication throws', async () => {
+      // Armed slot + cancelled/rejected biometric ⇒ the protected read throws:
+      // the vault stays closed this launch.
       keychainMock.getGenericPassword.mockRejectedValueOnce(new Error('Auth failed'));
       const result = await secureStorage.authenticateWithBiometric();
       expect(result).toBe(false);

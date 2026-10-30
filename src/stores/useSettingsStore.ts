@@ -56,6 +56,33 @@ interface SettingsState {
 
 const SETTINGS_KEY = 'phlix_settings';
 
+/** Whitelist for the typed `theme` union — the generic scalar check below is
+ * not enough for it (every string is `typeof 'dark'`). M-MOBILE-31. */
+const THEME_VALUES: readonly string[] = ['dark', 'light', 'system'];
+
+/**
+ * Keep only persisted keys that exist in `defaultSettings` AND carry a value
+ * of the same primitive type (`theme` additionally whitelisted). Returns a
+ * partial that is always safe to spread over the defaults.
+ */
+function sanitizeSettings(parsed: unknown): Partial<typeof defaultSettings> {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return {};
+  }
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    const fallback = (defaultSettings as Record<string, unknown>)[key];
+    if (fallback === undefined || typeof value !== typeof fallback) {
+      continue;
+    }
+    if (key === 'theme' && !THEME_VALUES.includes(value as string)) {
+      continue;
+    }
+    safe[key] = value;
+  }
+  return safe as Partial<typeof defaultSettings>;
+}
+
 const defaultSettings = {
   defaultQuality: 'auto',
   autoplay: true,
@@ -143,7 +170,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const data = await AsyncStorage.getItem(SETTINGS_KEY);
       if (data) {
         const parsed = JSON.parse(data);
-        set({ ...defaultSettings, ...parsed });
+        // M-MOBILE-31 — shape-validate every persisted field before it can
+        // reach state: a tampered/corrupted blob carrying e.g. a non-string
+        // `serverUrl` used to survive the blind `{...defaultSettings, ...parsed}`
+        // merge and throw inside `getServerRoot()` on EVERY subsequent API call
+        // (parse-not-validate at the persistence boundary, same doctrine as the
+        // WS wire parsers). Unknown keys and wrong-typed values fall back to
+        // their defaults.
+        set({ ...defaultSettings, ...sanitizeSettings(parsed) });
       }
     } catch (error) {
       console.error('Failed to load settings:', error);

@@ -287,6 +287,17 @@ async function connectHubRelaySocket(): Promise<void> {
     if (!command) {
       return;
     }
+    // M-MOBILE-29 — the socket is dialed for ONE server (path
+    // `/syncplay/<server_id>`); a hub (or a frame injected on a cleartext leg)
+    // that answers with a DIFFERENT server_id must never drive this device's
+    // navigation. Drop cross-server frames loud.
+    if (command.serverId !== hubConfig.serverId) {
+      console.warn(
+        `HubRelay: dropping pending_command bound to server '${command.serverId}' ` +
+          `— socket is bound to '${hubConfig.serverId}'`
+      );
+      return;
+    }
     try {
       hubConfig.onPendingCommand(command);
     } catch {

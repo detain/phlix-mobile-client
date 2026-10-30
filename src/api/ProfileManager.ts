@@ -44,7 +44,7 @@ class ProfileManager {
 
   // GET /api/v1/profiles/{profileId} → { profile }
   async getProfile(id: string): Promise<Profile> {
-    const res = await apiClient.get<{ profile: Profile }>(`/profiles/${id}`);
+    const res = await apiClient.get<{ profile: Profile }>(`/profiles/${encodeURIComponent(id)}`);
     return res.profile;
   }
 
@@ -60,23 +60,23 @@ class ProfileManager {
   // PUT /api/v1/profiles/{profileId} → { message }
   // (the route REJECTS an `is_active` field — activation is switch-only)
   async updateProfile(id: string, input: UpdateProfileInput): Promise<void> {
-    await apiClient.put<{ message: string }>(`/profiles/${id}`, input);
+    await apiClient.put<{ message: string }>(`/profiles/${encodeURIComponent(id)}`, input);
   }
 
   // DELETE /api/v1/profiles/{profileId} → { message }
   // (deleting your LAST profile is refused 409 `profile.last_profile`)
   async deleteProfile(id: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/profiles/${id}`);
+    await apiClient.delete<{ message: string }>(`/profiles/${encodeURIComponent(id)}`);
   }
 
   // POST /api/v1/profiles/{profileId}/pin → { message } (4/6-digit numeric PIN)
   async setPin(id: string, pin: string): Promise<void> {
-    await apiClient.post<{ message: string }>(`/profiles/${id}/pin`, { pin });
+    await apiClient.post<{ message: string }>(`/profiles/${encodeURIComponent(id)}/pin`, { pin });
   }
 
   // DELETE /api/v1/profiles/{profileId}/pin → { message }
   async clearPin(id: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/profiles/${id}/pin`);
+    await apiClient.delete<{ message: string }>(`/profiles/${encodeURIComponent(id)}/pin`);
   }
 }
 

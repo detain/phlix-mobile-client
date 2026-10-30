@@ -6,6 +6,7 @@
  */
 
 // src/__tests__/downloadStore.test.ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { MediaItem } from '../types/media';
 
@@ -370,6 +371,66 @@ describe('downloadStore', () => {
       store.updateTaskLocalPath('non-existent-id', '/some/path');
       // Verify state is unchanged
       expect(Object.keys(useDownloadStore.getState().tasks).length).toBe(0);
+    });
+  });
+
+  // M-MOBILE-31 — loadPersistedTasks is an UNTRUSTED restore boundary: the
+  // on-disk blob feeds `Object.values(tasks)` scheduler loops, so a scalar/array
+  // container or an entry missing id/status must never reach state.
+  describe('loadPersistedTasks restore shaping', () => {
+    const DOWNLOADS_KEY = 'phlix_downloads_v2';
+    const STORAGE_KEY = 'phlix_download_storage';
+
+    beforeEach(async () => {
+      await AsyncStorage.clear();
+    });
+
+    it('drops a non-object tasks blob', async () => {
+      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify('not-an-object'));
+      await useDownloadStore.getState().loadPersistedTasks();
+      expect(useDownloadStore.getState().tasks).toEqual({});
+    });
+
+    it('drops malformed task entries but keeps well-formed ones', async () => {
+      await AsyncStorage.setItem(
+        DOWNLOADS_KEY,
+        JSON.stringify({
+          good: { id: 'good', itemId: 'media-1', status: 'completed' },
+          scalar: 42,
+          noStatus: { id: 'x', itemId: 'media-2' },
+          bogusStatus: { id: 'y', itemId: 'media-3', status: 'teleporting' },
+        })
+      );
+      await useDownloadStore.getState().loadPersistedTasks();
+      const tasks = useDownloadStore.getState().tasks;
+      expect(Object.keys(tasks)).toEqual(['good']);
+    });
+
+    it('coerces non-numeric storage totals to zero', async () => {
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ totalStorageUsed: 'lots', availableStorage: Number.NaN })
+      );
+      await useDownloadStore.getState().loadPersistedTasks();
+      expect(useDownloadStore.getState().totalStorageUsed).toBe(0);
+      expect(useDownloadStore.getState().availableStorage).toBe(0);
+    });
+
+    it('restores a well-formed task and storage totals', async () => {
+      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify({
+        good: {
+          id: 'good', itemId: 'media-1', status: 'downloading',
+          progress: 0.5, downloadedBytes: 10, totalBytes: 20,
+          localPath: '/x', quality: 'high', createdAt: 1,
+        },
+      }));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({
+        totalStorageUsed: 123, availableStorage: 456,
+      }));
+      await useDownloadStore.getState().loadPersistedTasks();
+      expect(Object.keys(useDownloadStore.getState().tasks)).toEqual(['good']);
+      expect(useDownloadStore.getState().totalStorageUsed).toBe(123);
+      expect(useDownloadStore.getState().availableStorage).toBe(456);
     });
   });
 });

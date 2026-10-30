@@ -75,6 +75,24 @@ describe('LibraryManager', () => {
     expect(item.stream_url).toBe('https://s/x');
   });
 
+  // M-MOBILE-29 — the media id can arrive from an untrusted surface (a
+  // hub-relay pending_command `media_id` only needs to be a non-empty string
+  // before it reaches navigate('Player') → getMediaItem). The path segment is
+  // percent-encoded so a value like `../../admin` can never traverse.
+  it('percent-encodes path params in every single-segment URL (M-MOBILE-29)', async () => {
+    mockedClient.get.mockResolvedValue({ item: { id: 'x', name: 'A', type: 'movie', stream_url: '' } });
+
+    await libraryManager.getMediaItem('../../admin/users');
+
+    expect(mockedClient.get).toHaveBeenCalledWith(
+      `/media/${encodeURIComponent('../../admin/users')}`
+    );
+    const calls = (mockedClient.get as jest.Mock).mock.calls;
+    const called = calls[calls.length - 1][0] as string;
+    expect(called).toBe('/media/..%2F..%2Fadmin%2Fusers');
+    expect(called).not.toContain('../');
+  });
+
   it('getSeasons queries /media?parentId={seriesId}', async () => {
     mockedClient.get.mockResolvedValue({ items: [{ id: 's1', name: 'Season 1', type: 'season' }], total: 1, limit: 50, offset: 0 });
 

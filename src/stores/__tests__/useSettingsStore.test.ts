@@ -207,6 +207,41 @@ describe('useSettingsStore', () => {
       expect(useSettingsStore.getState().defaultQuality).toBe('auto');
     });
 
+    // M-MOBILE-31 — a tampered blob must not be able to poison the types the
+    // API client relies on: `getServerRoot()` calls `.trim()` on serverUrl for
+    // EVERY request, so a non-string surviving the restore took the whole
+    // client down. Wrong-typed/unknown values fall back to defaults instead.
+    it('drops wrong-typed and unknown fields on restore (M-MOBILE-31)', async () => {
+      await AsyncStorage.setItem(
+        'phlix_settings',
+        JSON.stringify({
+          serverUrl: { evil: true },
+          autoplay: 'yes-please',
+          maxConcurrentDownloads: 'many',
+          theme: 'hot-pink',
+          inventedKey: 'whatever',
+          defaultQuality: '1080p',
+        })
+      );
+
+      await useSettingsStore.getState().loadSettings();
+
+      const state = useSettingsStore.getState();
+      expect(state.serverUrl).toBe('');
+      expect(state.autoplay).toBe(true);
+      expect(state.maxConcurrentDownloads).toBe(2);
+      expect(state.theme).toBe('dark');
+      expect((state as unknown as Record<string, unknown>).inventedKey).toBeUndefined();
+      expect(state.defaultQuality).toBe('1080p'); // the one valid field survives
+    });
+
+    it('tolerates a non-object top-level blob (M-MOBILE-31)', async () => {
+      await AsyncStorage.setItem('phlix_settings', JSON.stringify(['pwned']));
+
+      await expect(useSettingsStore.getState().loadSettings()).resolves.toBeUndefined();
+      expect(useSettingsStore.getState().serverUrl).toBe('');
+    });
+
     // M-MOBILE-15: the autoPlayNextEpisode key is no longer inert (PlayerScreen
     // now reads it). Pin the persisted round-trip so a saved OFF survives a
     // reload, and confirm the load merge tolerates keys the store does not

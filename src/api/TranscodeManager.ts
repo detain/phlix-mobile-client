@@ -63,7 +63,7 @@ class TranscodeManager {
   async startTranscode(itemId: string, profile?: string): Promise<TranscodeJob> {
     const params = profile ? { profile } : undefined;
     return apiClient.post<TranscodeJob>(
-      `/media/${itemId}/transcode`,
+      `/media/${encodeURIComponent(itemId)}/transcode`,
       undefined,
       params ? { params } : undefined,
     );
@@ -71,7 +71,7 @@ class TranscodeManager {
 
   /** Poll a job → GET /api/v1/transcode/{jobId}/status. */
   async getStatus(jobId: string): Promise<TranscodeStatus> {
-    return apiClient.get<TranscodeStatus>(`/transcode/${jobId}/status`);
+    return apiClient.get<TranscodeStatus>(`/transcode/${encodeURIComponent(jobId)}/status`);
   }
 
   /**

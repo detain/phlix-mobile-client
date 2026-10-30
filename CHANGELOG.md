@@ -32,6 +32,44 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min60 minors cluster (M-MOBILE-05, -06, -16, -29, -31, -33, -54): signup path wired, private Room ID surfaced, safe-area back button, path-param encoding + relay server_id gate, restore shaping, biometric gate made real, `playback_state` boundary parser — 2026-10-30
+
+- **M-MOBILE-05**: `AuthManager.register` had no call site — the app could not
+  create an account. `LoginScreen` gains a sign-up mode (toggle row, email
+  field, server-decides hint), `useAuthStore.register` returns
+  `{outcome:'authenticated'|'pending'}` so an approved registration lands a
+  session and a gated one shows the server message without faking login.
+- **M-MOBILE-06**: after creating a private room the Room ID was never shown.
+  The in-group panel now carries a selectable Room ID row (long-press copy on
+  both platforms — no new dependency) plus a hint pointing friends to the
+  Join tab, which was always functional but unreachable without an ID.
+- **M-MOBILE-16**: the detail-screen back button hardcoded
+  `Platform.OS==='ios'?50:20`; it now reads `useSafeAreaInsets()`
+  (`insets.top + 8`), the repo standard (SafeContainer/PhotoViewer idiom).
+- **M-MOBILE-29**: every path-interpolating `src/api` manager now wraps
+  identifiers in `encodeURIComponent` (13-file sweep, ~77 sites) closing the
+  traversal family a hub-relay `media_id` could reach; and the relay socket
+  drops any `pending_command` whose `server_id` contradicts the bound
+  socket's server (cross-server command injection).
+- **M-MOBILE-31**: the three JSON restore sites are now parsed boundaries —
+  `useSettingsStore` type-checks every persisted key (a non-string
+  `serverUrl` previously made `getServerRoot` throw on every later call),
+  `downloadStore` keeps only shaped task entries (a scalar blob previously
+  crashed `Object.values` at boot), `hubStore.loadPersistedState` requires a
+  string hub URL, string server id and `{expiresAt:number, userId:string}`
+  session before hydrating, else refuses without touching state.
+- **M-MOBILE-33**: the biometric toggle was theater — nothing ever consumed
+  it. `authenticateWithBiometric` now reads the access-control-protected
+  marker slot WITH a prompt (the only item whose read forces biometry; an
+  absent slot means no gate), `checkAuth` runs it before touching the vault,
+  the Settings switch arms/disarms the real marker (a device refusal shows
+  an Alert and the flag never sticks), and a mount effect re-syncs the flag
+  to marker truth.
+- **M-MOBILE-54**: `handleGroupState` cast `playback_state` to the union
+  un-narrowed; a `wirePlaybackState` whitelist parser (anything else falls
+  back to `'stopped'`) matches the boundary-parser law every other field
+  follows.
+
 ### Fixed — W-min62 minors cluster: Android hardware-back exit-confirm at dead roots, module-scope `Dimensions` frozen everywhere (6 surfaces → live `useWindowDimensions` + responsive grid seam), first haptics layer (Vibration wrapper — no new pod against the pinned lock), cold-load skeletons, 12pt font floor + bounded chrome scaling, keyboard traps (filter sheet, Login Enter path), cleartext-lane reporting + persistent insecure banner — 2026-10-30
 
 - **M-MOBILE-35 (CURED)**: the app registered zero `BackHandler`s — hardware

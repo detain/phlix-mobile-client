@@ -56,7 +56,7 @@ class PhotoManager {
   // GET /api/v1/photo/albums/{id}?library_id → { album }  (id = md5 of date)
   async getAlbum(albumId: string, libraryId: string): Promise<PhotoAlbum> {
     const res = await apiClient.get<{ album: PhotoAlbum }>(
-      `/photo/albums/${albumId}`,
+      `/photo/albums/${encodeURIComponent(albumId)}`,
       { library_id: libraryId }
     );
     return res.album;
@@ -81,7 +81,7 @@ class PhotoManager {
   // GET /api/v1/photo/photos/{id} → { photo: PhotoDetail }
   async getPhoto(id: string): Promise<PhotoDetail> {
     const res = await apiClient.get<{ photo: PhotoDetail }>(
-      `/photo/photos/${id}`
+      `/photo/photos/${encodeURIComponent(id)}`
     );
     return res.photo;
   }

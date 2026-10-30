@@ -48,8 +48,15 @@ function normalizeServerUrl(rawUrl: string): string {
 const LoginScreen: React.FC = () => {
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // M-MOBILE-05 — account creation reachable from day 1. `mode` flips the
+  // same form between sign-in and signup; the server decides whether signup
+  // is open (token response = signed in), gated by approval (pending notice),
+  // or disabled (contract error surfaced verbatim through apiErrorMessage).
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [notice, setNotice] = useState<string | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   // M-MOBILE-47 (review mobile__gameux m13): the form had no Enter path at
@@ -59,6 +66,7 @@ const LoginScreen: React.FC = () => {
   const passwordRef = useRef<TextInput>(null);
 
   const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
   const isLoading = useAuthStore((state) => state.isLoading);
 
   useEffect(() => {
@@ -131,6 +139,33 @@ const LoginScreen: React.FC = () => {
     }
   };
 
+  // M-MOBILE-05 — account creation. Validates the same server/user/pass fields
+  // plus the email `/auth/register` requires; routes the outcome either to the
+  // auth gate (mode flips to an open session) or to a notice (approval-gated).
+  const handleSignup = async () => {
+    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+      setError('Please fill in all fields');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Email is required to create an account');
+      return;
+    }
+
+    const url = normalizeServerUrl(serverUrl);
+    try {
+      setError(null);
+      setNotice(null);
+      const result = await register(url, username, email, password);
+      if (result.outcome === 'pending') {
+        setNotice(result.message || 'Account created — awaiting approval.');
+      }
+      // 'authenticated' → the auth gate navigates on the store state change.
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Account creation failed'));
+    }
+  };
+
   return (
     <SafeContainer>
       <KeyboardAvoidingView
@@ -153,6 +188,12 @@ const LoginScreen: React.FC = () => {
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {mode === 'signup' && notice && (
+              <View style={styles.noticeContainer}>
+                <Text style={styles.noticeText}>{notice}</Text>
               </View>
             )}
 
@@ -189,6 +230,22 @@ const LoginScreen: React.FC = () => {
               />
             </View>
 
+            {mode === 'signup' && (
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor="#666"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                />
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Password</Text>
               <TextInput
@@ -205,17 +262,44 @@ const LoginScreen: React.FC = () => {
 
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              onPress={mode === 'signup' ? handleSignup : handleLogin}
               disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign in</Text>
+                <Text style={styles.loginButtonText}>
+                  {mode === 'signup' ? 'Create account' : 'Sign in'}
+                </Text>
               )}
             </TouchableOpacity>
 
-            {passkeySupported && (
+            {/* M-MOBILE-05 — the toggle a newcomer needs: `AuthManager.register`
+                was wired to the API but no screen could reach it. */}
+            <TouchableOpacity
+              style={styles.modeToggle}
+              onPress={() => {
+                setError(null);
+                setNotice(null);
+                setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
+              }}
+              disabled={isLoading}
+            >
+              <Text style={styles.modeToggleText}>
+                {mode === 'signup'
+                  ? 'Already have an account? Sign in'
+                  : "New to Phlix? Create an account"}
+              </Text>
+            </TouchableOpacity>
+
+            {mode === 'signup' && (
+              <Text style={styles.signupHint}>
+                Whether accounts can be created here is decided by your server —
+                some require a household admin to approve new accounts first.
+              </Text>
+            )}
+
+            {mode === 'signin' && passkeySupported && (
               <TouchableOpacity
                 style={[
                   styles.passkeyButton,
@@ -288,6 +372,34 @@ const styles = StyleSheet.create({
     color: '#dc3545',
     fontSize: 14,
     textAlign: 'center',
+  },
+  // M-MOBILE-05 — signup surface.
+  noticeContainer: {
+    backgroundColor: 'rgba(40, 167, 69, 0.18)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  noticeText: {
+    color: '#28a745',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  modeToggle: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  modeToggleText: {
+    color: '#0066cc',
+    fontSize: 14,
+  },
+  signupHint: {
+    color: '#888',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 17,
   },
   inputContainer: {
     marginBottom: 16,

@@ -64,7 +64,7 @@ class CollectionManager {
 
   // GET /api/v1/collections/{id} → { collection, items }
   async getCollection(id: string): Promise<CollectionWithItems> {
-    return apiClient.get<CollectionWithItems>(`/collections/${id}`);
+    return apiClient.get<CollectionWithItems>(`/collections/${encodeURIComponent(id)}`);
   }
 
   // POST /api/v1/collections → 201 { collection }
@@ -82,7 +82,7 @@ class CollectionManager {
     input: UpdateCollectionInput
   ): Promise<Collection> {
     const res = await apiClient.put<{ collection: Collection }>(
-      `/collections/${id}`,
+      `/collections/${encodeURIComponent(id)}`,
       input
     );
     return res.collection;
@@ -90,39 +90,39 @@ class CollectionManager {
 
   // DELETE /api/v1/collections/{id} → { message }
   async deleteCollection(id: string): Promise<void> {
-    await apiClient.delete<{ message: string }>(`/collections/${id}`);
+    await apiClient.delete<{ message: string }>(`/collections/${encodeURIComponent(id)}`);
   }
 
   // POST /api/v1/collections/{id}/items/{mediaItemId} → { message }
   async addItem(id: string, mediaItemId: string): Promise<void> {
     await apiClient.post<{ message: string }>(
-      `/collections/${id}/items/${mediaItemId}`
+      `/collections/${encodeURIComponent(id)}/items/${encodeURIComponent(mediaItemId)}`
     );
   }
 
   // DELETE /api/v1/collections/{id}/items/{mediaItemId} → { message }
   async removeItem(id: string, mediaItemId: string): Promise<void> {
     await apiClient.delete<{ message: string }>(
-      `/collections/${id}/items/${mediaItemId}`
+      `/collections/${encodeURIComponent(id)}/items/${encodeURIComponent(mediaItemId)}`
     );
   }
 
   // POST /api/v1/collections/{id}/bulk-add → { message, added_count }
   async bulkAdd(id: string, mediaItemIds: string[]): Promise<BulkAddResult> {
-    return apiClient.post<BulkAddResult>(`/collections/${id}/bulk-add`, {
+    return apiClient.post<BulkAddResult>(`/collections/${encodeURIComponent(id)}/bulk-add`, {
       media_item_ids: mediaItemIds,
     });
   }
 
   // POST /api/v1/collections/{id}/refresh (smart only) → { message }
   async refresh(id: string): Promise<void> {
-    await apiClient.post<{ message: string }>(`/collections/${id}/refresh`);
+    await apiClient.post<{ message: string }>(`/collections/${encodeURIComponent(id)}/refresh`);
   }
 
   // GET /api/v1/libraries/{libraryId}/collections → { collections }
   async getLibraryCollections(libraryId: string): Promise<Collection[]> {
     const res = await apiClient.get<{ collections: Collection[] }>(
-      `/libraries/${libraryId}/collections`
+      `/libraries/${encodeURIComponent(libraryId)}/collections`
     );
     return res.collections;
   }

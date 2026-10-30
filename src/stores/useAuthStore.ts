@@ -7,10 +7,11 @@
 
 // src/stores/useAuthStore.ts
 import { create } from 'zustand';
-import { authManager, User } from '../api/AuthManager';
+import { authManager, User, LoginResponse } from '../api/AuthManager';
 import { apiErrorMessage, onAuthInvalidated } from '../api/client';
 import { syncPlayService } from '../syncplay/SyncPlayService';
 import { notificationService } from '../services/NotificationService';
+import { secureStorage } from '../services/SecureStorage';
 import { useSettingsStore } from './useSettingsStore';
 import { useConnectionSecurityStore } from './useConnectionSecurityStore';
 
@@ -22,6 +23,12 @@ interface AuthState {
 
   // Actions
   login: (serverUrl: string, username: string, password: string) => Promise<void>;
+  register: (
+    serverUrl: string,
+    username: string,
+    email: string,
+    password: string
+  ) => Promise<{ outcome: 'authenticated' } | { outcome: 'pending'; message: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -56,6 +63,44 @@ export const useAuthStore = create<AuthState>((set) => ({
       // axios transport string (audit M2).
       set({
         error: apiErrorMessage(error, 'Login failed'),
+        isLoading: false,
+      });
+      throw error;
+    }
+  },
+
+  register: async (
+    serverUrl: string,
+    username: string,
+    email: string,
+    password: string
+  ): Promise<{ outcome: 'authenticated' } | { outcome: 'pending'; message: string }> => {
+    set({ isLoading: true, error: null });
+    try {
+      // Same input law as login: the connection target is persisted BEFORE
+      // the call so the API client dials the chosen server (M-MOBILE-05).
+      if (serverUrl && serverUrl.trim() !== '') {
+        useSettingsStore.getState().setServerUrl(serverUrl.trim());
+      }
+
+      const response = await authManager.register(serverUrl, username, email, password);
+      if ('access_token' in response) {
+        const loginResponse = response as LoginResponse;
+        set({
+          user: loginResponse.user,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        return { outcome: 'authenticated' };
+      }
+      // Server gating answered `{ status:'pending' }` (signup_mode / admin
+      // approval): honest terminal — no session yet, the message is the
+      // server's own.
+      set({ isLoading: false });
+      return { outcome: 'pending', message: response.message };
+    } catch (error) {
+      set({
+        error: apiErrorMessage(error, 'Account creation failed'),
         isLoading: false,
       });
       throw error;
@@ -98,6 +143,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   checkAuth: async () => {
     set({ isLoading: true });
     try {
+      // M-MOBILE-33 — the biometric toggle is now a real gate, not a stored
+      // preference: when the OS-protected marker slot exists (armed via
+      // Settings → Biometric authentication), the vault is unreadable this
+      // launch until the biometric passes. A denial leaves the credentials
+      // untouched — the next launch (or re-entry into checkAuth) can prompt
+      // again; nothing here wipes a session the user merely failed to
+      // authenticate into right now.
+      if (!(await secureStorage.authenticateWithBiometric())) {
+        set({ user: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
       const isAuth = await authManager.isAuthenticated();
       if (isAuth) {
         const user = await authManager.getCurrentUser();

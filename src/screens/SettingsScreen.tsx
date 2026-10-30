@@ -26,6 +26,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { useHubStore } from '../store/hubStore';
 import { apiErrorMessage } from '../api/client';
 import ServerSwitcher from '../components/ServerSwitcher';
+import { secureStorage } from '../services/SecureStorage';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -72,6 +73,52 @@ const SettingsScreen: React.FC = () => {
   useEffect(() => {
     useHubStore.getState().loadPersistedState();
   }, []);
+
+  // M-MOBILE-33 — the OS marker slot is the authority for the biometric gate;
+  // the persisted settings flag is only a UI mirror. If the vault lost the
+  // marker (device wipe, keychain eviction) the switch must not lie about a
+  // gate that no longer exists.
+  useEffect(() => {
+    let active = true;
+    secureStorage
+      .isBiometricEnabled()
+      .then((armed) => {
+        if (active && !armed && useSettingsStore.getState().enableBiometricAuth) {
+          useSettingsStore.getState().setEnableBiometricAuth(false);
+        }
+      })
+      .catch(() => {
+        // Keychain unreadable → leave the mirror as-is; checkAuth fails safe
+        // through authenticateWithBiometric's throw→deny arm.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleBiometricToggle = async (enable: boolean) => {
+    // Arm/disarm the real OS gate FIRST; the preference only follows the
+    // vault's answer (a failed arm never sticks the switch on — the exact
+    // theater this review item called out).
+    try {
+      if (enable) {
+        const armed = await secureStorage.enableBiometric();
+        if (!armed) {
+          Alert.alert(
+            'Not available',
+            'This device refused biometric protection (no enrolled biometrics or passcode).'
+          );
+          return;
+        }
+        setEnableBiometricAuth(true);
+      } else {
+        await secureStorage.disableBiometric();
+        setEnableBiometricAuth(false);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not change the biometric setting.');
+    }
+  };
 
   const activeServer = servers.find((s) => s.serverId === activeServerId);
 
@@ -496,7 +543,7 @@ const SettingsScreen: React.FC = () => {
               'Biometric authentication',
               <Switch
                 value={enableBiometricAuth}
-                onValueChange={setEnableBiometricAuth}
+                onValueChange={handleBiometricToggle}
                 trackColor={{ false: '#3d3d3d', true: '#0066cc' }}
               />
             )}
