@@ -28,6 +28,8 @@ import { SafeContainer } from '../components/layout';
 import { MediaList } from '../components/media/MediaList';
 import { ContinueWatching } from '../components/media/ContinueWatching';
 import { ErrorView } from '../components/ui/ErrorView';
+import { EmptyState } from '../components/ui/EmptyState';
+import { homeShowsEmptyState } from './homeEmptyState';
 import { GridSkeleton } from '../components/ui/ContentSkeleton';
 import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 
@@ -190,6 +192,21 @@ const HomeScreen: React.FC = () => {
             cardHeight={posterHeight}
           />
         ))}
+
+        {/* M-MOBILE-37 (review mobile__gameux): the day-one void gets
+            guidance. The rails above render nothing when empty (that is the
+            law of each section), so a fresh profile used to see ONLY the
+            greeting. The predicate mirrors this render window (slice(0, 3))
+            — pair law, see src/screens/homeEmptyState.ts. */}
+        {homeShowsEmptyState(continueWatching, recentlyAdded, libraries, libraryItems) && (
+          <EmptyState
+            icon="🎬"
+            title="Nothing here yet"
+            message="When your server has media, your library and continue-watching rows appear here."
+            actionLabel="Browse library"
+            onAction={() => navigation.navigate('Library')}
+          />
+        )}
 
         <View style={styles.bottomPadding} />
       </ScrollView>

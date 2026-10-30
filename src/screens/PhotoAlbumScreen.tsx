@@ -23,12 +23,15 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LocalPlaceholder } from '../components/ui/LocalPlaceholder';
+import { firstUsableUri } from '../utils/mediaFallback';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
 
 type PhotoAlbumNavigationProp = NativeStackNavigationProp<any>;
 type PhotoAlbumRouteProp = RouteProp<RootStackParamList, 'PhotoAlbum'>;
 
-const PLACEHOLDER = 'https://via.placeholder.com/150x150?text=Photo';
+// M-MOBILE-42: the remote placeholder uri is gone — missing thumbs render
+// the local tile (see utils/mediaFallback + components/ui/LocalPlaceholder).
 const GRID_COLUMNS = 3;
 const GRID_GAP = 2;
 
@@ -77,17 +80,22 @@ const PhotoAlbumScreen: React.FC = () => {
 
   const cellSize = (width - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
 
-  const renderPhoto = ({ item, index }: { item: Photo; index: number }) => (
-    <TouchableOpacity
-      style={[styles.cell, { width: cellSize, height: cellSize }]}
-      onPress={() => handlePhotoPress(index)}
-    >
-      <Image
-        source={{ uri: item.thumbnail_url || PLACEHOLDER }}
-        style={styles.thumb}
-      />
-    </TouchableOpacity>
-  );
+  const renderPhoto = ({ item, index }: { item: Photo; index: number }) => {
+    // M-MOBILE-42: missing thumb is a LOCAL tile now — no third-party uri.
+    const thumbUri = firstUsableUri(item.thumbnail_url);
+    return (
+      <TouchableOpacity
+        style={[styles.cell, { width: cellSize, height: cellSize }]}
+        onPress={() => handlePhotoPress(index)}
+      >
+        {thumbUri !== undefined ? (
+          <Image source={{ uri: thumbUri }} style={styles.thumb} />
+        ) : (
+          <LocalPlaceholder kind="photo" style={styles.thumb} />
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   if (isLoading && photos.length === 0) {
     return <LoadingSpinner fullScreen />;

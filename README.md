@@ -81,7 +81,7 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 
 > **Cast is SERVER-MEDIATED.** All four backends are driven entirely through the server's HTTP routes (`/cast`, `/roku`, `/airplay`, `/dlna` — discover → send → transport); the mobile app sends the item's *signed stream URL* and the server relays commands to the device. There is **no native local Cast SDK** in the client today — this is a deliberate choice (build-safe under the New-Architecture CI gate, testable, and covering all four backends instead of Chromecast-only). A native local Cast SDK (e.g. `react-native-google-cast` for Chromecast) is a **future enhancement** folded into the TurboModule/Fabric rewrite epic + on-device smoke test.
 
-> **Quality selection pins by playlist URL, not by a native resolution cap.** Picking a rung swaps the player to that rung's own signed HLS media playlist (server-side, zero native code); `Auto` plays the full multi-variant master and lets the native player (AVPlayer/ExoPlayer) run its own adaptive bitrate. A native `maxResolution` prop — capping the resolution native ABR is allowed to pick on the `Auto`/master path — was evaluated and intentionally left out: it needs real iOS/Android track-selection code and is redundant with the pin (which already hard-caps resolution). It's a possible **future native-side enhancement**, not a limitation of the quality picker itself.
+> **Quality selection pins by playlist URL, not by a native resolution cap.** Picking a rung swaps the player to that rung's own signed HLS media playlist (server-side, zero native code); `Auto` plays the full multi-variant master and lets the native player (AVPlayer/Media3 ExoPlayer) run its own adaptive bitrate. A native `maxResolution` prop — capping the resolution native ABR is allowed to pick on the `Auto`/master path — was evaluated and intentionally left out: it needs real iOS/Android track-selection code and is redundant with the pin (which already hard-caps resolution). It's a possible **future native-side enhancement**, not a limitation of the quality picker itself.
 
 > **Profiles are SELF-SERVICE (was: upstream gap, closed).** The server exposes the caller's own profile CRUD on `GET/POST /api/v1/profiles` and `GET/PUT/DELETE /api/v1/profiles/{profileId}` (plus `.../pin` set/unset/verify) behind plain auth — every signed-in account manages its own family profiles, no admin hat needed. Mobile's `ProfileManager` uses exactly these routes (review M-MOBILE-07); the admin-gated `/api/v1/admin/users/{userId}/profiles` lane exists for administrative management of OTHER users and mobile does not call it. Activation is a separate `POST /api/v1/profiles/{id}/switch` that re-mints the session tokens — mobile's selection stays local (persisted profile id) until that flow is deliberately adopted.
 
@@ -241,7 +241,7 @@ The iOS player is implemented as a local CocoaPod in `ios/LocalPods/PhlixPlayer/
 
 #### Android (PhlixPlayer)
 
-The Android player is implemented as a native module in `android/app/src/main/java/com/phlixmobile/player/`. It uses ExoPlayer for video playback.
+The Android player is implemented as a native module in `android/app/src/main/java/com/phlixmobile/player/`. It uses androidx.media3 (Media3 ExoPlayer) for video playback.
 
 #### Passkeys / WebAuthn (PhlixWebAuthn)
 

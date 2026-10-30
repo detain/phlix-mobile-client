@@ -5,12 +5,21 @@ import android.content.Context
 import android.net.Uri
 import android.view.LayoutInflater
 import android.widget.FrameLayout
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.ui.PlayerView
-import com.google.android.exoplayer2.util.MimeTypes
+// M-MOBILE-14 (review mobile__crossfe): migrated from the ARCHIVED
+// `com.google.android.exoplayer` v2 coordinates (2.19.1 — last release ever,
+// no security fixes) to their maintained successor `androidx.media3` 1.4.1.
+// Every API surface this file uses (ExoPlayer.Builder, MediaItem +
+// SubtitleConfiguration, Player.Listener + STATE_*, PlaybackException,
+// PlayerView.useController, MimeTypes.TEXT_VTT, C.SELECTION_FLAG_DEFAULT)
+// is a direct rename in Media3 — no behavior was rewritten. E3-native:
+// compile is CI-gated (Build Android), untested on device in this venue.
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
@@ -171,7 +180,7 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
         if (subtitleUrl.isNotEmpty()) {
             val subtitle = MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitleUrl))
                 .setMimeType(MimeTypes.TEXT_VTT)
-                .setSelectionFlags(com.google.android.exoplayer2.C.SELECTION_FLAG_DEFAULT)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                 .build()
             builder.setSubtitleConfigurations(listOf(subtitle))
         }

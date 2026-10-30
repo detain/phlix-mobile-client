@@ -32,6 +32,52 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min59 minors cluster (M-MOBILE-08, -13, -14, -17, -37, -42, -55): media3 migration, manifest/plist residue trimmed, day-one Home guidance, local placeholder art, relay replay window — 2026-10-30
+
+- **M-MOBILE-08 (CURED)**: legacy (pre-API-26) launcher bitmaps generated in
+  the exact adaptive-icon art (`#0066CC` field + white diamond from
+  `ic_launcher_foreground.xml`) across mdpi–xxxhdpi, square + circle-masked
+  round variants. minSdk 24 sat below the anydpi-v26-only resources' API 26
+  floor — Android 7.x installs had no launcher icon.
+- **M-MOBILE-13 (CURED)**: `READ`/`WRITE_EXTERNAL_STORAGE` retired from the
+  manifest (zero MediaStore/Environment usage; downloads are app-private);
+  the API-33 `READ_MEDIA_*` trio stays per the review's own advice.
+- **M-MOBILE-14 (CURED)**: `com.google.android.exoplayer` 2.19.1 (archived
+  line, no security fixes) → maintained `androidx.media3`
+  (media3-exoplayer/media3-ui 1.4.1). The single consumer
+  (`PhlixPlayerView.kt`) is a direct API rename; E3-native surface stays
+  compile-gated by CI Build Android. Doc prose followed.
+- **M-MOBILE-17 (CURED)**: iOS Info.plist template residue trimmed —
+  empty `NSLocationWhenInUseUsageDescription` (CoreLocation never linked)
+  and `UIRequiredDeviceCapabilities` armv7 (RN 0.85 ships no armv7 slice).
+- **M-MOBILE-37 (CURED)**: day-one Home (no history, no recently-added, no
+  rendered library content) now shows the `EmptyState` guidance tile with a
+  Browse-library action instead of a blank scroll region; decision extracted
+  as the pure `homeShowsEmptyState` (slice(0, 3) render-window mirror) with
+  unit pins.
+- **M-MOBILE-42 (CURED)**: all six `via.placeholder.com` fallbacks retired —
+  a self-hosted client phoning a third-party image service leaked user IPs
+  and rendered nothing offline. Missing art now renders the local
+  `LocalPlaceholder` tile through the pure `firstUsableUri` seam; a
+  source-scan law test keeps the service URL out of `src/` permanently.
+- **M-MOBILE-55 (CURED — clause b; clause a same-defect credit to
+  W-min60)**: `parsePendingCommandFrame` no longer mints the phone's own
+  clock for a missing/non-finite `issued_at` (that made every replay of a
+  stamp-less frame look fresh to the dedupe key — the negative-contract test
+  that pinned the fallback was flipped to the new law). Strict parse +
+  documented seconds-scale replay window
+  (`PENDING_COMMAND_MAX_AGE_SECONDS` 900 / future skew 60) with an injected
+  clock seam; every wire fixture rotated to stamps fresh-in-window so the
+  M-MOBILE-29 server_id-contradiction test keeps its mutation teeth.
+  Clause a (server_id vs bound socket) was landed by W-min60 — verified.
+- **M-MOBILE-01 (STALE-VERIFIED)**: the deep-link-entry ask was cured
+  pre-queue (`8467014`: `src/navigation/linking.ts` + NavigationContainer
+  `linking` prop; iOS `CFBundleURLTypes phlix`; Android intent-filter — all
+  on-disk at tip, cat-file + merge-base exit 0). The windows-client's
+  `accept-invite` family remains a DISCLOSED route-law gap in linking.ts's
+  own header (no mobile screen exists; registering phantom routes is
+  forbidden) — feature-scale, not silently re-claimed here.
+
 ### Fixed — W-min58 minors cluster (M-MOBILE-20, -56): CI/CD section to workflow truth, unresolvable version badge retired — 2026-10-30
 
 - **M-MOBILE-20 (CURED)**: README §CI/CD now states the verified workflow

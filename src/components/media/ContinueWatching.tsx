@@ -18,6 +18,8 @@ import {
 } from 'react-native';
 import { MediaItem } from '../../types/media';
 import { continueWatchingProgressPercent } from '../../utils/resumePositions';
+import { firstUsableUri } from '../../utils/mediaFallback';
+import { LocalPlaceholder } from '../ui/LocalPlaceholder';
 import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../../utils/textScalePolicy';
 
 interface ContinueWatchingProps {
@@ -37,7 +39,8 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
   const cardWidth = screenWidth - 40;
   const cardHeight = cardWidth * 0.56;
   const renderItem = ({ item }: { item: MediaItem }) => {
-    const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
+    // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
+    const backdropUri = firstUsableUri(item.backdrop_url, item.poster_url);
     // C17 (review mobile__gameux): the rail row carries `position_ticks` /
     // `duration_ticks` (100ns ticks); there is NO server `progress_percent`
     // on the wire — the old read of that phantom pinned the bar at 0% forever.
@@ -49,11 +52,17 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
         onPress={() => onItemPress(item)}
         activeOpacity={0.8}
       >
-        <Image
-          source={{ uri: backdropUri }}
-          style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
-          resizeMode="cover"
-        />
+        {backdropUri !== undefined ? (
+          <Image
+            source={{ uri: backdropUri }}
+            style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
+            resizeMode="cover"
+          />
+        ) : (
+          <LocalPlaceholder
+            style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
+          />
+        )}
         <View style={styles.overlay}>
           <View style={styles.infoContainer}>
             <Text style={styles.cardTitle} numberOfLines={1}>

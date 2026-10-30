@@ -79,14 +79,16 @@ const HUB_STATE = {
 
 // NOTE: these are the WIRE keys (`server_id`, `media_id`, `issued_at`) — the
 // hub's `PendingCommandDispatcher` frame shape, NOT the client-side camelCase
-// `PendingPlayMediaCommand` (the parse boundary converts).
+// `PendingPlayMediaCommand` (the parse boundary converts). Default issued_at
+// is seconds-fresh: the M-MOBILE-55 replay window drops stale stamps at the
+// parse, so a hardcoded epoch here would silently un-route every test.
 const hubCommand = (over: Partial<{ media_id: string; title: string; issued_at: number }> = {}) => ({
   type: 'pending_command' as const,
   command: 'play_media' as const,
   server_id: 'srv-1',
   media_id: 'media-9',
   title: 'Inception',
-  issued_at: 1_700_000_000,
+  issued_at: Math.floor(Date.now() / 1000),
   source: 'alexa',
   ...over,
 });
@@ -194,8 +196,12 @@ describe('startHubRelayConsumer — command router (load-a-new-title path)', () 
     const navigateToPlayer = jest.fn();
     startHubRelayConsumer({ navigateToPlayer });
 
-    socket().deliver(hubCommand({ media_id: 'media-9', issued_at: 1_700_000_000 }));
-    socket().deliver(hubCommand({ media_id: 'media-9', issued_at: 1_700_000_000 }));
+    // Shared explicit stamp: the dedupe key is `mediaId@issuedAt`, so both
+    // deliveries MUST carry the same second (wall-clock default could tick
+    // between the two calls — never rely on it for key equality).
+    const stamp = Math.floor(Date.now() / 1000);
+    socket().deliver(hubCommand({ media_id: 'media-9', issued_at: stamp }));
+    socket().deliver(hubCommand({ media_id: 'media-9', issued_at: stamp }));
     expect(navigateToPlayer).toHaveBeenCalledTimes(1);
     expect(useSyncplayStore.getState().pendingPlayMedia).toBeNull();
   });
@@ -206,7 +212,7 @@ describe('startHubRelayConsumer — command router (load-a-new-title path)', () 
     startHubRelayConsumer({ navigateToPlayer });
 
     socket().deliver(hubCommand({ media_id: 'media-9' }));
-    socket().deliver(hubCommand({ media_id: 'media-10', title: 'Dune', issued_at: 1_700_000_001 }));
+    socket().deliver(hubCommand({ media_id: 'media-10', title: 'Dune' }));
     expect(navigateToPlayer).toHaveBeenCalledTimes(2);
     expect(navigateToPlayer.mock.calls.map((c) => c[0])).toEqual(['media-9', 'media-10']);
   });

@@ -113,16 +113,47 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 
 /**
+ * Replay window for a delivered `pending_command`, in seconds
+ * (M-MOBILE-55, review mobile__secnet m7 clause b).
+ *
+ * The live producer stamps `issued_at = time()` at dispatch and pushes to a
+ * user's OPEN app (hub `PendingCommandDispatcher` docblock; SPEC.md §2's
+ * footnote pins the UNIX-SECONDS scale and names this lane as a consumer) —
+ * legitimate delivery is seconds-fresh. A frame older than this ceiling is
+ * a replay (or a hopelessly skewed clock) and must never launch
+ * navigation/playback. 900s is a deliberately generous ceiling: normal
+ * delivery is seconds, so this only ever discards stale/replayed frames,
+ * while a phone whose clock is hours wrong degrades to "no relay launch"
+ * instead of launching anything. The small future tolerance absorbs honest
+ * phone/hub clock drift in the other direction. The socket is authenticated
+ * to the user's OWN hub, so this is defense-in-depth against a
+ * compromised/misbehaving hub or replayed frames — the server still
+ * enforces playback permissions.
+ */
+export const PENDING_COMMAND_MAX_AGE_SECONDS = 900;
+
+/** Future-skew tolerance for `issued_at`, in seconds (see the age window). */
+export const PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS = 60;
+
+/**
  * Coerce one raw relay frame into a typed play-media command.
  *
  * The parse boundary: the hub's `PendingCommandDispatcher` emits
  * `{type:'pending_command', command:'play_media', server_id, media_id, title,
- * issued_at, source}` — this validates that shape and coerces numbers at the
- * edge; anything else (unknown frame types, malformed bodies) returns `null`
- * and is dropped. Exported for tests and for consumers that want to parse a
- * frame without opening a socket.
+ * issued_at, source}` — this validates that shape, applies the replay
+ * window, and coerces numbers at the edge; anything else (unknown frame
+ * types, malformed bodies, stale stamps) returns `null` and is dropped.
+ * Exported for tests and for consumers that want to parse a frame without
+ * opening a socket.
+ *
+ * `nowSeconds` is an injection seam (default: the phone's clock): tests pin
+ * the window deterministically without waiting on wall time, and the
+ * production call site stays a plain `parsePendingCommandFrame(raw)`.
  */
-export function parsePendingCommandFrame(raw: unknown): PendingPlayMediaCommand | null {
+export function parsePendingCommandFrame(
+  raw: unknown,
+  nowSeconds: number = Math.floor(Date.now() / 1000)
+): PendingPlayMediaCommand | null {
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
@@ -139,17 +170,28 @@ export function parsePendingCommandFrame(raw: unknown): PendingPlayMediaCommand 
   if (typeof frame.title !== 'string' || frame.title === '') {
     return null;
   }
-  const issuedAt =
-    typeof frame.issued_at === 'number' && Number.isFinite(frame.issued_at)
-      ? frame.issued_at
-      : Math.floor(Date.now() / 1000);
+  // Strict issued_at (M-MOBILE-55 clause b): a missing/non-finite stamp is
+  // MALFORMED — the live producer always stamps `issued_at = time()`. The
+  // old fallback minted the phone's own clock, which gave every replay of a
+  // stamp-less frame a fresh dedupe key (`mediaId@issuedAt` in the
+  // consumer), so the replay window the review asked for never existed.
+  if (typeof frame.issued_at !== 'number' || !Number.isFinite(frame.issued_at)) {
+    return null;
+  }
+  // Replay window (see PENDING_COMMAND_MAX_AGE_SECONDS for the law).
+  if (
+    nowSeconds - frame.issued_at > PENDING_COMMAND_MAX_AGE_SECONDS ||
+    frame.issued_at - nowSeconds > PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS
+  ) {
+    return null;
+  }
   return {
     type: 'pending_command',
     command: 'play_media',
     serverId: frame.server_id,
     mediaId: frame.media_id,
     title: frame.title,
-    issuedAt,
+    issuedAt: frame.issued_at,
     source: typeof frame.source === 'string' ? frame.source : 'unknown',
   };
 }

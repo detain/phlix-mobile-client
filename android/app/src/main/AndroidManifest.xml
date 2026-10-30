@@ -2,8 +2,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- M-MOBILE-13 (review mobile__crossfe): the legacy READ/WRITE_EXTERNAL_STORAGE
+         pair is retired. Nothing in this app reads or writes shared storage
+         through the deprecated APIs — zero MediaStore/Environment usage in
+         android/ and src/ (grep-verified), downloads land in app-private
+         dirs — so the pair only inflated the install-time permission
+         prompt. The granular READ_MEDIA_* trio below stays for API 33+,
+         exactly as the review's cure advice directs. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />

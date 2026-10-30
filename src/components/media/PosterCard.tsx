@@ -14,6 +14,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
+import { firstUsableUri } from '../../utils/mediaFallback';
+import { LocalPlaceholder } from '../ui/LocalPlaceholder';
 
 interface PosterCardProps {
   item: MediaItem;
@@ -30,7 +32,8 @@ export const PosterCard: React.FC<PosterCardProps> = ({
   onPress,
   showTitle = true,
 }) => {
-  const posterUri = item.poster_url || 'https://via.placeholder.com/300x450';
+  // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
+  const posterUri = firstUsableUri(item.poster_url);
 
   return (
     <TouchableOpacity
@@ -38,11 +41,15 @@ export const PosterCard: React.FC<PosterCardProps> = ({
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Image
-        source={{ uri: posterUri }}
-        style={[styles.poster, { width, height }]}
-        resizeMode="cover"
-      />
+      {posterUri !== undefined ? (
+        <Image
+          source={{ uri: posterUri }}
+          style={[styles.poster, { width, height }]}
+          resizeMode="cover"
+        />
+      ) : (
+        <LocalPlaceholder style={[styles.poster, { width, height }]} />
+      )}
       {showTitle && (
         <Text style={styles.title} numberOfLines={2}>
           {item.name}

@@ -39,6 +39,8 @@ import {
 } from './favorites/favoritesHelpers';
 import { PosterCard } from '../components/media/PosterCard';
 import { ErrorView } from '../components/ui/ErrorView';
+import { LocalPlaceholder } from '../components/ui/LocalPlaceholder';
+import { firstUsableUri } from '../utils/mediaFallback';
 import { CastButton } from '../components/cast';
 import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
 // M-MOBILE-48: the UserRatingPicker import is gone with its duplicate-
@@ -379,18 +381,23 @@ const MediaDetailScreen: React.FC = () => {
   // replaces could never be true — nothing in the app ever POSTed progress).
   const hasResumePosition = (resumeTicks[itemId] ?? 0) > 0;
   const stars = starsFromRating(rating);
-  const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
+  // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
+  const backdropUri = firstUsableUri(item.backdrop_url, item.poster_url);
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} bounces={false}>
         {/* Backdrop with Gradient */}
         <View style={styles.backdropContainer}>
-          <Image
-            source={{ uri: backdropUri }}
-            style={styles.backdrop}
-            resizeMode="cover"
-          />
+          {backdropUri !== undefined ? (
+            <Image
+              source={{ uri: backdropUri }}
+              style={styles.backdrop}
+              resizeMode="cover"
+            />
+          ) : (
+            <LocalPlaceholder style={styles.backdrop} />
+          )}
           <LinearGradient
             colors={['transparent', '#0f0f1a']}
             style={styles.backdropGradient}

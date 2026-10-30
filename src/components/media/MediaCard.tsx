@@ -16,6 +16,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
+import { firstUsableUri } from '../../utils/mediaFallback';
+import { LocalPlaceholder } from '../ui/LocalPlaceholder';
 
 interface MediaCardProps {
   item: MediaItem;
@@ -34,7 +36,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = cardWidthProp ?? (screenWidth - 48) / 2;
   const cardHeight = cardWidth * 0.7;
-  const posterUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/400x225';
+  // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
+  const posterUri = firstUsableUri(item.backdrop_url, item.poster_url);
 
   return (
     <TouchableOpacity
@@ -42,11 +45,17 @@ export const MediaCard: React.FC<MediaCardProps> = ({
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Image
-        source={{ uri: posterUri }}
-        style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
-        resizeMode="cover"
-      />
+      {posterUri !== undefined ? (
+        <Image
+          source={{ uri: posterUri }}
+          style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
+          resizeMode="cover"
+        />
+      ) : (
+        <LocalPlaceholder
+          style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
+        />
+      )}
       <View style={styles.infoContainer}>
         <Text style={styles.title} numberOfLines={2}>
           {item.name}

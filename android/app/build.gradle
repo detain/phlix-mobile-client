@@ -130,9 +130,11 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
 
-    // ExoPlayer2
-    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
-    implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
+    // Media3 ExoPlayer — the maintained successor of the archived
+    // `com.google.android.exoplayer` v2 line (M-MOBILE-14). 1.4.1 is the
+    // baseline; keep the pair on one version (they cross-depend).
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-ui:1.4.1'
 
     // Credential Manager — WebAuthn / passkeys (E10e). The play-services-auth
     // artifact provides the FIDO2 / passkey provider behind Credential Manager.

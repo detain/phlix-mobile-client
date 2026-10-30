@@ -27,6 +27,8 @@ import { SafeContainer } from '../components/layout';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LocalPlaceholder } from '../components/ui/LocalPlaceholder';
+import { firstUsableUri } from '../utils/mediaFallback';
 import {
   albumGridTitle,
   photoCountLabel,
@@ -35,7 +37,8 @@ import {
 type PhotosNavigationProp = NativeStackNavigationProp<any>;
 type PhotosRouteProp = RouteProp<RootStackParamList, 'Photos'>;
 
-const PLACEHOLDER = 'https://via.placeholder.com/300x300?text=Photo';
+// M-MOBILE-42 (review mobile__crossfe): the old remote `PLACEHOLDER` image
+// uri is gone — a missing cover renders the local tile instead.
 const GRID_COLUMNS = 2;
 const GRID_GAP = 12;
 
@@ -160,16 +163,24 @@ const PhotosScreen: React.FC = () => {
     (width - GRID_GAP * (GRID_COLUMNS + 1)) / GRID_COLUMNS;
 
   const renderAlbum = ({ item }: { item: PhotoAlbum }) => {
-    const cover = item.cover_photo?.thumbnail_url ?? PLACEHOLDER;
+    // M-MOBILE-42: missing cover stays local — no third-party placeholder call.
+    const cover = firstUsableUri(item.cover_photo?.thumbnail_url);
     return (
       <TouchableOpacity
         style={[styles.albumCell, { width: cellWidth }]}
         onPress={() => handleAlbumPress(item)}
       >
-        <Image
-          source={{ uri: cover }}
-          style={[styles.albumCover, { width: cellWidth, height: cellWidth }]}
-        />
+        {cover !== undefined ? (
+          <Image
+            source={{ uri: cover }}
+            style={[styles.albumCover, { width: cellWidth, height: cellWidth }]}
+          />
+        ) : (
+          <LocalPlaceholder
+            kind="photo"
+            style={[styles.albumCover, { width: cellWidth, height: cellWidth }]}
+          />
+        )}
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{photoCountLabel(item)}</Text>
         </View>

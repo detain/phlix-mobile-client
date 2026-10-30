@@ -23,6 +23,8 @@ import {
   closeHubRelayConnection,
   getHubRelaySocket,
   HUB_SYNC_PLAY_PORT,
+  PENDING_COMMAND_MAX_AGE_SECONDS,
+  PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS,
 } from '../../syncplay/hubRelay';
 import type { PendingPlayMediaCommand } from '../../syncplay/hubRelay';
 import { MAX_INBOUND_FRAME_BYTES } from '../../syncplay/frameLimits';
@@ -102,7 +104,8 @@ describe('parsePendingCommandFrame', () => {
       issued_at: 1_700_000_000,
       source: 'alexa',
     };
-    const parsed = parsePendingCommandFrame(raw);
+    // Clock injected seconds-fresh over the stamp (M-MOBILE-55 window).
+    const parsed = parsePendingCommandFrame(raw, 1_700_000_005);
     expect(parsed).toEqual({
       type: 'pending_command',
       command: 'play_media',
@@ -114,16 +117,71 @@ describe('parsePendingCommandFrame', () => {
     } satisfies PendingPlayMediaCommand);
   });
 
-  it('falls back to now for a missing/non-finite issued_at', () => {
-    const before = Math.floor(Date.now() / 1000);
-    const parsed = parsePendingCommandFrame({
+  // M-MOBILE-55 clause b (review mobile__secnet m7) — LAW FLIP: this test
+  // used to PIN the Date.now()-minting fallback ("falls back to now for a
+  // missing/non-finite issued_at"), which was the defect itself: every
+  // replay of a stamp-less frame got a fresh dedupe key. Missing/non-finite
+  // is now malformed and dropped, exactly like the other shape failures.
+  it('drops a frame with a missing or non-finite issued_at (no phone-clock minting)', () => {
+    const frame = {
       type: 'pending_command',
       command: 'play_media',
       server_id: 'srv-1',
       media_id: 'media-9',
       title: 'Inception',
+    };
+    expect(parsePendingCommandFrame({ ...frame })).toBeNull();
+    expect(
+      parsePendingCommandFrame({ ...frame, issued_at: Number.NaN })
+    ).toBeNull();
+    expect(
+      parsePendingCommandFrame({ ...frame, issued_at: Number.POSITIVE_INFINITY })
+    ).toBeNull();
+    expect(
+      parsePendingCommandFrame({ ...frame, issued_at: '1700000000' })
+    ).toBeNull();
+    expect(parsePendingCommandFrame({ ...frame, issued_at: null })).toBeNull();
+  });
+
+  it('enforces the replay window: seconds-fresh passes, stale and far-future drop', () => {
+    const NOW = 1_700_000_000;
+    const frame = (issuedAt: number) => ({
+      type: 'pending_command',
+      command: 'play_media',
+      server_id: 'srv-1',
+      media_id: 'media-9',
+      title: 'Inception',
+      issued_at: issuedAt,
     });
-    expect(parsed?.issuedAt).toBeGreaterThanOrEqual(before);
+    // Live delivery is seconds-fresh (the hub pushes to an OPEN app).
+    expect(parsePendingCommandFrame(frame(NOW - 3), NOW)).not.toBeNull();
+    // Exactly at the ceiling passes, one second past drops (boundary pin).
+    expect(
+      parsePendingCommandFrame(frame(NOW - PENDING_COMMAND_MAX_AGE_SECONDS), NOW)
+    ).not.toBeNull();
+    expect(
+      parsePendingCommandFrame(
+        frame(NOW - PENDING_COMMAND_MAX_AGE_SECONDS - 1),
+        NOW
+      )
+    ).toBeNull();
+    // Future stamp within skew tolerance passes; beyond it drops.
+    expect(
+      parsePendingCommandFrame(
+        frame(NOW + PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS),
+        NOW
+      )
+    ).not.toBeNull();
+    expect(
+      parsePendingCommandFrame(
+        frame(NOW + PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS + 1),
+        NOW
+      )
+    ).toBeNull();
+    // The default clock path is the phone's own wall time (mutation: a
+    // hardcoded epoch default reddens this).
+    const fresh = frame(Math.floor(Date.now() / 1000));
+    expect(parsePendingCommandFrame(fresh)).not.toBeNull();
   });
 
   it('returns null for non-objects and garbage', () => {
@@ -170,8 +228,8 @@ describe('parsePendingCommandFrame', () => {
       server_id: 'srv-1',
       media_id: 'media-9',
       title: 'Inception',
-      issued_at: 1,
-    });
+      issued_at: 1_700_000_000,
+    }, 1_700_000_010);
     expect(parsed?.source).toBe('unknown');
   });
 });
@@ -280,7 +338,9 @@ describe('openHubRelayConnection', () => {
       server_id: 'srv-1',
       media_id: 'media-9',
       title: 'Inception',
-      issued_at: 1_700_000_000,
+      // Seconds-fresh under the M-MOBILE-55 replay window (real parse runs
+      // against the phone clock on this path).
+      issued_at: Math.floor(Date.now() / 1000),
       source: 'alexa',
     });
     expect(onPendingCommand).toHaveBeenCalledTimes(1);
@@ -301,6 +361,10 @@ describe('openHubRelayConnection', () => {
       server_id: 'srv-OTHER',
       media_id: 'media-9',
       title: 'Inception',
+      // M-MOBILE-55: seconds-fresh stamp so the frame clears the parse
+      // window — the drop here must be attributable to the server_id
+      // contradiction check, not to the replay window (mutation teeth).
+      issued_at: Math.floor(Date.now() / 1000),
     });
     expect(onPendingCommand).not.toHaveBeenCalled();
   });
@@ -322,6 +386,7 @@ describe('openHubRelayConnection', () => {
         server_id: 'srv-1',
         media_id: 'media-after-oversize',
         title: 'Still Working',
+        issued_at: Math.floor(Date.now() / 1000),
       });
       expect(onPendingCommand).toHaveBeenCalledTimes(1);
     } finally {
@@ -350,6 +415,7 @@ describe('openHubRelayConnection', () => {
         server_id: 'srv-1',
         media_id: 'media-9',
         title: 'Inception',
+        issued_at: Math.floor(Date.now() / 1000),
       })
     ).not.toThrow();
     // A second frame still reaches the consumer.
@@ -359,6 +425,7 @@ describe('openHubRelayConnection', () => {
       server_id: 'srv-1',
       media_id: 'media-10',
       title: 'Dune',
+      issued_at: Math.floor(Date.now() / 1000),
     });
     expect(onPendingCommand).toHaveBeenCalledTimes(2);
   });
