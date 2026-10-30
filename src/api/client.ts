@@ -10,6 +10,7 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import Config from 'react-native-config';
 import { Platform } from 'react-native';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import { secureStorage } from '../services/SecureStorage';
 import {
   buildPhlixHeaders,
@@ -36,6 +37,10 @@ const API_PREFIX = '/api/v1';
 const getServerRoot = (): string => {
   const settingsUrl = useSettingsStore.getState().serverUrl;
   const root = settingsUrl && settingsUrl.trim() !== '' ? settingsUrl.trim() : BUILD_TIME_BASE_URL;
+  // M-MOBILE-51 (review mobile__secnet m3): every REST dial derives from
+  // here, so this is the lane's honest REPORT seam — cleartext becomes the
+  // visible fact it should be (write-gated; see the store's law header).
+  useConnectionSecurityStore.getState().mark('rest', root);
   // Normalize: strip trailing slash so prefix joins cleanly.
   return root.replace(/\/+$/, '');
 };

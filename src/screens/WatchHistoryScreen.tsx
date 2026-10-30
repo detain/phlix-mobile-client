@@ -25,6 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useWatchHistoryStore } from '../stores/useWatchHistoryStore';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
+import { fireHaptic } from '../utils/haptics';
 import type { MediaItem } from '../types/media';
 import { SafeContainer } from '../components/layout';
 import { MediaCard } from '../components/media/MediaCard';
@@ -110,7 +111,12 @@ const WatchHistoryScreen: React.FC = () => {
 
   const renderItem = ({ item }: { item: MediaItem }) => (
     <Pressable
-      onLongPress={() => handleDeleteItem(item)}
+      onLongPress={() => {
+        // M-MOBILE-40 (review mobile__gameux m6): the long-press that STARTS
+        // a destructive action now lands with a destructive impact (Android).
+        fireHaptic('destructive');
+        handleDeleteItem(item);
+      }}
       delayLongPress={500}
     >
       <MediaCard

@@ -16,6 +16,8 @@ import {
   Modal,
   ScrollView,
   TextInput,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,6 +28,8 @@ import { SearchBar } from '../components/ui/SearchBar';
 import { MediaCard } from '../components/media/MediaCard';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { GridSkeleton } from '../components/ui/ContentSkeleton';
+import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 import { ErrorView } from '../components/ui/ErrorView';
 import {
   RATING_OPTIONS,
@@ -35,6 +39,7 @@ import {
   railLetterTouchRect,
   activeLetters,
   hasActiveFilters,
+  searchGridColumns,
   type MediaFilters,
   type SortOption,
   type SortOrder,
@@ -54,6 +59,10 @@ const RAIL_LETTER_TOUCH = railLetterTouchRect();
 
 const SearchScreen: React.FC = () => {
   const navigation = useNavigation<SearchNavigationProp>();
+  // M-MOBILE-39 (review mobile__gameux m5): column count follows the LIVE
+  // window width via the pure seam `searchGridColumns` (was frozen at
+  // module-scope Dimensions + a hardcoded two-column grid).
+  const { width: windowWidth } = useWindowDimensions();
 
   const query = useSearchStore((s) => s.query);
   const filters = useSearchStore((s) => s.filters);
@@ -216,6 +225,7 @@ const SearchScreen: React.FC = () => {
           >
             <Text
               style={[styles.railText, !enabled && styles.railTextDisabled]}
+              maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}
             >
               {letter}
             </Text>
@@ -227,7 +237,9 @@ const SearchScreen: React.FC = () => {
 
   const renderResults = () => {
     if (loading && results.length === 0) {
-      return <LoadingSpinner fullScreen />;
+      // M-MOBILE-43 (review mobile__gameux m9): grid-shaped skeleton on the
+      // first query; pagination keeps the small spinner below.
+      return <GridSkeleton rows={3} />;
     }
     if (error && results.length === 0) {
       return <ErrorView message={error} onRetry={() => runSearch(true)} />;
@@ -261,7 +273,7 @@ const SearchScreen: React.FC = () => {
           data={results}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
-          numColumns={2}
+          numColumns={searchGridColumns(windowWidth)}
           contentContainerStyle={styles.listContent}
           columnWrapperStyle={styles.columnWrapper}
           onEndReached={handleLoadMore}
@@ -310,7 +322,15 @@ const SearchScreen: React.FC = () => {
         onRequestClose={() => setFiltersOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          {/* M-MOBILE-47 (review mobile__gameux m13): the sheet had no
+              keyboard avoidance and its body ScrollView swallowed the first
+              tap (keyboard-dismiss) — Apply/year fields could sit under the
+              keyboard and the button needed a wasted press. `padding`
+              behavior on BOTH platforms: inside a transparent Modal,
+              Android's activity-level adjustResize never sees the dialog
+              window, and 'height' snaps known layout bugs — padding is the
+              portable honest shift. */}
+          <KeyboardAvoidingView behavior="padding" style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
               <TouchableOpacity onPress={clearFilters}>
@@ -318,7 +338,10 @@ const SearchScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={styles.modalBody}
+              keyboardShouldPersistTaps="handled"
+            >
               <Text style={styles.fieldLabel}>Genres (comma-separated)</Text>
               <TextInput
                 style={styles.input}
@@ -408,7 +431,7 @@ const SearchScreen: React.FC = () => {
                 <Text style={styles.applyButtonText}>Apply</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeContainer>
@@ -486,7 +509,7 @@ const styles = StyleSheet.create({
   },
   railText: {
     color: '#0066cc',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   railTextDisabled: {

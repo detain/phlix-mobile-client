@@ -62,6 +62,7 @@ import { buildHubRelayUrl } from './hubRelay';
 import { createHubRelayTokenProvider } from '../hub/RelayTokenProvider';
 import { secureStorage } from '../services/SecureStorage';
 import { hostOf } from '../utils/serverHost';
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import {
   SYNCPLAY_HOST_MISMATCH_CODE,
   SYNCPLAY_HOST_MISMATCH_MESSAGE,
@@ -209,8 +210,12 @@ export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promi
       return null;
     }
     // S237 law: bearer subprotocol carrier, never a query token.
+    const relayUrl = buildHubRelayUrl(hubUrl, activeServerId);
+    // M-MOBILE-51: the relay branch rides the same cleartext visibility law
+    // as the direct return below.
+    useConnectionSecurityStore.getState().mark('syncplayWs', relayUrl);
     return {
-      url: buildHubRelayUrl(hubUrl, activeServerId),
+      url: relayUrl,
       protocols: ['bearer', relayToken],
     };
   }
@@ -250,8 +255,14 @@ export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promi
   // Dual-carrier TARGET law (phlix-server 424c14d0): bearer subprotocol
   // carrier, never a query token — same offer shape the relay lane above and
   // hubRelay.ts:256 already ship.
+  const url = buildDirectSyncPlayWsUrl(source.effectiveServerUrl);
+  // M-MOBILE-51 (review mobile__secnet m3): the scheme here is purely
+  // baseUrl-derived (m1/m2) — when it lands on plain `ws://`, the bearer JWT
+  // is on-path readable, and the user deserves the visible signal. Reporting
+  // seam only; the DIAL itself is untouched law.
+  useConnectionSecurityStore.getState().mark('syncplayWs', url);
   return {
-    url: buildDirectSyncPlayWsUrl(source.effectiveServerUrl),
+    url,
     protocols: ['bearer', serverJwt],
   };
 }

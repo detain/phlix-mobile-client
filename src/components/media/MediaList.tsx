@@ -12,7 +12,7 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   TouchableOpacity,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
@@ -28,17 +28,21 @@ interface MediaListProps {
   onViewAllPress?: () => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export const MediaList: React.FC<MediaListProps> = ({
   title,
   items,
   onItemPress,
-  cardWidth = (SCREEN_WIDTH - 60) / 3,
-  cardHeight = cardWidth * 1.5,
+  cardWidth: cardWidthProp,
+  cardHeight: cardHeightProp,
   showViewAll = false,
   onViewAllPress,
 }) => {
+  // M-MOBILE-39 (review mobile__gameux m5): the (SCREEN_WIDTH - 60) / 3
+  // default is now derived from the LIVE window width (useWindowDimensions)
+  // instead of a module-scope `Dimensions.get('window')` frozen at import.
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = cardWidthProp ?? (screenWidth - 60) / 3;
+  const cardHeight = cardHeightProp ?? cardWidth * 1.5;
   const renderItem = ({ item }: { item: MediaItem }) => (
     <PosterCard
       item={item}

@@ -99,6 +99,11 @@ export interface HubRelayConfig {
   onStatusChange?: (status: HubRelayStatus) => void;
 }
 
+// M-MOBILE-51 (review mobile__secnet m3): the one external binding this
+// dependency-free consumer carries — the dial seam reports its cleartext
+// verdict to the security store (write-gated; see the store's law header).
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
+
 /** Maximum reconnect attempts before giving up (mirrors the SyncPlay socket). */
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -245,6 +250,9 @@ async function connectHubRelaySocket(): Promise<void> {
     return; // closed or re-bound while the token was being minted
   }
   const url = buildHubRelayUrl(config.hubBaseUrl, config.serverId);
+  // M-MOBILE-51: report the resolved scheme BEFORE dialing — this bearer
+  // token socket over `ws://` is exactly the lane the banner must cover.
+  useConnectionSecurityStore.getState().mark('hubRelay', url);
   setStatus(hubReconnectAttempts > 0 ? 'reconnecting' : 'connecting');
 
   let socket: WebSocket;

@@ -12,6 +12,7 @@ import { apiErrorMessage, onAuthInvalidated } from '../api/client';
 import { syncPlayService } from '../syncplay/SyncPlayService';
 import { notificationService } from '../services/NotificationService';
 import { useSettingsStore } from './useSettingsStore';
+import { useConnectionSecurityStore } from './useConnectionSecurityStore';
 
 interface AuthState {
   user: User | null;
@@ -81,6 +82,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       } catch {
         // Notification platform may be unavailable (e.g. tests) — best-effort.
       }
+      // M-MOBILE-51: the next session resolves its lanes fresh — forget the
+      // current cleartext verdicts at sign-out (banner goes with them).
+      useConnectionSecurityStore.getState().resetLanes();
       await authManager.logout();
     } finally {
       set({

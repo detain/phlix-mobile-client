@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   overrideBadge: {
     color: '#0f0f1a',
     backgroundColor: '#eab308',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     paddingHorizontal: 6,
     paddingVertical: 2,

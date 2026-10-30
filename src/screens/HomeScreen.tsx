@@ -12,7 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   RefreshControl,
-  Dimensions,
+  useWindowDimensions,
   TouchableOpacity,
   Text,
 } from 'react-native';
@@ -27,17 +27,22 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { SafeContainer } from '../components/layout';
 import { MediaList } from '../components/media/MediaList';
 import { ContinueWatching } from '../components/media/ContinueWatching';
-import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
+import { GridSkeleton } from '../components/ui/ContentSkeleton';
+import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const POSTER_WIDTH = (SCREEN_WIDTH - 60) / 3;
-const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
+// M-MOBILE-39 (review mobile__gameux m5): poster geometry used to be frozen
+// at module scope from `Dimensions.get('window')` — foldables/tablets/
+// landscape never re-laid out. It now follows `useWindowDimensions()` per
+// render, the pattern the Photos screens already demonstrate.
 
 type HomeNavigationProp = NativeStackNavigationProp<any>;
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeNavigationProp>();
+  const { width: screenWidth } = useWindowDimensions();
+  const posterWidth = (screenWidth - 60) / 3;
+  const posterHeight = posterWidth * 1.5;
   const user = useAuthStore((state) => state.user);
 
   const [recentlyAdded, setRecentlyAdded] = useState<MediaItem[]>([]);
@@ -116,7 +121,9 @@ const HomeScreen: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen />;
+    // M-MOBILE-43 (review mobile__gameux m9): layout-shaped skeleton on the
+    // cold load instead of a lone spinner in the void.
+    return <GridSkeleton rows={3} />;
   }
 
   if (error) {
@@ -137,7 +144,7 @@ const HomeScreen: React.FC = () => {
           accessibilityLabel="Switch profile"
           accessibilityRole="button"
         >
-          <Text style={styles.profilesButtonText}>👤</Text>
+          <Text style={styles.profilesButtonText} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>👤</Text>
         </TouchableOpacity>
       </View>
 
@@ -167,8 +174,8 @@ const HomeScreen: React.FC = () => {
             title="Recently Added"
             items={recentlyAdded}
             onItemPress={handleMediaPress}
-            cardWidth={POSTER_WIDTH}
-            cardHeight={POSTER_HEIGHT}
+            cardWidth={posterWidth}
+            cardHeight={posterHeight}
           />
         )}
 
@@ -179,8 +186,8 @@ const HomeScreen: React.FC = () => {
             title={library.name}
             items={libraryItems[library.id] || []}
             onItemPress={handleMediaPress}
-            cardWidth={POSTER_WIDTH}
-            cardHeight={POSTER_HEIGHT}
+            cardWidth={posterWidth}
+            cardHeight={posterHeight}
           />
         ))}
 

@@ -13,7 +13,7 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
 
@@ -23,13 +23,16 @@ interface MediaCardProps {
   cardWidth?: number;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export const MediaCard: React.FC<MediaCardProps> = ({
   item,
   onPress,
-  cardWidth = (SCREEN_WIDTH - 48) / 2,
+  cardWidth: cardWidthProp,
 }) => {
+  // M-MOBILE-39 (review mobile__gameux m5): the 2-up default width follows
+  // the LIVE window (useWindowDimensions) — landscape/foldables/tablets
+  // re-layout now instead of shipping the import-time snapshot forever.
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = cardWidthProp ?? (screenWidth - 48) / 2;
   const cardHeight = cardWidth * 0.7;
   const posterUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/400x225';
 

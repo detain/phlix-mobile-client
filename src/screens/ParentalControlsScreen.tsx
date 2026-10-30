@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#888',
-    fontSize: 11,
+    fontSize: 12,
   },
   listItemActions: {
     flexDirection: 'row',

@@ -14,10 +14,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { MediaItem } from '../../types/media';
 import { continueWatchingProgressPercent } from '../../utils/resumePositions';
+import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../../utils/textScalePolicy';
 
 interface ContinueWatchingProps {
   items: MediaItem[];
@@ -25,15 +26,16 @@ interface ContinueWatchingProps {
   onItemPlay: (item: MediaItem) => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH - 40;
-const CARD_HEIGHT = CARD_WIDTH * 0.56;
-
 export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
   items,
   onItemPress,
   onItemPlay,
 }) => {
+  // M-MOBILE-39 (review mobile__gameux m5): full-bleed card geometry now
+  // tracks the live window width (was a module-scope Dimensions snapshot).
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = screenWidth - 40;
+  const cardHeight = cardWidth * 0.56;
   const renderItem = ({ item }: { item: MediaItem }) => {
     const backdropUri = item.backdrop_url || item.poster_url || 'https://via.placeholder.com/640x360';
     // C17 (review mobile__gameux): the rail row carries `position_ticks` /
@@ -43,13 +45,13 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
 
     return (
       <TouchableOpacity
-        style={[styles.card, { width: CARD_WIDTH }]}
+        style={[styles.card, { width: cardWidth }]}
         onPress={() => onItemPress(item)}
         activeOpacity={0.8}
       >
         <Image
           source={{ uri: backdropUri }}
-          style={[styles.backdrop, { width: CARD_WIDTH, height: CARD_HEIGHT }]}
+          style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
           resizeMode="cover"
         />
         <View style={styles.overlay}>
@@ -65,7 +67,7 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
             style={styles.playButton}
             onPress={() => onItemPlay(item)}
           >
-            <Text style={styles.playButtonText}>▶</Text>
+            <Text style={styles.playButtonText} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>▶</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.progressBar}>

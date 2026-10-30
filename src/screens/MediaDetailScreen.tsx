@@ -11,7 +11,7 @@ import {
   View,
   ScrollView,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   TouchableOpacity,
   Text,
   Image,
@@ -37,7 +37,6 @@ import {
   STAR_COUNT,
 } from './favorites/favoritesHelpers';
 import { PosterCard } from '../components/media/PosterCard';
-import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorView } from '../components/ui/ErrorView';
 import { CastButton } from '../components/cast';
 import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
@@ -46,8 +45,11 @@ import { downloadService } from '../services/DownloadService';
 import type { DownloadTask } from '../store/downloadStore';
 import { isDownloadableType, isPlayableType } from '../utils/mediaType';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
+import { DetailSkeleton } from '../components/ui/ContentSkeleton';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// M-MOBILE-39 (review mobile__gameux m5): hero/poster geometry reads the
+// LIVE window via useWindowDimensions (below) instead of a module-scope
+// `Dimensions.get('window')` frozen at import.
 
 type DetailRouteParams = {
   MediaDetail: { itemId: string };
@@ -58,6 +60,7 @@ type DetailNavigationProp = NativeStackNavigationProp<any>;
 const MediaDetailScreen: React.FC = () => {
   const route = useRoute<RouteProp<DetailRouteParams, 'MediaDetail'>>();
   const navigation = useNavigation<DetailNavigationProp>();
+  const { width: screenWidth } = useWindowDimensions();
   const { itemId } = route.params;
 
   const [item, setItem] = useState<MediaItem | null>(null);
@@ -347,7 +350,11 @@ const MediaDetailScreen: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner fullScreen />;
+    // M-MOBILE-43 (review mobile__gameux m9): the hero+poster+rails SHAPE
+    // on the cold load — a lone spinner told the user nothing about what
+    // was coming. (Re-fetches already hold prior content via M-MOBILE-17:
+    // `setIsLoading(item === null)` above keeps that law intact.)
+    return <DetailSkeleton />;
   }
 
   if (error || !item) {
@@ -382,8 +389,8 @@ const MediaDetailScreen: React.FC = () => {
         <View style={styles.infoContainer}>
           <PosterCard
             item={item}
-            width={SCREEN_WIDTH * 0.35}
-            height={SCREEN_WIDTH * 0.35 * 1.5}
+            width={screenWidth * 0.35}
+            height={screenWidth * 0.35 * 1.5}
             onPress={() => {}}
           />
 
@@ -660,7 +667,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   backdrop: {
-    width: SCREEN_WIDTH,
+    // M-MOBILE-39: '100%' of the full-bleed container instead of the old
+    // module-scope SCREEN_WIDTH snapshot — re-lays out with the window.
+    width: '100%',
     height: 300,
   },
   backdropGradient: {

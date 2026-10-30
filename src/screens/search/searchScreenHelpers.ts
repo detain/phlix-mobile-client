@@ -114,3 +114,20 @@ export const activeLetters = (index: LetterIndex | null): Set<string> => {
   }
   return set;
 };
+/**
+ * M-MOBILE-39 (review mobile__gameux m5): the results grid hardcoded
+ * `numColumns={2}` and every sibling screen froze `Dimensions.get('window')`
+ * at module scope, so foldables, tablets and landscape never re-laid out.
+ * The screens now read `useWindowDimensions()`; the column COUNT law lives
+ * here as a pure function of live width (phone 2 / small tablet 3 / large 4),
+ * unit-testable without a renderer.
+ */
+export const searchGridColumns = (windowWidth: number): number => {
+  if (windowWidth >= 900) {
+    return 4;
+  }
+  if (windowWidth >= 600) {
+    return 3;
+  }
+  return 2;
+};

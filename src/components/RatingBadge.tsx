@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   scoreSmall: {
-    fontSize: 11,
+    fontSize: 12,
   },
   scoreLarge: {
     fontSize: 14,

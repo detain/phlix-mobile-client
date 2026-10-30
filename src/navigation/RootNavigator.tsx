@@ -6,11 +6,11 @@
  */
 
 // src/navigation/RootNavigator.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../stores/useAuthStore';
@@ -51,6 +51,10 @@ import {
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 import { PHLIX_LINKING } from './linking';
 import { CastSessionPill } from '../components/cast';
+import { InsecureConnectionBanner } from '../components/ui/InsecureConnectionBanner';
+import { createExitGuardHandler, EXIT_CONFIRM } from '../utils/exitGuard';
+import { fireHaptic } from '../utils/haptics';
+import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -75,7 +79,11 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
 
   return (
     <View style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-      <Text style={styles.tabIconText}>{icons[name]}</Text>
+      {/* M-MOBILE-45: fixed 60pt bar — bounded scaling so large-text users
+          get a boost, the bar keeps its shape. */}
+      <Text style={styles.tabIconText} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>
+        {icons[name]}
+      </Text>
     </View>
   );
 };
@@ -153,6 +161,12 @@ const TabNavigator = () => {
       tabBarInactiveTintColor: '#888',
       // eslint-disable-next-line react/no-unstable-nested-components
       tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
+      // M-MOBILE-40 (review mobile__gameux m6): tab switches get the light
+      // impact the platform convention expects (Android; see haptics.ts for
+      // the iOS venue law).
+      listeners: () => ({
+        tabPress: () => fireHaptic('light'),
+      }),
     })}
   >
     <Tab.Screen name="Home" component={HomeStackNavigator} />
@@ -174,6 +188,37 @@ const TabNavigator = () => {
     />
   </Tab.Navigator>
   );
+};
+
+// M-MOBILE-35 (review mobile__gameux m1): hardware back used to quit the app
+// from any dead root (Login, first tab with an empty stack) with no signal.
+// This guard is the LAST resort, not a hijacker: the pure handler declines
+// whenever the navigator can still pop (pops keep working untouched), and
+// only at a true root does it swallow the default exit and raise an explicit
+// confirm. iOS registers nothing — there is no hardware back to guard.
+const RootExitGuard: React.FC = () => {
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+    const handler = createExitGuardHandler({
+      canGoBack: () => navigationRef.isReady() && navigationRef.canGoBack(),
+      confirmExit: (onConfirm) => {
+        fireHaptic('destructive');
+        Alert.alert(EXIT_CONFIRM.title, EXIT_CONFIRM.message, [
+          { text: EXIT_CONFIRM.cancel, style: 'cancel' },
+          { text: EXIT_CONFIRM.confirm, onPress: onConfirm },
+        ]);
+      },
+      exitApp: () => BackHandler.exitApp(),
+    });
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      handler
+    );
+    return () => subscription.remove();
+  }, []);
+  return null;
 };
 
 // Root Navigator
@@ -441,6 +486,11 @@ const RootNavigator = () => {
       {/* M-MOBILE-16: root-level reachability surface for a live cast —
           renders null unless the store holds an undismissed session. */}
       <CastSessionPill />
+      {/* M-MOBILE-51 (review mobile__secnet m3): persistent cleartext-lane
+          indicator; null while every resolved lane is encrypted. */}
+      <InsecureConnectionBanner />
+      {/* M-MOBILE-35: hardware-back exit confirm at dead roots. */}
+      <RootExitGuard />
     </NavigationContainer>
   );
 };

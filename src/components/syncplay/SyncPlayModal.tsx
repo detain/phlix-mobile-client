@@ -22,6 +22,7 @@ import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
 import { describeSyncPlayRestError } from '../../syncplay/syncplayErrors';
+import { fireHaptic } from '../../utils/haptics';
 
 interface SyncPlayModalProps {
   visible: boolean;
@@ -109,6 +110,10 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
     try {
       const result = await syncPlayManager.joinRoom(roomId, roomPassword);
+
+      // M-MOBILE-40 (review mobile__gameux m6): a successful group join is a
+      // milestone event — medium impact on the join (Android).
+      fireHaptic('medium');
 
       // Open the socket (endpoint resolved internally — see handleCreateRoom).
       syncPlayService.connectWithRoom(roomId, result.sessionId);

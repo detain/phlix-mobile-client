@@ -6,7 +6,7 @@
  */
 
 // src/screens/LoginScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,11 @@ const LoginScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
+  // M-MOBILE-47 (review mobile__gameux m13): the form had no Enter path at
+  // all — returnKeyType next/go plus a focus chain makes the keyboard's own
+  // action walk Server → Username → (go) Sign in.
+  const usernameRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   const login = useAuthStore((state) => state.login);
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -162,6 +167,9 @@ const LoginScreen: React.FC = () => {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
+                returnKeyType="next"
+                onSubmitEditing={() => usernameRef.current?.focus()}
+                blurOnSubmit={false}
               />
             </View>
 
@@ -175,6 +183,9 @@ const LoginScreen: React.FC = () => {
                 placeholderTextColor="#666"
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                blurOnSubmit={false}
               />
             </View>
 
@@ -187,6 +198,8 @@ const LoginScreen: React.FC = () => {
                 placeholder="Enter your password"
                 placeholderTextColor="#666"
                 secureTextEntry
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
               />
             </View>
 

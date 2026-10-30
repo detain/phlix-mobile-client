@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
   },
   checkmark: {

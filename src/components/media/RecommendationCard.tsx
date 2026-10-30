@@ -79,14 +79,14 @@ const styles = StyleSheet.create({
   badge: {
     backgroundColor: '#0066cc',
     color: '#fff',
-    fontSize: 10,
+    fontSize: 12,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   score: {
     color: '#888',
-    fontSize: 10,
+    fontSize: 12,
     marginLeft: 6,
   },
 });

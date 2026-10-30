@@ -23,6 +23,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCollectionStore } from '../stores/useCollectionStore';
 import { libraryManager } from '../api/LibraryManager';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
+import { fireHaptic } from '../utils/haptics';
 import type { Library } from '../types/media';
 import type { Collection } from '../types/collection';
 import { SafeContainer } from '../components/layout';
@@ -143,7 +144,11 @@ const CollectionsScreen: React.FC = () => {
     <TouchableOpacity
       style={styles.row}
       onPress={() => handleOpen(item)}
-      onLongPress={() => handleDelete(item)}
+      onLongPress={() => {
+        // M-MOBILE-40 (review mobile__gameux m6): destructive-start impact.
+        fireHaptic('destructive');
+        handleDelete(item);
+      }}
     >
       <View style={styles.rowMain}>
         <Text style={styles.rowTitle} numberOfLines={1}>

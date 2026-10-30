@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   badge: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     paddingHorizontal: 8,
     paddingVertical: 3,

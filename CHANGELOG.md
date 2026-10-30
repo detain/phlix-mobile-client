@@ -32,6 +32,76 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min62 minors cluster: Android hardware-back exit-confirm at dead roots, module-scope `Dimensions` frozen everywhere (6 surfaces → live `useWindowDimensions` + responsive grid seam), first haptics layer (Vibration wrapper — no new pod against the pinned lock), cold-load skeletons, 12pt font floor + bounded chrome scaling, keyboard traps (filter sheet, Login Enter path), cleartext-lane reporting + persistent insecure banner — 2026-10-30
+
+- **M-MOBILE-35 (CURED)**: the app registered zero `BackHandler`s — hardware
+  back from Login or the first tab with an empty stack silently quit.
+  `src/utils/exitGuard.ts` is the pure decision (declines while the navigator
+  can pop; pops are untouched law, including bottom-tabs' back loop),
+  `RootExitGuard` in `RootNavigator` feeds it live `navigationRef.canGoBack()`
+  verdicts and raises an explicit Exit/Stay confirm at true roots; iOS
+  registers nothing (no hardware back exists). Player parity verified, not
+  coded: ✕ is a plain `goBack()` and the hardware key pops the same route.
+- **M-MOBILE-39 (CURED, one clause stale-verified)**: module-scope
+  `Dimensions.get('window')` froze foldables/tablets/landscape at the
+  import-time snapshot in HomeScreen, MediaDetail, MediaList, MediaCard and
+  ContinueWatching — all five now read `useWindowDimensions()` (the pattern
+  the Photos screens already demonstrated). The Search grid's hardcoded
+  two-column literal became the pure seam `searchGridColumns(width)`
+  (2/3/4 at <600/≥600/≥900). The review's sixth named file, SeekBar, was
+  already cured by 2666d4f's responder rewrite (no `Dimensions` import
+  remains; ancestor-verified). Law test fails any new module-scope snapshot.
+- **M-MOBILE-40 (CURED — Android; iOS honestly deferred)**: new
+  `src/utils/haptics.ts` wrapper on RN-core `Vibration` — light 8ms / medium
+  16ms / destructive double-tap, never throws. Call sites: tab switches
+  (light), long-press-delete starts on WatchHistory + Collections
+  (destructive), the exit confirm (destructive), SyncPlay join success
+  (medium). Why not expo-haptics: this is BARE RN and `ios/Podfile.lock` is
+  deliberately pinned (M-MOBILE-09); an Expo module drags
+  `expo-modules-core` pod-tree + AppDelegate-runtime integration behind it —
+  that is its own native-wave lane, not a minors-cluster gamble. iOS
+  `Vibration.vibrate()` is a documented no-op; the seam is swappable in one
+  file when the pod wave lands.
+- **M-MOBILE-43 (CURED; hold-clause already shipped)**: cold loads painted a
+  spinner in the void; `ContentSkeleton.tsx` (RN-core Animated, no new pod)
+  now shows the layout SHAPE — `DetailSkeleton` (hero + poster + rails) for
+  MediaDetail, `GridSkeleton` for Search's first query and Home. The
+  review's other half (previous-content hold across re-fetches) is
+  M-MOBILE-17 law, already live (`setIsLoading(item === null)` re-pinned).
+- **M-MOBILE-45 (CURED, two laws)**: FLOOR — all ten sub-12 `fontSize` sites
+  (×5 at 10pt, ×5 at 11pt; worst the SyncPlayOverlay stats) now sit at
+  ≥12pt and the scan test reddens anything lower. CEILING — the fixed-height
+  chrome the review named (60pt tab bar, 44pt A–Z rail squares, the player
+  pill, the two 44pt glyph circles) carries `maxFontSizeMultiplier={1.5}`
+  as props. Venue truth recorded: RN 0.85's Fabric Text has NO app-wide
+  `Text.maxFontSizeMultiplier` static anymore (verified in the vendored
+  `Libraries/Text/Text.js`), so a global assignment would have been dead
+  code pretending to be a fix.
+- **M-MOBILE-47 (CURED)**: the Search filter sheet gained a
+  `KeyboardAvoidingView` (`padding` — inside a transparent Modal Android's
+  activity-level adjustResize never sees the dialog window) and
+  `keyboardShouldPersistTaps="handled"` on its body ScrollView (first tap
+  hits the field instead of dismissing the keyboard). Login's three fields
+  now walk Server→Username→(go)Sign-in via `returnKeyType` + a focus chain,
+  and Enter on the password SUBMITS (`onSubmitEditing={handleLogin}`).
+- **M-MOBILE-51 (CURED — visibility; digest clause CROSS-REPO-ROUTED)**:
+  the review's own minimum — a persistent insecure-connection indicator —
+  shipped as `useConnectionSecurityStore` (one predicate, per-lane write-
+  gated ledger) + `InsecureConnectionBanner` mounted at the root. The three
+  dial seams report: `client.ts` server-root resolver (`rest`),
+  `wsEndpoint.resolveSyncPlayWsEndpoint` both branches (`syncplayWs`),
+  `hubRelay` pre-dial (`hubRelay`); logout resets the ledger. NOT changed,
+  deliberately: `usesCleartextTraffic`/`NSAllowsArbitraryLoads` (the
+  ratified LAN-http working mode) and the dial schemes themselves. The
+  REST-join password-digest clause cannot be client-side honest: the
+  server's `SyncPlayController` parses ONLY `password` from the body
+  (`password_hash` is silently dropped — disk-verified at server master),
+  while the WS lanes already ship `hashGroupPassword` SHA-256 per SPEC §4.
+  Server roster item: have the controller read `password_hash` and forward
+  it to the ALREADY-EXISTING `$passwordHash` parameter of
+  `SyncPlayManager::createGroup/joinGroup` (canonical precedence, one-line
+  change + tests); mobile flips the REST body to the digest when it lands.
+
 ### Fixed — Forward-fix W-min57 version stamping: the Gradle package.json lookup resolved one directory too shallow, failing `:app` evaluation (and the CI Android build) — 2026-10-30
 
 - The JsonSlurper line shipped in the W-min57 cluster read
