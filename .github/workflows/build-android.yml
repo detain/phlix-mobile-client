@@ -5,6 +5,14 @@ on:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
+
+# Supersede in-flight runs on the same ref (review M-MOBILE-22); master/main are
+# exempt because release-latest republishes a tag and a mid-flight cancel can
+# leave `latest` deleted with no replacement until the next push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
 
 jobs:
   build-android:
@@ -44,6 +52,9 @@ jobs:
           name: android-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+          # A green build that uploads nothing was silently invisible here
+          # (review M-MOBILE-22): fail the step when the expected APK is absent.
+          if-no-files-found: error
 
   build-android-release:
     name: Build Android (Release)
@@ -83,6 +94,9 @@ jobs:
           name: android-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
+          # See debug upload: release-latest consumes this artifact, so a quiet
+          # empty upload would cascade into a broken `latest` release.
+          if-no-files-found: error
 
   release-latest:
     name: Update "latest" prerelease

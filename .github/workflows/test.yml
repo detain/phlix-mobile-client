@@ -7,6 +7,14 @@ on:
     branches: [main, master, develop]
   workflow_dispatch:
 
+# Supersede in-flight runs on the same ref (review M-MOBILE-22): a push that
+# lands while its predecessor is still running makes the older run dead weight.
+# master/main are NOT cancelled — they own the rolling `latest` publish and
+# killing a run mid-release-reset can strand the tag without an asset.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
+
 jobs:
   test:
     name: Test

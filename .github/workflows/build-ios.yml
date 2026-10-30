@@ -5,6 +5,13 @@ on:
     branches: [main, master, develop]
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
+
+# Supersede in-flight runs on the same ref (review M-MOBILE-22); macOS runners
+# are the scarce resource here, and master/main are exempt from cancellation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
 
 jobs:
   build-ios-debug:
@@ -25,7 +32,10 @@ jobs:
         run: npm install
 
       - name: Clean iOS build directories
-        run: rm -rf ios/build ios/Pods ios/Podfile.lock
+        # `ios/Podfile.lock` is committed (review M-MOBILE-09) and MUST survive
+        # the purge — deleting it is what let every caret pod float to its
+        # newest release on each CI run. Build dirs only from now on.
+        run: rm -rf ios/build ios/Pods
 
       - name: Install iOS dependencies
         run: cd ios && pod install && cd ..
@@ -40,21 +50,29 @@ jobs:
             build CODE_SIGNING_ALLOWED=NO
 
       - name: Create JS bundle
-        # Standalone inspection artifact (bundle-size / JS review), uploaded next
-        # to the dSYM. NOT an over-the-air payload: the installed app embeds its
-        # own copy through xcodebuild's "Bundle React Native code and images"
-        # phase, and nothing at runtime loads ios/main.jsbundle from disk.
+        # Standalone inspection artifact (bundle-size / JS review), uploaded as
+        # the jsbundle. NOT an over-the-air payload: the installed app embeds
+        # its own copy through xcodebuild's "Bundle React Native code and
+        # images" phase, and nothing at runtime loads the bundle from disk.
         # --minify false keeps the uploaded bundle readable. [review M-MOBILE-23]
-        run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
+        # The `.js` suffix is Metro's own naming law (M-MOBILE-22): metro v0.84
+        # appends `.js` to a bare `--out ios/main.jsbundle`, so the upload paths
+        # used to look for a file that was never written and silently uploaded
+        # NOTHING while staying green. Ask for the real name instead.
+        run: npx metro build index.js --platform ios --out ios/main.jsbundle.js --minify false
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: ios-build-debug
-          path: |
-            ios/main.jsbundle
-            ios/build/Build/Products/Debug-iphonesimulator/PhlixMobile.app.dSYM.zip
+          # Debug builds emit plain DWARF (DEBUG_INFORMATION_FORMAT=dwarf), so
+          # the old `PhlixMobile.app.dSYM.zip` path here was fiction — the
+          # artifact is the bundle alone.
+          path: ios/main.jsbundle.js
           retention-days: 7
+          # Review M-MOBILE-22: empty uploads used to warn-and-skip; a green
+          # iOS job that carries no bundle is now a red job.
+          if-no-files-found: error
 
   build-ios-release:
     name: Build iOS (Release)
@@ -75,18 +93,16 @@ jobs:
         run: npm install
 
       - name: Clean iOS build directories
-        run: rm -rf ios/build ios/Pods ios/Podfile.lock
+        # Lock survives — see the Debug job's note (M-MOBILE-09).
+        run: rm -rf ios/build ios/Pods
 
       - name: Install iOS dependencies
         run: cd ios && pod install && cd ..
 
       - name: Create JS bundle
-        # Standalone inspection artifact (bundle-size / JS review), uploaded next
-        # to the dSYM. NOT an over-the-air payload: the installed app embeds its
-        # own copy through xcodebuild's "Bundle React Native code and images"
-        # phase, and nothing at runtime loads ios/main.jsbundle from disk.
-        # --minify false keeps the uploaded bundle readable. [review M-MOBILE-23]
-        run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
+        # Same law as the Debug job (M-MOBILE-22/23): Metro's real output name
+        # ends in `.js`; ask for it explicitly so the upload finds it.
+        run: npx metro build index.js --platform ios --out ios/main.jsbundle.js --minify false
 
       - name: Build iOS (Release)
         run: |
@@ -101,7 +117,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ios-build-release
+          # Release configuration builds with dwarf-with-dsym, so a real
+          # `PhlixMobile.app.dSYM` directory exists next to the .app — the old
+          # `PhlixMobile.app.dSYM.zip` path was archive-only fiction and this
+          # step uploaded nothing while green (M-MOBILE-22). Glob covers the
+          # dSYM wherever Products nests it.
           path: |
-            ios/main.jsbundle
-            ios/build/Build/Products/Release-iphonesimulator/PhlixMobile.app.dSYM.zip
+            ios/main.jsbundle.js
+            ios/build/Build/Products/**/PhlixMobile.app.dSYM/**
           retention-days: 14
+          if-no-files-found: error

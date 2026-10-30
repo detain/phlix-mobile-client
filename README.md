@@ -135,7 +135,9 @@ Before you begin, ensure you have the following installed:
 ### Common Requirements
 
 - **Node.js** (v24 or later — matches `"engines": { "node": ">=24" }` and CI)
-- **npm** (v9.x or later) or **yarn** (v1.22.x or later)
+- **npm** (v9.x or later). The repo ships `package-lock.json` and CI installs
+  with npm; **yarn** (v1.22.x or later) also works but installs floating —
+  there is no committed yarn lock to honor.
 - **Git** (v2.x or later)
 
 ### iOS Development
@@ -185,20 +187,28 @@ No configuration is required to start: the app defaults to
 
 ```env
 PHLIX_BASE_URL=http://192.168.1.10:8096
+PHLIX_SYNCPLAY_WS_PORT=8097
 ```
 
-Two facts about this file, both from how the code consumes it
-(`src/api/client.ts`):
+Three facts about this file, from how the code consumes it
+(`src/api/client.ts`, `src/syncplay/wsEndpoint.ts`):
 
-- `PHLIX_BASE_URL` is read at **native build time** by react-native-config,
-  so after changing it you must rebuild the app (`npm run android` / a fresh
+- Both keys are read at **native build time** by react-native-config,
+  so after changing them you must rebuild the app (`npm run android` / a fresh
   Xcode build) — reloading Metro is not enough. The module is already wired
   on both platforms (`dotenv.gradle` in `android/app/build.gradle`, the
   autolinked pod on iOS), so `npm install` + `pod install` is all it takes.
-  No other keys are read today; `.env` is git-ignored, but anything in it
-  ships inside the app bundle unencrypted — put no secrets there.
-- The value is the server **root**: the client appends `/api/v1` to every
-  request, so leave that suffix off.
+  These are the only two keys the app reads; `.env` is git-ignored, but
+  anything in it ships inside the app bundle unencrypted — put no secrets
+  there.
+- `PHLIX_SYNCPLAY_WS_PORT` overrides the port the **direct-mode** SyncPlay
+  WebSocket dials (default `8097`; a malformed value falls back to the
+  default). Asymmetry to know when self-hosting: the hub **relay** port is
+  the compiled constant `8804` (`HUB_SYNC_PLAY_PORT` in
+  `src/syncplay/hubRelay.ts`) with no env override — remapping it requires a
+  code change.
+- The `PHLIX_BASE_URL` value is the server **root**: the client appends
+  `/api/v1` to every request, so leave that suffix off.
 
 For a quick trial against your server without any rebuild, skip `.env`
 entirely and enter the server URL on the login screen instead — that runtime
@@ -308,6 +318,23 @@ npm start
 # In another terminal, run on Android
 npx react-native run-android
 ```
+
+### Versioning
+
+The root `package.json` `"version"` is **the single source of truth**
+(reviews M-MOBILE-15 / M-MOBILE-25):
+
+- Bump it with `npm version <patch|minor|major>` — one line changes.
+- **Android**: `android/app/build.gradle` reads `package.json` at configure
+  time; `versionName` is the version string and `versionCode` is derived
+  semver-int-style (`major*1000000 + minor*1000 + patch`), so every bump
+  produces a strictly higher installable code — the rolling `latest`
+  sideload artifact can no longer re-publish an indistinguishable version.
+- **iOS**: Xcode cannot read `package.json`, so `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION` in `ios/PhlixMobile.xcodeproj/project.pbxproj`
+  are literal — and `src/__tests__/versionSync.test.ts` fails the test suite
+  the moment they drift from the derived pair. Update those four pbxproj
+  settings (both targets) in the same commit as the version bump.
 
 ## Testing
 

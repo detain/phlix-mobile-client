@@ -1,9 +1,26 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'com.facebook.react'
 
 // react-native-config: load .env file for build-time config variables
 apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
+// ── Version stamping (reviews M-MOBILE-15 / M-MOBILE-25) ────────────────────
+// THE SINGLE SOURCE is the root `package.json` "version". Bumping that one
+// line moves Android versionName AND the Play Store versionCode together, so
+// the rolling-`latest` sideload artifact can no longer re-publish under an
+// identical version stamp (the old hardcoded `versionCode 1` made every
+// release byte-indistinguishable for upgraders). SemVer maps into the int as
+// major*1_000_000 + minor*1_000 + patch — monotonic for normal bumps. The iOS
+// side stays literal in `project.pbxproj` (Xcode cannot read package.json),
+// so `src/__tests__/versionSync.test.ts` fails loudly when the stores drift.
+def phlixPackageJson = new JsonSlurper().parse(new File(projectDir, '../package.json'))
+def phlixVersionCore = phlixPackageJson.version.toString().tokenize('-')[0].tokenize('.')
+def phlixVersionCode = (phlixVersionCore[0].toInteger() * 1000000 +
+                        phlixVersionCore[1].toInteger() * 1000 +
+                        phlixVersionCore[2].toInteger())
 
 react {
     // Autolinking: link all React Native native modules into the app.
@@ -24,8 +41,8 @@ android {
         applicationId "com.phlixmobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode phlixVersionCode
+        versionName phlixPackageJson.version.toString()
     }
 
     signingConfigs {
@@ -53,9 +70,19 @@ android {
     }
 
     lint {
+        // ONE targeted suppression, not a gag order (review M-MOBILE-22).
+        // 'ReleaseLifecycle' fires because the release variant deliberately
+        // signs with the DEBUG key for the rolling-`latest` sideload artifact
+        // (see buildTypes.release above) — that is by design, so that single
+        // check is disabled by id.
         disable 'ReleaseLifecycle'
-        abortOnError false
+        // Same debug-key hedge: keep lintVitalRelease off the assembleRelease
+        // path or the sideload build would die on the disabled-by-id finding.
         checkReleaseBuilds false
+        // The old blanket `abortOnError false` is GONE: it silenced every
+        // other lint finding too. CI runs assembleDebug/assembleRelease only
+        // (no lint task), so removal changes no CI behavior; anyone running
+        // `./gradlew lint` now gets the fail-loud truth.
     }
 
     compileOptions {
