@@ -397,6 +397,11 @@ const PlayerScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 
+  // M-MOBILE-44 first clause (r2): what hides at 3s is the CHROME — top bar,
+  // center controls, scrim. The progress rail (styles.progressRail, rendered
+  // outside this gate below) deliberately SURVIVES the auto-hide: the finding
+  // was that the bar was "part of what hides", leaving the player with zero
+  // progress indication while playing.
   useEffect(() => {
     if (showControls && isPlaying) {
       hideControlsTimeout.current = setTimeout(() => {
@@ -1185,17 +1190,41 @@ const PlayerScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.bottomControls}>
-            <SeekBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={handleSeek}
-              // Members follow the host timeline (host-only wire command,
-              // SPEC §9) — the bar goes display-only for them.
-              canSeek={currentGroup === null || isHost}
-            />
-          </View>
+          {/* The SeekBar row used to live here, inside the auto-hiding
+              overlay — M-MOBILE-44 r2 moved it to the persistent rail below
+              the overlay. This fixed-height slot keeps the overlay's
+              space-between geometry (top bar at top, buttons centered)
+              EXACTLY as every earlier era measured it. Keep its height in
+              sync with the rail's rendered box. */}
+          <View style={styles.bottomControlsSpacer} />
         </Animated.View>
+      )}
+
+      {/* M-MOBILE-44 first clause (review mobile__gameux, r2 cure): a
+          persistent progress rail OUTSIDE the auto-hide gate. The bar stays
+          on screen after the chrome fades; while the chrome is hidden the
+          rail is display-only (pointerEvents='none'), so a tap on it falls
+          through to the video surface and REVEALS the controls instead of
+          risking an unintended seek — with the chrome up it is the same
+          interactive scrubber it has been since M-MOBILE-13. Live TV keeps
+          no rail: with no duration clock its bar was always a 0:00 artifact,
+          and there the old behavior (hide everything with the chrome) is the
+          honest one. */}
+      {!isLiveStream && (
+        <View
+          testID="playerProgressRail"
+          style={styles.progressRail}
+          pointerEvents={showControls ? 'auto' : 'none'}
+        >
+          <SeekBar
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={handleSeek}
+            // Members follow the host timeline (host-only wire command,
+            // SPEC §9) — the bar goes display-only for them.
+            canSeek={currentGroup === null || isHost}
+          />
+        </View>
       )}
 
       {/* SyncPlay Modal */}
@@ -1452,9 +1481,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 32,
   },
-  bottomControls: {
+  // M-MOBILE-44 r2: the persistent progress rail — the SeekBar's post-auto-hide
+  // home, OUTSIDE the fading overlay. Geometry mirrors the old in-overlay
+  // bottomControls box (20pt side padding, 40pt bottom padding, row height 30
+  // driven by the SeekBar's sliderContainer) so the chrome-up render is
+  // unchanged; bottomControlsSpacer reserves the same box inside the overlay
+  // (30 + 40 = 70).
+  progressRail: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  bottomControlsSpacer: {
+    height: 70,
   },
   // SyncPlay Modal
   syncPlayModalOverlay: {

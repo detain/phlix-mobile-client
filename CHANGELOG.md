@@ -32,6 +32,27 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — the progress bar survives the 3s chrome auto-hide (M-MOBILE-44 first clause) — 2026-10-30
+
+- **M-MOBILE-44 r2 (player chrome, gameux — W-min55 review leftover)**: the
+  W-min55 batch cured this item's title/label clauses but the review
+  convicted its FIRST clause as untouched — "controls auto-hide after 3s …
+  while the *decorative* seek bar is part of what hides". The cure is
+  structural: the SeekBar now renders on a persistent rail OUTSIDE the
+  auto-hiding overlay (VOD lane), so progress stays on screen after the
+  chrome fades. While hidden the rail is display-only
+  (`pointerEvents='none'`) — a tap there falls through to the video surface
+  and reveals the controls instead of risking an unintended seek; with the
+  chrome up it is the same interactive scrubber M-MOBILE-13 built, and the
+  SyncPlay host-only `canSeek` law rides with it. Live TV grows no rail:
+  with no duration clock its bar is a 0:00 artifact and hides with the
+  chrome, honestly. The overlay keeps a fixed-height spacer where the row
+  lived, preserving the space-between chrome geometry; the M-MOBILE-14
+  no-ScrollView responder law is untouched (the rail sits beside the
+  overlay, not inside a scroll host). Three new PlayerScreen pins —
+  survive-the-hide, reveal-rearms-interactivity, live-gate — red against the
+  pre-cure tree, green now. No wire surface touched.
+
 ### Added — changelog currency backfill (second pass): five more landed commits that never got an entry — 2026-10-30
 
 - **Backfill (review W-min54 r2, M-MOBILE-61 leftover), no new code** — the

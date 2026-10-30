@@ -1665,3 +1665,95 @@ describe('PlayerScreen — M-MOBILE-02 PiP affordance is iOS-only', () => {
     expect(findEl(h.host.tree, (el) => el.props.accessibilityLabel === 'Close player')).not.toBeNull();
   });
 });
+
+// ── M-MOBILE-44 first clause (review mobile__gameux, r2 cure): what the 3s
+// auto-hide may take is the CHROME — never the progress bar ─────────────────
+// The finding: "controls auto-hide after 3s while the *decorative* seek bar is
+// part of what hides". The W-min55 batch cured the item's title/label clauses
+// but shipped the bar still inside the auto-hiding overlay — the reviewer
+// convicted the overclaim. The cure is structural: the SeekBar renders on a
+// persistent rail OUTSIDE that gate. Law pinned here, three ways:
+//  1. after the 3s auto-hide the bar SURVIVES (progress stays on screen) while
+//     the chrome is gone;
+//  2. while hidden the rail is display-only (pointerEvents='none' — a tap on
+//     it falls through to the video surface and REVEALS the controls rather
+//     than risking an unintended seek), and with the chrome up it is the
+//     interactive scrubber again; the video toggle brings chrome + interactivity
+//     back together;
+//  3. live TV grows NO rail — with no duration clock its bar is a 0:00
+//     artifact, so there the chrome may hide everything (pre-cure behavior).
+// Timers: fake-timers are armed AFTER boot (boot's flush rides the real
+// setImmediate); the 300ms Animated fade and its completion callback run under
+// the same faked clock, so one 3000ms + 400ms advance lands the hide.
+describe('PlayerScreen — M-MOBILE-44 r2 persistent progress rail', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    jest.useRealTimers();
+    delete mockReporterRouteParams.streamUrl;
+    delete mockReporterRouteParams.liveTitle;
+  });
+
+  const railEl = (tree: unknown) =>
+    findEl(tree, (el) => el.props.testID === 'playerProgressRail');
+  // The video-surface TouchableOpacity is the tree's ONLY activeOpacity={1}.
+  const videoToggle = (tree: unknown) =>
+    findEl(
+      tree,
+      (el) => el.props.activeOpacity === 1 && typeof el.props.onPress === 'function',
+    );
+
+  async function bootPlaying() {
+    const h = await bootDirectPlay();
+    jest.useFakeTimers();
+    pressPlayPause(h.host.tree); // isPlaying=true → the 3s auto-hide timer arms
+    h.rerender();
+    return h;
+  }
+
+  const AUTO_HIDE_MS = 3000;
+  const FADE_MS = 300;
+
+  it('after the 3s auto-hide the chrome is gone and the seek bar SURVIVES', async () => {
+    const h = await bootPlaying();
+    // Chrome up: rail present and interactive.
+    expect(railEl(h.host.tree)?.props.pointerEvents).toBe('auto');
+    expect(findButton(h.host.tree, 'Close player')).not.toBeNull();
+
+    jest.advanceTimersByTime(AUTO_HIDE_MS + FADE_MS + 100);
+    h.rerender();
+
+    // Chrome gone…
+    expect(findButton(h.host.tree, 'Close player')).toBeNull();
+    // …progress stays on screen (pre-cure: the bar lived in the overlay and
+    // vanished with it — the exact defect this r2 pins dead).
+    const bar = findSeekBar(h.host.tree);
+    expect(bar).not.toBeNull();
+    expect(bar!.props.canSeek).toBe(true); // direct play, no group: host-side law intact
+    // While hidden the rail must not eat the reveal tap: display-only.
+    expect(railEl(h.host.tree)?.props.pointerEvents).toBe('none');
+  });
+
+  it('tapping the video brings the chrome AND rail interactivity back', async () => {
+    const h = await bootPlaying();
+    jest.advanceTimersByTime(AUTO_HIDE_MS + FADE_MS + 100);
+    h.rerender();
+    expect(railEl(h.host.tree)?.props.pointerEvents).toBe('none');
+
+    (videoToggle(h.host.tree)!.props.onPress as () => void)();
+    h.rerender();
+    expect(findButton(h.host.tree, 'Close player')).not.toBeNull();
+    expect(railEl(h.host.tree)?.props.pointerEvents).toBe('auto');
+  });
+
+  it('live TV grows no rail — the 0:00 artifact bar hides with the chrome', async () => {
+    mockReporterRouteParams.streamUrl = 'https://live.example/cam.m3u8';
+    mockReporterRouteParams.liveTitle = 'Friday Night Live';
+    const h = await bootDirectPlay();
+    // Chrome up, live lane: no rail, no SeekBar anywhere in the tree.
+    expect(railEl(h.host.tree)).toBeNull();
+    expect(findSeekBar(h.host.tree)).toBeNull();
+    // The rest of the chrome is a gate, not a wipe.
+    expect(findButton(h.host.tree, 'Close player')).not.toBeNull();
+  });
+});
