@@ -76,12 +76,12 @@ const SettingsScreen: React.FC = () => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to log out?',
+      'Sign out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Sign out',
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -104,7 +104,7 @@ const SettingsScreen: React.FC = () => {
       Alert.alert('Success', 'Signed in to hub');
     } catch (err) {
       Alert.alert(
-        'Sign In Failed',
+        'Sign-in failed',
         err instanceof Error ? err.message : 'Failed to sign in'
       );
     }
@@ -112,12 +112,12 @@ const SettingsScreen: React.FC = () => {
 
   const handleHubSignOut = () => {
     Alert.alert(
-      'Sign Out of Hub',
+      'Sign out of hub',
       'Are you sure you want to sign out of the hub?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Sign out',
           style: 'destructive',
           onPress: () => {
             signOutOfHub();
@@ -330,7 +330,7 @@ const SettingsScreen: React.FC = () => {
                     style={styles.hubSignOutButton}
                     onPress={handleHubSignOut}
                   >
-                    <Text style={styles.hubSignOutText}>Sign Out</Text>
+                    <Text style={styles.hubSignOutText}>Sign out</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -514,7 +514,7 @@ const SettingsScreen: React.FC = () => {
         {/* Logout Button */}
         <View style={styles.section}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Text style={styles.logoutButtonText}>Sign out</Text>
           </TouchableOpacity>
         </View>
 
@@ -583,7 +583,7 @@ const SettingsScreen: React.FC = () => {
               disabled={hubLoading}
             >
               <Text style={styles.hubSubmitButtonText}>
-                {hubLoading ? 'Signing in...' : 'Sign In'}
+                {hubLoading ? 'Signing in...' : 'Sign in'}
               </Text>
             </TouchableOpacity>
 

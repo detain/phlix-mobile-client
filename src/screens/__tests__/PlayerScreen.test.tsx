@@ -914,7 +914,7 @@ describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () =
     await bootDirectPlay();
     grabErrorHandler()('NOT_HOST', 'Only the host can control playback');
 
-    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Only the room host can do that.');
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay error', 'Only the room host can do that.');
     // Dev diagnostics stay (console.warn kept on purpose), user visibility is NEW.
     expect(warnSpy).toHaveBeenCalledWith('SyncPlay error [NOT_HOST]: Only the host can control playback');
   });
@@ -924,7 +924,7 @@ describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () =
     grabErrorHandler()('PROTOCOL_VERSION_MISMATCH', 'server protocol 2 > client 1');
 
     expect(alertSpy).toHaveBeenCalledWith(
-      'SyncPlay Error',
+      'SyncPlay error',
       'Please update the Phlix app — this server speaks a newer SyncPlay protocol.'
     );
   });
@@ -933,7 +933,7 @@ describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () =
     await bootDirectPlay();
     grabErrorHandler()('FUTURE_SERVER_CODE', 'Brand new failure the app predates');
 
-    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Brand new failure the app predates');
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay error', 'Brand new failure the app predates');
   });
 
   it('degrades to the generic sentence when neither code nor message helps', async () => {
@@ -942,7 +942,7 @@ describe('PlayerScreen — SyncPlay onError surfaces a user-visible Alert', () =
 
     // 'UNKNOWN' is the service sentinel: it behaves like an unmapped code and
     // shows the service's own last-resort text rather than rendering a key.
-    expect(alertSpy).toHaveBeenCalledWith('SyncPlay Error', 'Unknown error');
+    expect(alertSpy).toHaveBeenCalledWith('SyncPlay error', 'Unknown error');
   });
 });
 

@@ -122,7 +122,7 @@ const LoginScreen: React.FC = () => {
       // read it through the SAME parser here (audit M2) so the viewer sees the
       // real reason ("Invalid credentials (auth.invalid_credentials)") instead
       // of axios' transport string.
-      setError(apiErrorMessage(err, 'Login failed'));
+      setError(apiErrorMessage(err, 'Sign-in failed'));
     }
   };
 
@@ -198,7 +198,7 @@ const LoginScreen: React.FC = () => {
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
+                <Text style={styles.loginButtonText}>Sign in</Text>
               )}
             </TouchableOpacity>
 
@@ -225,7 +225,7 @@ const LoginScreen: React.FC = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              By logging in, you agree to our Terms of Service
+              By signing in, you agree to our Terms of Service
             </Text>
           </View>
         </ScrollView>

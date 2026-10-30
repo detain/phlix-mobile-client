@@ -1,9 +1,102 @@
 # Changelog
 
-All notable changes to **phlix-mobile-client** are documented here. The format is
-based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes to **phlix-mobile-client** are documented here.
+
+Format: Keep a Changelog 1.1.0 in spirit (change-type sections, newest first)
+but deliberately not strict: pre-1.0 every entry lives under the single
+`## [Unreleased]` heading below — version sections arrive with the first
+tagged release. Each entry is one `###` heading shaped
+`### Type — subject — YYYY-MM-DD` (the date rides inside the heading; cured
+finding IDs stay part of the subject). Entries are prepended by the lane that
+lands the change; once written, history stays verbatim — newer truth arrives
+as a fresh entry, never by editing old ones.
+
+## Reading this changelog
+
+Recurring estate shorthand, defined once here:
+
+- **M-MOBILE-NN** — a review finding ID for this repo in the estate-wide
+  minors queue (`MINORS_QUEUE.md`); entry subjects name the IDs they cure.
+- **W-minNN** — a fix-batch label grouping several M-MOBILE findings into one
+  dispatched review lane (e.g. `W-min54`).
+- **S-number** (e.g. S280, S181) — an estate campaign ticket ID shared across
+  repos; named here it means the change or gate that ticket required of this
+  repo (S280 = the vendored contract-fixture provenance gate, S181 = the
+  hub-side stale-client pin check).
+- **csNN / cs#NN** — a currency-sync cascade lane from the estate pin/doc
+  cascade program; **WNNN** — the estate wave number that dispatched it.
+- **regen #N** — the Nth re-generation of the vendored `@phlix/contracts`
+  fixtures (route manifest / error-code registry) under the S280 gate.
+- **era-N** — the Nth wire-contract era: each `@phlix/contracts` tag-pin
+  generation of the error-codes/route-manifest trio counts as a new era.
 
 ## [Unreleased]
+
+### Fixed — W-min54 minors cluster: security-rationale comments, dormant-flag truth, deployment/docs inventories, unified sign-in/sign-out + sentence-case alert copy — 2026-10-30
+
+- **M-MOBILE-12 (cleartext rationale, crossfe)**: `usesCleartextTraffic="true"`
+  and the iOS ATS `NSAllowsArbitraryLoads` now carry the tradeoff comment
+  (self-hosted client, user-typed LAN servers over plain http, no domain
+  allowlist expressible; scheme-less input defaults https at the RN layer).
+  The redundant `NSAllowsLocalNetworking` key — already subsumed by
+  arbitrary-loads — was dropped from `Info.plist` (plist parse verified).
+- **M-MOBILE-23 (dormant-flag truth, devops)**: `gradle.properties` no longer
+  claims R8 is enabled — `app/build.gradle` ships `minifyEnabled false`, so
+  the full-mode flag is documented as dormant-by-design until shrinking is
+  switched on. Both `build-ios.yml` metro-bundle steps now state their
+  purpose: inspection artifacts uploaded beside the dSYM, NOT an OTA payload
+  (the app embeds its own copy via the xcodebuild bundle phase).
+- **M-MOBILE-24 (deployment fiction, devops)**: README §Deployment rewritten
+  to shipped truth — Android: rolling debug-signed `latest` GitHub prerelease
+  (sideload); Play/F-Droid are manual paths gated on docs/signing.md, no
+  upload automation exists. iOS: CI builds simulator-only (unsigned);
+  TestFlight/App Store is a manual Xcode archive. The "Sign the release APK
+  and upload to Google Play Console" fiction is gone.
+- **M-MOBILE-60 (format claim, writer)**: the CHANGELOG header no longer
+  claims plain "based on Keep a Changelog 1.1.0" — the repo-local convention
+  (single `[Unreleased]` pre-1.0, dated `###` headings, history verbatim) is
+  now declared honestly.
+- **M-MOBILE-61 (currency vocab, writer)**: added a "Reading this changelog"
+  glossary (M-MOBILE/W-min/S-number/csNN/regen #N/era-N) and the backfill
+  entry recording the nine landed commits that never got one.
+- **M-MOBILE-62 (DEVELOPER.md inventories, writer)**: `src/` tree, layer
+  table, screen roster (27 root + admin/ + six helper subfolders), component
+  roster (cast/, syncplay/, track lists, sleep timer, rating widgets,
+  ServerSwitcher), store tables (15 hooks + the four `src/store/` modules,
+  with the store-vs-stores trap called out), and the bottom tree (fake
+  `assets/` entry removed, android package dirs corrected to player/ +
+  download/ + webauthn/) rewritten to disk truth.
+- **M-MOBILE-63 (copy consistency, writer)**: user-facing alerts unified to
+  sentence case — `SyncPlay Error` → `SyncPlay error`, `Playback Error` →
+  `Playback error` (the 4 catalog-pin assertions re-anchored red-then-green);
+  auth verbs unified on sign in/sign out — LoginScreen button `Login` →
+  `Sign in` (+ failure string/footer), SettingsScreen `Logout` → `Sign out`
+  everywhere (dialog, buttons) and hub modal `Sign In`/`Sign Out`/
+  `Sign In Failed` → `Sign in`/`Sign out`/`Sign-in failed`.
+- **M-MOBILE-65 (orphan docs/scripts, writer)**: README gained a Documentation
+  table linking DEVELOPER.md, docs/signing.md, CHANGELOG.md and AGENTS.md;
+  `scripts/add-copyright.mjs` is no longer orphaned (`npm run copyright`
+  script + README mention) and its convergence claim is proven — the one
+  unstamped file (`src/utils/mediaType.ts`) is now stamped; a second run
+  updates 0 files.
+
+### Added — changelog currency backfill: nine landed commits that never got an entry — 2026-10-30
+
+- **Backfill (review M-MOBILE-61), no new code** — disk audit at `07556b3`
+  found work that landed without a changelog entry. Recorded here verbatim,
+  one line each, newest first: `31a56fd` (also `3ab6413`, its pre-rebase
+  twin) catalog-routed the SyncPlay REST errors through
+  `describeSyncPlayRestError` and fixed logout/library article copy;
+  `13715d0` un-refused the hub relay lane now that `:8804` speaks the
+  canonical `syncplay_*` catalog (estate owner decision #14); `d938608` +
+  `5ef5b9b` dropped `--passWithNoTests` from the CI jest step (a zero-match
+  run must exit 1) and updated the testing rule doc (estate CI-gate audit);
+  `9e7f083` + `b790049` implemented and hardened the playback progress
+  reporter (resume rails populate; session bound to account id to kill the
+  stale-session 403 on account switch); `675c2ad` pinned CI to
+  ubuntu-26.04 ahead of the `ubuntu-latest` rollover; `3bec415` bumped the
+  codecov action to v6 for estate parity; `07e39a6` / `41f2478` merged the
+  dependabot npm_and_yarn security updates.
 
 ### Fixed — Hub vault crash-residue sweep: both-copies state ends vault-won and plaintext-swept (M-MOBILE-20) — 2026-10-29
 

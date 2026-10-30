@@ -40,6 +40,11 @@ jobs:
             build CODE_SIGNING_ALLOWED=NO
 
       - name: Create JS bundle
+        # Standalone inspection artifact (bundle-size / JS review), uploaded next
+        # to the dSYM. NOT an over-the-air payload: the installed app embeds its
+        # own copy through xcodebuild's "Bundle React Native code and images"
+        # phase, and nothing at runtime loads ios/main.jsbundle from disk.
+        # --minify false keeps the uploaded bundle readable. [review M-MOBILE-23]
         run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
 
       - name: Upload build artifacts
@@ -76,6 +81,11 @@ jobs:
         run: cd ios && pod install && cd ..
 
       - name: Create JS bundle
+        # Standalone inspection artifact (bundle-size / JS review), uploaded next
+        # to the dSYM. NOT an over-the-air payload: the installed app embeds its
+        # own copy through xcodebuild's "Bundle React Native code and images"
+        # phase, and nothing at runtime loads ios/main.jsbundle from disk.
+        # --minify false keeps the uploaded bundle readable. [review M-MOBILE-23]
         run: npx metro build index.js --platform ios --out ios/main.jsbundle --minify false
 
       - name: Build iOS (Release)

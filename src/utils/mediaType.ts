@@ -15,6 +15,7 @@
  * denylist for the same reason the Roku client's `PlayableTypes()` does: an
  * unknown or newly-added type is then treated as NOT playable, which degrades
  * to a missing button rather than a button that dead-ends.
+ * @copyright 2026 Joe Huss <detain@interserver.net>
  */
 import type { MediaType } from '../types/media';
 

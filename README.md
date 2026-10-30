@@ -90,6 +90,20 @@ Hub sessions survive app restarts. The hub JWT pair is persisted in the OS keych
 - **Secure token vault** — server and hub JWTs live in the OS keychain via `react-native-keychain`; `AsyncStorage` keeps only non-secret preferences and session metadata
 - **CI/CD Pipeline** with GitHub Actions
 
+## Documentation
+
+| Document | What it covers |
+|----------|----------------|
+| [README.md](README.md) | This file — overview, setup, configuration, build/run, deployment |
+| [DEVELOPER.md](DEVELOPER.md) | Architecture deep-dive: source layout, navigation, API layer, state, native modules |
+| [docs/signing.md](docs/signing.md) | Release signing for Android (keystore) and iOS (certificates, profiles, exportOptions) |
+| [CHANGELOG.md](CHANGELOG.md) | Landed-change history (repo-local format, see its header preamble) |
+| [AGENTS.md](AGENTS.md) | Contributor/agent ground rules for this repo (store-vs-stores trap, wire law, venue) |
+
+Maintenance scripts: `npm run copyright` (`scripts/add-copyright.mjs`) idempotently
+inserts the `@copyright` header into non-test TS/JS sources — re-running it
+produces a zero diff once every file is stamped.
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
@@ -324,17 +338,29 @@ npm run typecheck
 
 ## Deployment
 
-### iOS
-
-1. **TestFlight**: Use Xcode to archive and upload to App Store Connect
-2. **App Store**: Create a new app in App Store Connect, then archive and distribute
-3. **Enterprise**: Build for enterprise distribution as needed
+The shipped, automated deployment path today is **Android sideload via CI**; the
+store paths below are manual procedures the repo documents but does not
+automate (there is no fastlane or store-upload machinery in this repository).
 
 ### Android
 
-1. **Google Play Store**: Sign the release APK and upload to Google Play Console
-2. **Direct APK**: Distribute the unsigned or signed APK directly
-3. **FDroid**: Build a release and publish to F-Droid repository
+1. **Direct APK (shipped)**: every push to `master` republishes a rolling
+   `latest` GitHub prerelease carrying `app-release.apk`. The release build
+   currently uses the debug signing config, so the APK is **debug-signed** —
+   fine for sideload and testing, not for a store.
+2. **Google Play / F-Droid (manual)**: requires a real release keystore and
+   `minifyEnabled`/signing changes; the preparation steps are documented in
+   [docs/signing.md](docs/signing.md). No CI workflow performs an upload.
+
+### iOS
+
+1. **CI (shipped)**: builds the app for the **iOS Simulator** only (unsigned,
+   `CODE_SIGNING_ALLOWED=NO`) as a compile gate — it produces no installable
+   device artifact.
+2. **TestFlight / App Store (manual)**: archive with Xcode and upload to App
+   Store Connect. Certificates, profiles, and exportOptions setup are covered
+   in [docs/signing.md](docs/signing.md); the Xcode project itself is not yet
+   configured for automated device distribution.
 
 ### CI/CD
 

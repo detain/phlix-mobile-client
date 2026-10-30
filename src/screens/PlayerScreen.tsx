@@ -290,7 +290,7 @@ const PlayerScreen: React.FC = () => {
       // schedule / stream-limit denial arms in this file). The catalog
       // picks the sentence from the stable wire code; the server's English
       // text is only a fallback.
-      Alert.alert('SyncPlay Error', describeSyncPlayError(code, message));
+      Alert.alert('SyncPlay error', describeSyncPlayError(code, message));
     });
 
     // Gate (audit M5): opening a player is not joining a group. The socket
@@ -483,7 +483,7 @@ const PlayerScreen: React.FC = () => {
       // P5-S5: Check for access-schedule / stream-limit errors first.
       const accessError = detectAccessStreamError(err);
       if (accessError) {
-        Alert.alert('Playback Error', accessError.message, [
+        Alert.alert('Playback error', accessError.message, [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
         return;
@@ -600,7 +600,7 @@ const PlayerScreen: React.FC = () => {
       // P5-S5: Check for access-schedule / stream-limit errors first.
       const accessError = detectAccessStreamError(err);
       if (accessError) {
-        Alert.alert('Playback Error', accessError.message, [
+        Alert.alert('Playback error', accessError.message, [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
         return;

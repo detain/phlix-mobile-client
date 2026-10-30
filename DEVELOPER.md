@@ -8,44 +8,68 @@ Phlix Mobile follows a **modular architecture** with clear separation of concern
 
 ```
 src/
-├── api/           # API communication layer
-├── components/    # Reusable UI components
-├── navigation/    # Navigation configuration
-├── native/        # Native module TypeScript interfaces
-├── screens/       # Screen-level components
-├── services/      # Business logic services
-├── stores/        # Zustand state management
+├── api/           # API communication layer (typed managers + axios client)
+├── components/    # Reusable UI components (domain-grouped subfolders)
+├── hub/           # Hub auth service + relay token provider (federation lane)
+├── native/        # Native module TypeScript interfaces + guarded wrappers
+├── navigation/    # Navigation configuration (root navigator, deep links)
+├── screens/       # Screen-level components (root + admin/ + feature subfolders)
+├── services/      # Business logic services (storage, downloads, progress)
+├── store/         # Zustand modules WITHOUT the use* convention (see trap below)
+├── stores/        # Zustand hooks (use*Store.ts) — the main state layer
+├── stubs/         # Test/dev stubs for native Turbo modules (reanimated)
+├── syncplay/      # SyncPlay wire client (service, relay, endpoints, catalog)
 ├── types/         # TypeScript type definitions
-└── utils/         # Utility functions
+├── utils/         # Utility functions
+└── App.tsx        # Root component (+ index.ts entry point)
 ```
+
+> **The store-vs-stores trap.** There are TWO state directories with confusingly
+> similar names: `src/stores/` holds the `use*Store.ts` Zustand hooks, while
+> `src/store/` (singular) holds older non-hook modules (`downloadStore.ts`,
+> `hubStore.ts`, `syncplayStore.ts`, `serverScope.ts`). AGENTS.md warns about
+> it; grep both before assuming a store's location.
 
 ### Layer Responsibilities
 
 | Layer | Responsibility |
 |-------|----------------|
-| `api/` | HTTP client, authentication, API endpoints |
-| `components/` | Reusable UI components (media cards, player controls) |
-| `navigation/` | React Navigation setup and navigator components |
+| `api/` | HTTP client, authentication, API endpoint managers |
+| `components/` | Reusable UI components (media cards, player controls, cast) |
+| `hub/` | Hub sign-in/session (`HubAuthService`) + WS relay bearer (`RelayTokenProvider`) |
+| `navigation/` | React Navigation setup, root navigator, deep-link routing |
 | `screens/` | Full-screen views, screen-specific logic |
-| `services/` | Storage, notifications, downloads |
-| `stores/` | Application state using Zustand |
+| `services/` | Secure vault, downloads, notifications, playback progress |
+| `store/` | Non-hook Zustand modules (hub session, syncplay, downloads, server scope) |
+| `stores/` | Hook-style application state (`use*Store.ts`) |
+| `stubs/` | JS stubs so native-only modules load under Jest |
+| `syncplay/` | SyncPlay protocol client: direct WS + hub relay, error catalog |
 | `types/` | TypeScript interfaces and types |
-| `utils/` | Formatting, storage helpers |
+| `utils/` | Formatting, storage helpers, endpoint parsing |
 
 ## Component Structure
 
 ### Screen Components
 
-Screens are located in `src/screens/` and represent full-screen views:
+Screens live in `src/screens/` (27 root screens plus grouped subfolders).
+Root screens: **HomeScreen** (dashboard), **LibraryScreen** (browse by
+library), **MediaDetailScreen** (movie/series/music detail), **PlayerScreen**
+(full-screen playback + SyncPlay surface), **SearchScreen** (global search),
+**SettingsScreen** (app/server/hub preferences), **DownloadsScreen** (offline
+content), **LoginScreen** (server sign-in + passkey), **ProfileSelectScreen**
+(profile chooser/PIN), **FavoritesScreen**, **WatchHistoryScreen**,
+**RecommendationsScreen**, **CollectionsScreen** + **CollectionDetailScreen**,
+**MusicScreen** + **MusicAlbumScreen**, **PhotosScreen** + **PhotoAlbumScreen**
++ **PhotoViewerScreen**, **LiveTvScreen** + **LiveTvRecordingsScreen**,
+**ParentalControlsScreen**, **PasskeysScreen** (WebAuthn enrollment),
+**CastScreen** (device picker/session), and **AdminDashboardScreen** +
+**AdminUsersScreen** + **AdminLibrariesScreen**.
 
-- **HomeScreen**: Main dashboard with library overview
-- **LibraryScreen**: Browse media by library type
-- **MediaDetailScreen**: Detailed view of a movie/series/music
-- **PlayerScreen**: Full-screen video/audio playback
-- **SearchScreen**: Global search functionality
-- **SettingsScreen**: App preferences and user settings
-- **DownloadsScreen**: Manage offline content
-- **LoginScreen**: Authentication screen
+`screens/admin/` groups the remaining admin surfaces (**AdminAuthProviders**,
+**AdminBackup**, **AdminFsBrowse**, **AdminLogs**, **AdminPlugins**,
+**AdminServerSettings**) with `adminScreenHelpers.ts`; feature subfolders
+`collections/`, `favorites/`, `music/`, `photos/`, `search/`, `webauthn/` hold
+each domain's shared helpers.
 
 ### UI Components
 
@@ -59,11 +83,18 @@ Located in `src/components/`, organized by domain:
 - `PosterCard`: Poster-style card for series/movies
 - `MediaList`: Horizontal scrolling list of media
 - `ContinueWatching`: Resume playback component
+- `RecommendationCard`: Recommendation rail card
+- `RatingBadge`: Age/content rating chip
+- `UserRatingPicker`: Personal star-rating control
+- `ServerSwitcher`: Active-server picker for multi-server setups
 
 **Player Components**
 - `PlayerControls`: Play/pause, seek controls
 - `SeekBar`: Progress bar with scrubbing
 - `SkipButton`: Skip-intro/outro control
+- `AudioTrackList`: Audio track selection sheet
+- `SubtitleTrackList`: Subtitle track selection sheet
+- `SleepTimer`: Sleep-timer chooser
 - `QualityMenu`: Bottom-sheet stream-quality picker (Auto / a specific resolution rung). Only shown once a transcode fallback resolves an ABR ladder (`variants[]`); hidden for direct-play titles. Pure selection/URL-resolution logic lives alongside it in `quality.ts`, not in the component itself.
 
 **UI Components**
@@ -71,6 +102,15 @@ Located in `src/components/`, organized by domain:
 - `LoadingSpinner`: Loading indicator
 - `EmptyState`: Empty list placeholder
 - `ErrorView`: Error display component
+
+**Cast Components** (`components/cast/`)
+- `CastButton`: Start-cast affordance
+- `CastSessionPill`: Live cast session indicator
+- `castPillHelpers`: Pill state/formatting helpers
+
+**SyncPlay Components** (`components/syncplay/`)
+- `SyncPlayModal`: Join/create dialog
+- `SyncPlayOverlay`: Room status overlay on the player
 
 ## Native Module Design
 
@@ -186,12 +226,30 @@ Phlix Mobile uses **Zustand** for state management - a lightweight alternative t
 
 ### Store Architecture
 
+`src/stores/` (Zustand hooks):
+
 | Store | Purpose |
 |-------|---------|
 | `useAuthStore` | Authentication state, user session |
 | `usePlayerStore` | Playback state, current media, tracks |
 | `useLibraryStore` | Media libraries, cached content |
 | `useSettingsStore` | User preferences, app settings |
+| `useAdminStore` | Admin dashboards/lists |
+| `useCastStore` | Cast devices/session state |
+| `useCollectionStore` | Collections + smart playlists |
+| `useFavoritesStore` | Favorite items |
+| `useLiveTvStore` | Live TV guide/recordings |
+| `useMusicStore` | Music library/albums |
+| `usePhotoStore` | Photo libraries/albums |
+| `useProfileStore` | Profile selection/PIN |
+| `useSearchStore` | Search queries/results |
+| `useWatchHistoryStore` | Resume/continue-watching rails |
+| `useWebAuthnStore` | Passkey enrollment state |
+
+`src/store/` (singular — non-hook modules): `hubStore.ts` (hub session +
+vault-persisted tokens), `syncplayStore.ts` (SyncPlay room UI state),
+`downloadStore.ts` (download queue mirror), `serverScope.ts` (active-server
+scoping helpers).
 
 ### useAuthStore
 
@@ -457,26 +515,25 @@ phlix-mobile/
 │   ├── native/
 │   │   └── types.ts         # Native module interfaces
 │   ├── screens/
-│   │   ├── HomeScreen.tsx
-│   │   ├── LibraryScreen.tsx
-│   │   ├── MediaDetailScreen.tsx
-│   │   ├── PlayerScreen.tsx
-│   │   ├── SearchScreen.tsx
-│   │   ├── SettingsScreen.tsx
-│   │   ├── DownloadsScreen.tsx
-│   │   ├── LoginScreen.tsx
-│   │   └── index.ts
+│   │   ├── HomeScreen.tsx … PlayerScreen.tsx (27 root screens)
+│   │   ├── admin/           # Admin* screens + adminScreenHelpers.ts
+│   │   └── collections|favorites|music|photos|search|webauthn/  # helpers
 │   ├── services/
 │   │   ├── SecureStorage.ts # Auth token vault (OS keychain)
 │   │   ├── DownloadService.ts# Download management
 │   │   ├── NotificationService.ts
 │   │   └── index.ts
+│   ├── store/               # Non-hook modules (hubStore, syncplayStore, …)
 │   ├── stores/
 │   │   ├── useAuthStore.ts  # Auth state
 │   │   ├── usePlayerStore.ts# Playback state
 │   │   ├── useLibraryStore.ts
 │   │   ├── useSettingsStore.ts
-│   │   └── index.ts
+│   │   └── … (15 use*Store.ts modules total)
+│   ├── stubs/               # Jest-safe native module stubs
+│   ├── syncplay/            # Wire client: SyncPlayService, hubRelay,
+│   │                        # wsEndpoint, sha256, syncplayErrors catalog
+│   ├── hub/                 # HubAuthService, RelayTokenProvider
 │   ├── types/
 │   │   ├── media.ts         # Media item types
 │   │   ├── navigation.ts    # Navigation types
@@ -491,9 +548,10 @@ phlix-mobile/
 │   └── LocalPods/
 │       └── PhlixPlayer/     # Native iOS player
 ├── android/
-│   └── app/src/main/java/com/phlixmobile/player/
-│       └── PhlixPlayerView.kt # Native Android player
-├── .github/
-│   └── workflows/          # CI/CD pipelines
-└── assets/                  # Images, fonts
+│   └── app/src/main/java/com/phlixmobile/
+│       ├── player/          # PhlixPlayerView.kt + view manager
+│       ├── download/        # Native download support
+│       └── webauthn/        # Passkey ceremony module
+└── .github/
+    └── workflows/           # CI/CD pipelines (test, build-android, build-ios)
 ```

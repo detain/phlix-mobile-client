@@ -11,6 +11,7 @@
     "test": "jest",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",
+    "copyright": "node scripts/add-copyright.mjs",
     "build:android:debug": "cd android && ./gradlew assembleDebug",
     "build:android:release": "cd android && ./gradlew assembleRelease"
   },

@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
+    <!-- Cleartext HTTP is deliberate: Phlix is a self-hosted client that talks
+         to user-typed LAN servers (http://192.168.x.x:8096), which Android
+         blocks by default since API 28. The server set is arbitrary private
+         addresses, so a domain-specific network_security_config allowlist is
+         not expressible. The RN layer defaults scheme-less input to https
+         (LoginScreen); cleartext stays a LAN-only tradeoff, not the path of
+         first resort. [review M-MOBILE-12] -->
     <application
         android:name=".MainApplication"
         android:label="@string/app_name"
