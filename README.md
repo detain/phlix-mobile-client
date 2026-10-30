@@ -422,14 +422,21 @@ automate (there is no fastlane or store-upload machinery in this repository).
 <!-- M-MOBILE-20 (review mobile__devops): this section is now the verified
      workflow truth (triggers, jobs, and artifacts read from
      .github/workflows/*.yml). Claims it previously made and dropped:
-     "iOS Build … manual trigger" (no workflow_dispatch exists on any of
-     the three files), "Android debug APK on every push" (it also runs on
-     PRs, and master pushes additionally build a release APK + republish
-     the rolling `latest` prerelease). -->
+     "iOS Build … manual trigger" — wrong because it implied dispatch-
+     EXCLUSIVE, not because dispatch is absent. Manual dispatch is
+     ADDITIVE and real: all three files carry workflow_dispatch (test.yml
+     since b8dad21; build-android.yml and build-ios.yml since 1b1b167).
+     An earlier draft of this comment asserted "no workflow_dispatch
+     exists on any of the three files" — false at the commit that shipped
+     it; retracted here by the W-min58 rework. Also dropped: "Android
+     debug APK on every push" (it also runs on PRs, and master pushes
+     additionally build a release APK + republish the rolling `latest`
+     prerelease). -->
 
 Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
 `build-ios.yml` — run on every push **and** pull request targeting
-`main`/`master`/`develop`:
+`main`/`master`/`develop`; each can additionally be started manually
+(`workflow_dispatch`), which never replaces the automatic triggers:
 
 - **Tests**: `tsc` type check, ESLint, and the Jest suite (serial), with
   coverage uploaded.

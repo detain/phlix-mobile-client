@@ -32,6 +32,17 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min58 rework (M-MOBILE-20): README CI/CD note corrected to truth — manual dispatch is real, additive, and present on all three workflows — 2026-10-30
+
+- **M-MOBILE-20 (REWORK cure)**: the batch's doc-only cure had replaced the
+  stale "manual trigger" prose with an annotation claiming no
+  `workflow_dispatch` existed on any of the three workflows — false at the
+  shipping commit (test.yml since b8dad21; build-android.yml and
+  build-ios.yml since 1b1b167). The README note now states the shipped-bytes
+  truth: dispatch EXISTS on all three, is ADDITIVE, and never replaced the
+  push/PR triggers; the visible section gained the manual-run sentence.
+  Triggers, jobs, and artifact prose unchanged. Doc-only, no code surface.
+
 ### Fixed — W-min59 minors cluster (M-MOBILE-08, -13, -14, -17, -37, -42, -55): media3 migration, manifest/plist residue trimmed, day-one Home guidance, local placeholder art, relay replay window — 2026-10-30
 
 - **M-MOBILE-08 (CURED)**: legacy (pre-API-26) launcher bitmaps generated in
