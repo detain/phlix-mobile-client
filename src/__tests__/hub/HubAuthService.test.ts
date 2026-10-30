@@ -271,9 +271,36 @@ describe('HubAuthService', () => {
   });
 
   describe('signOut', () => {
-    it('should be a no-op function', () => {
-      // signOut is a no-op since server-side invalidation happens via token expiry
-      expect(() => service.signOut()).not.toThrow();
+    // M-MOBILE-53d replaced the literal no-op: sign-out must fire the hub's
+    // JSON revocation leg (204; cuts the refresh-token lineage) while
+    // swallowing every failure so the caller's local wipe always proceeds.
+    const session = {
+      accessToken: 'hub-access',
+      refreshToken: 'hub-refresh',
+      expiresAt: 1234567890,
+      userId: 'user-123',
+    };
+
+    it('POSTs /api/v1/auth/logout with the refresh token and bearer', async () => {
+      mockPost.mockResolvedValueOnce({ status: 204 });
+
+      await expect(
+        service.signOut('https://hub.example.com', session)
+      ).resolves.toBeUndefined();
+
+      expect(mockPost).toHaveBeenCalledWith(
+        'https://hub.example.com/api/v1/auth/logout',
+        { refresh_token: 'hub-refresh' },
+        { headers: { Authorization: 'Bearer hub-access' } }
+      );
+    });
+
+    it('swallows a failing revoke leg (offline hub must not block sign-out)', async () => {
+      mockPost.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(
+        service.signOut('https://hub.example.com', session)
+      ).resolves.toBeUndefined();
     });
   });
 });

@@ -8,12 +8,10 @@
 // src/types/profile.ts
 //
 // Multi-user profile types (slice E5). Field names mirror the SERVER's profile
-// DTO verbatim (snake_case) — the same shape returned by the admin-gated routes
-// `GET /api/v1/admin/users/{userId}/profiles` and `GET /api/v1/admin/profiles/{id}`.
-//
-// NOTE: there is currently NO user-facing `/api/v1/users/me/profiles` route, so
-// mobile profile management is admin-scoped (gated on `users.is_admin`). See the
-// upstream-gap flag in the README / CLAUDE.md.
+// DTO verbatim (snake_case) — the same shape returned by the self-service
+// routes `GET /api/v1/profiles` and `GET /api/v1/profiles/{profileId}`
+// (repointed from the admin-scoped lane by review M-MOBILE-07; the server
+// registers both surfaces — mobile uses the caller's-own one).
 
 /** Content rating label as stored on a profile's settings (server `content_rating`). */
 export type ContentRatingLabel = 'G' | 'PG' | 'PG-13' | 'R' | 'NC-17' | 'X' | 'UNRATED';
@@ -44,24 +42,35 @@ export interface Profile {
   settings?: ProfileSettings;
 }
 
-/** Body for creating a profile (`POST /admin/users/{userId}/profiles`). */
+/**
+ * Body for creating a profile (`POST /api/v1/profiles`, self-service). The
+ * server trims the name and mints settings defaults; optional fields are sent
+ * only when set.
+ */
 export interface CreateProfileInput {
   name: string;
-  /** Integer 0–6 (see `ratingToLabel`). Optional; server defaults when omitted. */
-  rating?: number;
-}
-
-/** Body for updating a profile (`PUT /admin/profiles/{id}`). */
-export interface UpdateProfileInput {
-  name?: string;
-  /** Integer 0–6 (see `ratingToLabel`). */
-  rating?: number;
+  content_rating?: ContentRatingLabel;
+  /** 4- or 6-digit numeric PIN, applied at creation. */
+  pin?: string;
+  pin_required_for_admin?: boolean;
 }
 
 /**
- * Rating int → label map. The server encodes a profile's max content rating as
- * an integer on create/update (0=G … 6=UNRATED) but returns the LABEL inside
- * `settings.content_rating`. These helpers convert between the two forms.
+ * Body for updating a profile (`PUT /api/v1/profiles/{profileId}`,
+ * self-service). Partial: only present keys change. `is_active` is REJECTED
+ * (400) by the server — activation is the separate switch route.
+ */
+export interface UpdateProfileInput {
+  name?: string;
+  content_rating?: ContentRatingLabel;
+  pin_required_for_admin?: boolean;
+}
+
+/**
+ * Rating int → label map. The ADMIN routes (`/api/v1/admin/profiles...`)
+ * encode a profile's max content rating as an integer on create/update
+ * (0=G … 6=UNRATED) while the self-service lane and all GETs carry the LABEL;
+ * these helpers convert between the two forms.
  */
 const RATING_LABELS: readonly ContentRatingLabel[] = [
   'G', // 0

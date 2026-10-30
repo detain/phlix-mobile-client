@@ -8,6 +8,8 @@
 // src/stores/__tests__/useAuthStore.test.ts
 import { useAuthStore } from '../useAuthStore';
 import { authManager } from '../../api/AuthManager';
+import { syncPlayService } from '../../syncplay/SyncPlayService';
+import { notificationService } from '../../services/NotificationService';
 import { useSettingsStore } from '../useSettingsStore';
 
 jest.mock('../../api/AuthManager', () => ({
@@ -21,6 +23,15 @@ jest.mock('../../api/AuthManager', () => ({
 }));
 
 jest.mock('../useSettingsStore');
+
+// M-MOBILE-53: logout now orchestrates cross-subsystem teardown; the store
+// test keeps the boundary hermetic and PINS that the teardown legs fire.
+jest.mock('../../syncplay/SyncPlayService', () => ({
+  syncPlayService: { disconnect: jest.fn() },
+}));
+jest.mock('../../services/NotificationService', () => ({
+  notificationService: { cancelAll: jest.fn() },
+}));
 
 // useAuthStore imports apiErrorMessage/onAuthInvalidated from the API client;
 // importing the REAL client here would boot ApiClient against the auto-mocked
@@ -41,6 +52,8 @@ jest.mock('../../api/client', () => ({
 
 const mockedAuthManager = authManager as jest.Mocked<typeof authManager>;
 const mockedSettingsStore = useSettingsStore as jest.Mocked<typeof useSettingsStore>;
+const mockedSyncPlay = syncPlayService as jest.Mocked<typeof syncPlayService>;
+const mockedNotifications = notificationService as jest.Mocked<typeof notificationService>;
 
 const mockUser = { id: 'u1', username: 'bob' };
 
@@ -138,6 +151,10 @@ describe('useAuthStore', () => {
       await useAuthStore.getState().logout();
 
       expect(mockedAuthManager.logout).toHaveBeenCalled();
+      // M-MOBILE-53b/c: sign-out must dismiss live group presence and any
+      // scheduled notifications, not just the credentials.
+      expect(mockedSyncPlay.disconnect).toHaveBeenCalled();
+      expect(mockedNotifications.cancelAll).toHaveBeenCalled();
       expect(useAuthStore.getState().user).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });

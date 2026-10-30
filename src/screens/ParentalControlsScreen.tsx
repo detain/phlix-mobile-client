@@ -528,7 +528,7 @@ const ParentalControlsScreen: React.FC = () => {
                   disabled={savingSchedule || !scheduleForm.name.trim()}
                 >
                   <Text style={styles.saveButtonText}>
-                    {savingSchedule ? 'Saving...' : 'Save'}
+                    {savingSchedule ? 'Saving…' : 'Save'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -556,7 +556,7 @@ const ParentalControlsScreen: React.FC = () => {
         <View style={styles.tagAddRow}>
           <TextInput
             style={styles.tagInput}
-            placeholder="Enter tag to block..."
+            placeholder="Enter tag to block…"
             placeholderTextColor="#666"
             value={newTagInput}
             onChangeText={setNewTagInput}
@@ -572,7 +572,7 @@ const ParentalControlsScreen: React.FC = () => {
             disabled={!newTagInput.trim() || addingTag}
           >
             <Text style={styles.addTagButtonText}>
-              {addingTag ? 'Adding...' : 'Add'}
+              {addingTag ? 'Adding…' : 'Add'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -658,7 +658,7 @@ const ParentalControlsScreen: React.FC = () => {
                 disabled={savingLimit}
               >
                 <Text style={styles.saveButtonText}>
-                  {savingLimit ? 'Saving...' : 'Save'}
+                  {savingLimit ? 'Saving…' : 'Save'}
                 </Text>
               </TouchableOpacity>
             </View>

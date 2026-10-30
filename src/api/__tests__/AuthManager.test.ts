@@ -7,7 +7,7 @@
 
 // src/api/__tests__/AuthManager.test.ts
 import { authManager } from '../AuthManager';
-import apiClient, { getApiBaseUrl } from '../client';
+import apiClient, { getApiBaseUrl, absolutizeApiPath } from '../client';
 import { secureStorage } from '../../services/SecureStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -105,15 +105,30 @@ describe('AuthManager', () => {
     expect(user.username).toBe('bob');
   });
 
-  it('logout clears local credentials only (no network logout)', async () => {
-    // Seed the vault the way a real login does (tokens now live in keychain).
+  it('logout POSTs the root-level /auth/logout revoke leg, then clears local credentials', async () => {
+    // M-MOBILE-53a flipped the old "no network logout" law: the root-level
+    // route (OUTSIDE /api/v1 — hence the absolutized URL) performs real
+    // server-side revocation whenever the bearer token is attached.
     await secureStorage.storeTokens('acc', 'ref', 'login.example');
+    (absolutizeApiPath as jest.Mock).mockReturnValue('https://login.example/auth/logout');
 
     await authManager.logout();
 
-    expect(mockedClient.post).not.toHaveBeenCalled();
+    expect(mockedClient.post).toHaveBeenCalledWith('https://login.example/auth/logout', {});
     expect(await secureStorage.getAccessToken()).toBeNull();
     expect(await secureStorage.getRefreshToken()).toBeNull();
+  });
+
+  it('logout still wipes the vault when the revoke leg fails (best-effort)', async () => {
+    // An offline device or an old server build must never strand the user
+    // signed-in locally — the leg is fired for its side effect only.
+    await secureStorage.storeTokens('acc', 'ref', 'login.example');
+    mockedClient.post.mockRejectedValue(new Error('offline'));
+
+    await authManager.logout();
+
+    expect(await secureStorage.getAccessToken()).toBeNull();
+    expect(await AsyncStorage.getItem('user')).toBeNull();
   });
 
   it('isAuthenticated follows the vault across logout', async () => {

@@ -257,7 +257,7 @@ const CollectionsScreen: React.FC = () => {
               disabled={creating}
             >
               <Text style={styles.submitButtonText}>
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? 'Creating…' : 'Create'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity

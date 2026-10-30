@@ -180,7 +180,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
             <View style={styles.timeSyncStatus}>
               <Text style={styles.timeSyncLabel}>Time Sync</Text>
               <Text style={styles.timeSyncValue}>
-                {timeSyncStable ? 'Stable' : 'Syncing...'}
+                {timeSyncStable ? 'Stable' : 'Syncing…'}
               </Text>
             </View>
           </View>

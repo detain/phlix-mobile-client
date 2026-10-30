@@ -259,7 +259,14 @@ class DownloadService {
   }
 
   private getLocalPath(item: MediaItem): string {
-    const filename = `${item.id}_${item.name.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+    // BOTH wire-supplied parts are sanitized, not just the title: `item.id` is
+    // server content, and an unsanitized id smuggles path separators
+    // ('../../etc/x') or bare dots ('..') into the filename, escaping the
+    // download directory (review M-MOBILE-30). Server ids are UUIDs, so the
+    // class-preserving replace is a no-op on honest input.
+    const safeId = item.id.replace(/[^a-z0-9]/gi, '_');
+    const safeName = item.name.replace(/[^a-z0-9]/gi, '_');
+    const filename = `${safeId}_${safeName}.mp4`;
     if (Platform.OS === 'ios') {
       return `${getNativeDownloader()?.documentsPath || ''}/${filename}`;
     }

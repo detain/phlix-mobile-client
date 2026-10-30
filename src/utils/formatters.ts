@@ -73,11 +73,16 @@ export const formatRelativeTime = (date: Date): string => {
 };
 
 /**
- * Truncate text with ellipsis
+ * Truncate text with ellipsis.
+ *
+ * The single-character `…` is the app-wide ellipsis style (review
+ * M-MOBILE-64: the UI previously mixed `...` and `…` in the same screens).
+ * It also costs one column instead of three, so the kept prefix is
+ * `maxLength - 1` characters and the result never exceeds `maxLength`.
  */
 export const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.substring(0, maxLength - 3) + '...';
+  return text.substring(0, maxLength - 1) + '…';
 };

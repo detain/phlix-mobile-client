@@ -282,7 +282,7 @@ const SearchScreen: React.FC = () => {
       <SearchBar
         value={query}
         onChangeText={handleChangeText}
-        placeholder="Search movies, shows..."
+        placeholder="Search movies, shows…"
         onSubmit={performSearch}
         onClear={handleClear}
       />

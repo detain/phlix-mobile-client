@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HubSession, HubServer, hubAuthService } from '../hub/HubAuthService';
+import { apiErrorMessage } from '../api/client';
 import { secureStorage } from '../services/SecureStorage';
 import { resetServerScopedState } from './serverScope';
 
@@ -147,7 +148,9 @@ export const useHubStore = create<HubState>((set, get) => {
       await persistSession(hubUrl, session, activeServerId);
     } catch (err) {
       set({
-        error: err instanceof Error ? err.message : 'Failed to sign in to hub',
+        // M-MOBILE-34: hub failures ride the same `{ error, code }` contract —
+        // parse it code-first instead of surfacing transport prose raw.
+        error: apiErrorMessage(err, 'Failed to sign in to hub'),
         isLoading: false,
       });
       throw err;
@@ -155,7 +158,13 @@ export const useHubStore = create<HubState>((set, get) => {
   },
 
   signOutOfHub: async () => {
-    hubAuthService.signOut();
+    // Cut the hub-side lineage BEFORE wiping local state (M-MOBILE-53d): the
+    // revoke call is best-effort inside HubAuthService.signOut, so a dead hub
+    // cannot block the teardown below.
+    const { hubUrl: leavingHubUrl, session: leavingSession } = get();
+    if (leavingHubUrl !== null && leavingSession !== null) {
+      await hubAuthService.signOut(leavingHubUrl, leavingSession);
+    }
     // "No active server" is itself a server-identity move: every cached row
     // was addressed by the server we just left.
     const nextGeneration = switchServerIdentity(null);

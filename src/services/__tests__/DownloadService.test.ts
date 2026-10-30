@@ -166,6 +166,21 @@ describe('DownloadService', () => {
       expect(typeof args[0]).toBe('string'); // taskId
     });
 
+    it('sanitizes BOTH the id and the name out of the destination filename (M-MOBILE-30)', async () => {
+      // `item.id` is server content too: the old code only sanitized the
+      // title, letting '../../etc/passwd'-shaped ids escape the download
+      // directory via the filename.
+      mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
+      const { service, native } = loadService({ withNative: true });
+      await service.startDownload(makeItem({ id: '../../etc/passwd', name: 'Bad/../Name' }));
+      await flush();
+
+      expect(native!.startDownload).toHaveBeenCalledTimes(1);
+      const destination = String(native!.startDownload.mock.calls[0][2]);
+      expect(destination.endsWith('______etc_passwd_Bad____Name.mp4')).toBe(true);
+      expect(destination).not.toMatch(/\.\./);
+    });
+
     it('falls back to simulated download when native module is absent', async () => {
       mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
       const { service, native } = loadService({ withNative: false });

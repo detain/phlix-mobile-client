@@ -32,6 +32,55 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min56 minors cluster: self-service profile routes, download-path id sanitization, code-first + quarantined REST error prose, full sign-out teardown, app-wide ellipsis normalization — 2026-10-30
+
+- **M-MOBILE-07 (family access, casualgamer)**: `ProfileManager` repointed
+  from the admin-gated `/admin/users/{userId}/profiles…` lane to the server's
+  SELF-SERVICE `/api/v1/profiles…` routes (plain auth; the bearer token is the
+  identity — no admin hat, no userId path). `useProfileStore.loadProfiles/
+  createProfile` drop the userId parameter; `ProfileSelectScreen` loses its
+  non-admin "managed by an administrator" wall — a signed-in parent can now
+  make child profiles on their own phone. The create/update bodies carry the
+  `content_rating` LABEL the self-service route speaks (the int 0–6 encoding
+  stays documented as the admin-lane form). Every new URL leg is
+  manifest-backed (`src/api/test/server-route-manifest.json` carries all of
+  `/api/v1/profiles*`); activation via `POST .../switch` is deliberately NOT
+  consumed yet (token-re-minting flow, documented seam in the manager).
+- **M-MOBILE-30 (exploiter)**: `DownloadService.getLocalPath` now sanitizes
+  `item.id` with the same class-preserving replace as the title — previously
+  a server-minted id like `../../etc/passwd` smuggled separators into the
+  filename and escaped the download directory.
+- **M-MOBILE-34 + M-MOBILE-52 (phishing surface / code-first)**: the REST
+  error lane stops rendering untrusted server prose verbatim. New doctrine
+  mirrors `describeSyncPlayError`: app-owned catalog copy for every contract
+  auth code wins; unknown-code server text renders only through
+  `quarantineServerProse` (URLs masked, control/zero-width junk stripped,
+  single line, 140-char cap) with an explicit `Server says:` attribution;
+  thrown messages are quarantined too. The SettingsScreen hub sign-in alert
+  and the hubStore error field route through the same parser instead of raw
+  `err.message`.
+- **M-MOBILE-53 (logout completeness)**: sign-out now tears the session down
+  everywhere instead of only wiping the keychain. `AuthManager.logout` fires
+  the root-level `/auth/logout` revocation leg (the server mints the JWT
+  deny-watermark + ends all sessions for an attached bearer; the browser
+  redirect answer is irrelevant) best-effort before wiping locally;
+  `useAuthStore.logout` additionally disconnects the live SyncPlay socket and
+  cancels scheduled notifications; `HubAuthService.signOut` — a literal
+  no-op — now POSTs the hub's JSON `POST /api/v1/auth/logout` (204, refresh
+  lineage revoked) before `hubStore` wipes the vault. Every network leg
+  swallows failure by design: an offline device must not strand a signed-in
+  app, and the local wipe always proceeds.
+- **M-MOBILE-64 (writer)**: the two ellipsis styles are unified on the
+  single-character `…` across the UI (Loading/Syncing/Saving/Adding/Creating/
+  Signing-in/spinner placeholders) including `truncateText`'s suffix, whose
+  kept prefix gains two characters; the three-dot pins in `formatters.test.ts`
+  rotate to the new law.
+- **M-MOBILE-03 (stale-verified, no code)**: hub-session keychain migration
+  already landed at 8e3f717 — `persistSession` stores the JWT pair in the
+  vault and AsyncStorage holds only non-secret metadata; verified at tip
+  (ancestor of origin/master), no re-cure needed.
+
+
 ### Fixed — the progress bar survives the 3s chrome auto-hide (M-MOBILE-44 first clause) — 2026-10-30
 
 - **M-MOBILE-44 r2 (player chrome, gameux — W-min55 review leftover)**: the

@@ -146,13 +146,15 @@ describe('formatters', () => {
       expect(truncateText('Hello', 5)).toBe('Hello');
     });
 
-    it('truncates text with ellipsis if over maxLength', () => {
-      expect(truncateText('Hello World', 8)).toBe('Hello...');
-      expect(truncateText('Very long text here', 10)).toBe('Very lo...');
+    it('truncates text with the app-wide single-character ellipsis', () => {
+      // M-MOBILE-64: `…` is the canonical ellipsis; the kept prefix is
+      // maxLength - 1 chars, so the result never exceeds maxLength.
+      expect(truncateText('Hello World', 8)).toBe('Hello W…');
+      expect(truncateText('Very long text here', 10)).toBe('Very long…');
     });
 
-    it('handles edge case of maxLength of 3 (minimum for "...")', () => {
-      expect(truncateText('Hello', 3)).toBe('...');
+    it('handles edge case of maxLength of 3', () => {
+      expect(truncateText('Hello', 3)).toBe('He…');
     });
 
     it('handles text exactly at maxLength', () => {
@@ -164,8 +166,8 @@ describe('formatters', () => {
     });
 
     it('handles string longer than maxLength by exactly 3', () => {
-      // If text is exactly 3 chars longer than maxLength, truncation leaves room for "..."
-      expect(truncateText('Hello', 2)).toBe('...');
+      // Single-character `…` keeps maxLength-1 characters of the prefix.
+      expect(truncateText('Hello', 2)).toBe('H…');
     });
   });
 });

@@ -9,6 +9,8 @@
 import { create } from 'zustand';
 import { authManager, User } from '../api/AuthManager';
 import { apiErrorMessage, onAuthInvalidated } from '../api/client';
+import { syncPlayService } from '../syncplay/SyncPlayService';
+import { notificationService } from '../services/NotificationService';
 import { useSettingsStore } from './useSettingsStore';
 
 interface AuthState {
@@ -62,6 +64,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
+      // Full sign-out teardown (review M-MOBILE-53b/c): the live SyncPlay
+      // socket (group presence, position reporting) and any scheduled local
+      // notifications both outlive the credential wipe unless dismissed here —
+      // previously logout only cleared tokens, leaving the viewer "in the room"
+      // server-side until the socket's own timeouts noticed. Both legs are
+      // best-effort and precede the async wipe so a failed network revoke
+      // inside authManager.logout cannot skip them.
+      try {
+        syncPlayService.disconnect();
+      } catch {
+        // A dead socket tearing down twice is fine; never block sign-out.
+      }
+      try {
+        notificationService.cancelAll();
+      } catch {
+        // Notification platform may be unavailable (e.g. tests) — best-effort.
+      }
       await authManager.logout();
     } finally {
       set({

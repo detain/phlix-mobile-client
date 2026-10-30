@@ -24,6 +24,7 @@ import { SafeContainer } from '../components/layout';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useHubStore } from '../store/hubStore';
+import { apiErrorMessage } from '../api/client';
 import ServerSwitcher from '../components/ServerSwitcher';
 
 const SettingsScreen: React.FC = () => {
@@ -105,7 +106,11 @@ const SettingsScreen: React.FC = () => {
     } catch (err) {
       Alert.alert(
         'Sign-in failed',
-        err instanceof Error ? err.message : 'Failed to sign in'
+        // M-MOBILE-34: the hub's failure reason comes from its response body —
+        // parse the contract envelope through the same code-first, quarantined
+        // lane the server-session login uses, instead of rendering `err.message`
+        // (transport prose or unquarantined server text) raw.
+        apiErrorMessage(err, 'Failed to sign in')
       );
     }
   };
@@ -583,7 +588,7 @@ const SettingsScreen: React.FC = () => {
               disabled={hubLoading}
             >
               <Text style={styles.hubSubmitButtonText}>
-                {hubLoading ? 'Signing in...' : 'Sign in'}
+                {hubLoading ? 'Signing in…' : 'Sign in'}
               </Text>
             </TouchableOpacity>
 

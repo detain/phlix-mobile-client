@@ -159,7 +159,7 @@ export const UserRatingPicker: React.FC<UserRatingPickerProps> = ({
         )}
       </View>
       {isLoading && (
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>Loading…</Text>
       )}
     </View>
   );

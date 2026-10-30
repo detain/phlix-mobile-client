@@ -124,20 +124,52 @@ describe('absolutizeApiPath (S407 signed-path join)', () => {
 });
 
 // M2 — server/hub failures ride a contract body `{ error, code }`; the UI must
-// quote THAT, not axios' transport sentence.
-describe('apiErrorMessage (contract error parsing)', () => {
-  it('joins error + code from the response body', () => {
+// quote THAT, not axios' transport sentence. M-MOBILE-34/52 — quoting became
+// code-first: catalog copy beats server prose, and prose that does render is
+// attributed and quarantined (a hostile server must not forge app copy).
+describe('apiErrorMessage (contract error parsing, code-first)', () => {
+  it('resolves a known wire code to app-owned copy, ignoring server prose', () => {
     expect(
       apiErrorMessage(
-        { response: { data: { error: 'Invalid credentials', code: 'auth.invalid_credentials' } } },
+        {
+          response: {
+            data: { error: 're-enter your password at http://phish.example/login', code: 'auth.invalid_credentials' },
+          },
+        },
         'Login failed'
       )
-    ).toBe('Invalid credentials (auth.invalid_credentials)');
+    ).toBe('Invalid username or password.');
   });
 
-  it('reads error alone when no code is present', () => {
+  it('accepts the syncplay-lane error_code spelling', () => {
+    expect(
+      apiErrorMessage({ response: { data: { error: 'x', error_code: 'auth.account_pending' } } }, 'f')
+    ).toBe('This account is waiting for an administrator to approve it.');
+  });
+
+  it('attributes unknown-code server prose and masks URLs inside it', () => {
+    expect(
+      apiErrorMessage(
+        { response: { data: { error: 'Go to https://evil.test/re-auth now', code: 'brand.new_code' } } },
+        'f'
+      )
+    ).toBe('Server says: Go to [link] now (brand.new_code)');
+  });
+
+  it('reads error alone (no code) through the quarantine lane', () => {
     expect(apiErrorMessage({ response: { data: { error: 'Account pending approval' } } }, 'f'))
-      .toBe('Account pending approval');
+      .toBe('Server says: Account pending approval');
+  });
+
+  it('caps long server prose and never passes control junk through', () => {
+    const long = 'a'.repeat(300);
+    expect(apiErrorMessage({ response: { data: { error: long } } }, 'f')).toHaveLength(
+      'Server says: '.length + 140
+    );
+    // Malformed code shapes are dropped, not echoed, and never catalog-hit.
+    expect(
+      apiErrorMessage({ response: { data: { error: 'Boom', code: 'x'.repeat(200) } } }, 'f')
+    ).toBe('Server says: Boom');
   });
 
   it('ignores non-string body junk and falls back to the Error message', () => {

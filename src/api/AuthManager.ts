@@ -6,7 +6,7 @@
  */
 
 // src/api/AuthManager.ts
-import apiClient, { getApiBaseUrl } from './client';
+import apiClient, { getApiBaseUrl, absolutizeApiPath } from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { secureStorage } from '../services/SecureStorage';
 import { getDeviceId } from './deviceIdentity';
@@ -132,9 +132,23 @@ class AuthManager {
     await AsyncStorage.setItem('user', JSON.stringify(data.user));
   }
 
-  // Logout: the REST API has no required logout (legacy /auth/logout is the
-  // browser cookie flow). Just clear local credentials.
+  /**
+   * Logout (review M-MOBILE-53): clear local credentials, but not before a
+   * best-effort server-side revocation. `/auth/logout` is a ROOT-level route
+   * (outside the `/api/v1` prefix — hence the absolutized URL, which axios
+   * uses as-is) and performs the real revocation — refresh-token deny entry
+   * + session kill — whenever a bearer token is attached, which the request
+   * interceptor does here while the vault still holds it. Its answer is a
+   * browser redirect, not JSON: we fire it for the side effect and MUST NOT
+   * gate the local wipe on success (offline or an old server build must not
+   * strand the user signed-in).
+   */
   async logout(): Promise<void> {
+    try {
+      await apiClient.post(absolutizeApiPath('/auth/logout'), {});
+    } catch {
+      // Best-effort — the local teardown below always proceeds.
+    }
     await secureStorage.clearTokens();
     await AsyncStorage.removeItem('user');
   }

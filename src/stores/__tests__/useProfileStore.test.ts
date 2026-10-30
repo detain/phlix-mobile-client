@@ -58,10 +58,10 @@ describe('useProfileStore', () => {
     const profiles = [makeProfile(), makeProfile({ id: 'p2', name: 'Kids' })];
     mockedManager.listProfiles.mockResolvedValue(profiles);
 
-    await useProfileStore.getState().loadProfiles('u1');
+    await useProfileStore.getState().loadProfiles();
 
     const state = useProfileStore.getState();
-    expect(mockedManager.listProfiles).toHaveBeenCalledWith('u1');
+    expect(mockedManager.listProfiles).toHaveBeenCalledWith();
     expect(state.profiles).toHaveLength(2);
     expect(state.isLoading).toBe(false);
     expect(state.error).toBeNull();
@@ -70,7 +70,7 @@ describe('useProfileStore', () => {
   it('loadProfiles sets error on failure without throwing', async () => {
     mockedManager.listProfiles.mockRejectedValue(new Error('forbidden'));
 
-    await useProfileStore.getState().loadProfiles('u1');
+    await useProfileStore.getState().loadProfiles();
 
     const state = useProfileStore.getState();
     expect(state.error).toBe('forbidden');
@@ -82,7 +82,7 @@ describe('useProfileStore', () => {
     const profiles = [makeProfile(), makeProfile({ id: 'p2', name: 'Kids' })];
     mockedManager.listProfiles.mockResolvedValue(profiles);
 
-    await useProfileStore.getState().loadProfiles('u1');
+    await useProfileStore.getState().loadProfiles();
 
     expect(useProfileStore.getState().activeProfile?.id).toBe('p2');
   });
@@ -111,13 +111,13 @@ describe('useProfileStore', () => {
     mockedManager.createProfile.mockResolvedValue('p9');
     mockedManager.listProfiles.mockResolvedValue([makeProfile({ id: 'p9' })]);
 
-    await useProfileStore.getState().createProfile('u1', { name: 'New', rating: 1 });
+    await useProfileStore.getState().createProfile({ name: 'New', content_rating: 'PG' });
 
-    expect(mockedManager.createProfile).toHaveBeenCalledWith('u1', {
+    expect(mockedManager.createProfile).toHaveBeenCalledWith({
       name: 'New',
-      rating: 1,
+      content_rating: 'PG',
     });
-    expect(mockedManager.listProfiles).toHaveBeenCalledWith('u1');
+    expect(mockedManager.listProfiles).toHaveBeenCalledWith();
     expect(useProfileStore.getState().profiles[0].id).toBe('p9');
   });
 
@@ -159,7 +159,7 @@ describe('useProfileStore', () => {
     mockedManager.createProfile.mockRejectedValue(new Error('limit reached'));
 
     await expect(
-      useProfileStore.getState().createProfile('u1', { name: 'X' })
+      useProfileStore.getState().createProfile({ name: 'X' })
     ).rejects.toThrow('limit reached');
     expect(useProfileStore.getState().error).toBe('limit reached');
   });

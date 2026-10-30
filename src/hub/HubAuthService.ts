@@ -168,11 +168,27 @@ export class HubAuthService {
   }
 
   /**
-   * Sign out - clears the local session reference.
-   * (Actual invalidation happens server-side via refresh token expiry)
+   * Sign out: best-effort HUB-SIDE revocation (review M-MOBILE-53d — this was
+   * a literal no-op, so the spec's "invalidates the refresh token" promise was
+   * theater; only local state was ever cleared). The hub's
+   * `POST /api/v1/auth/logout` answers 204 and cuts the presented refresh
+   * token's jti lineage; an access token is not required to call it.
+   *
+   * Every failure is swallowed on purpose: an offline device or an old hub
+   * must never strand the caller signed-in locally — the vault wipe in
+   * {@link hubStore.signOutOfHub} always proceeds.
    */
-  signOut(): void {
-    // No-op: local state cleared by the store
+  async signOut(hubUrl: string, session: HubSession): Promise<void> {
+    const normalizedUrl = this.normalizeHubUrl(hubUrl);
+    try {
+      await this.client.post(
+        `${normalizedUrl}/api/v1/auth/logout`,
+        { refresh_token: session.refreshToken },
+        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+      );
+    } catch {
+      // Best-effort by design — see docblock.
+    }
   }
 
   /**

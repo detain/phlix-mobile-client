@@ -44,7 +44,6 @@ const isValidPin = (pin: string): boolean => /^(\d{4}|\d{6})$/.test(pin);
 
 const ProfileSelectScreen: React.FC = () => {
   const user = useAuthStore((state) => state.user);
-  const isAdmin = !!user?.is_admin;
   const userId = user?.id;
 
   const profiles = useProfileStore((state) => state.profiles);
@@ -70,10 +69,13 @@ const ProfileSelectScreen: React.FC = () => {
   const [pinValue, setPinValue] = useState('');
 
   const refresh = useCallback(() => {
-    if (isAdmin && userId) {
-      loadProfiles(userId);
+    // M-MOBILE-07: profiles are SELF-SERVICE now (identity is the bearer
+    // token) — every signed-in account can manage its own family profiles;
+    // the server-admin hat is no longer required to load or mutate them.
+    if (userId) {
+      loadProfiles();
     }
-  }, [isAdmin, userId, loadProfiles]);
+  }, [userId, loadProfiles]);
 
   useEffect(() => {
     refresh();
@@ -104,11 +106,13 @@ const ProfileSelectScreen: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      const rating = labelToRating(draftRating);
+      // The self-service lane carries `content_rating` as the LABEL string
+      // directly (M-MOBILE-07) — the int 0–6 encoding belongs to the admin
+      // routes, which mobile no longer calls.
       if (editingProfile) {
-        await updateProfile(editingProfile.id, { name, rating });
+        await updateProfile(editingProfile.id, { name, content_rating: draftRating });
       } else {
-        await createProfile(userId, { name, rating });
+        await createProfile({ name, content_rating: draftRating });
       }
       setEditorVisible(false);
     } catch (err) {
@@ -215,18 +219,9 @@ const ProfileSelectScreen: React.FC = () => {
     );
   };
 
-  // Non-admin: the server route is admin-only — show an informational state.
-  if (!isAdmin) {
-    return (
-      <SafeContainer>
-        <EmptyState
-          icon="👤"
-          title="Profiles are managed by an administrator"
-          message="Multi-user profiles can only be added or changed by an account administrator on this server."
-        />
-      </SafeContainer>
-    );
-  }
+  // M-MOBILE-07: the old `!isAdmin` informational state is GONE — profile
+  // management moved to the server's self-service routes, so any signed-in
+  // account manages its own family profiles.
 
   if (isLoading && profiles.length === 0) {
     return (

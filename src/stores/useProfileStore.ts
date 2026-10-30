@@ -20,8 +20,10 @@ interface ProfileState {
   error: string | null;
 
   // Actions
-  loadProfiles: (userId: string) => Promise<void>;
-  createProfile: (userId: string, input: CreateProfileInput) => Promise<void>;
+  /** Load the signed-in user's own profiles (M-MOBILE-07: identity is the
+   * bearer token — no userId parameter; no admin hat required). */
+  loadProfiles: () => Promise<void>;
+  createProfile: (input: CreateProfileInput) => Promise<void>;
   updateProfile: (id: string, input: UpdateProfileInput) => Promise<void>;
   deleteProfile: (id: string) => Promise<void>;
   setPin: (id: string, pin: string) => Promise<void>;
@@ -61,10 +63,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  loadProfiles: async (userId: string) => {
+  loadProfiles: async () => {
     set({ isLoading: true, error: null });
     try {
-      const profiles = await profileManager.listProfiles(userId);
+      const profiles = await profileManager.listProfiles();
 
       // Rehydrate the active profile from the persisted id if not already set.
       const persistedId = get().activeProfileId ?? (await AsyncStorage.getItem(ACTIVE_PROFILE_KEY));
@@ -86,12 +88,12 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     }
   },
 
-  createProfile: async (userId: string, input: CreateProfileInput) => {
+  createProfile: async (input: CreateProfileInput) => {
     set({ isLoading: true, error: null });
     try {
-      await profileManager.createProfile(userId, input);
+      await profileManager.createProfile(input);
       // Re-fetch so the new profile (with its server-assigned id/settings) appears.
-      await get().loadProfiles(userId);
+      await get().loadProfiles();
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to create profile',
