@@ -32,6 +32,25 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Added — changelog currency backfill (second pass): five more landed commits that never got an entry — 2026-10-30
+
+- **Backfill (review W-min54 r2, M-MOBILE-61 leftover), no new code** — the
+  independent review convicted the first pass above: its disk audit still
+  missed the whole `mobile__writer` M21–M25 fix chain — five landed commits,
+  each individually audited `git show --name-only` → zero CHANGELOG touches.
+  Recorded here verbatim, one line each, newest first (subjects re-verified
+  with `git show -s` before writing): `07556b3` brought the storage claims to
+  shipped vault truth — the AsyncStorage oxymoron cured in README, CLAUDE and
+  DEVELOPER; `8b93331` brought the compatibility claims to shipped truth —
+  Phlix server/hub only, the Jellyfin/Emby fiction removed from README,
+  AGENTS and CLAUDE; `69c432e` brought the configuration surface to code
+  truth — the real env key documented, the fiction deleted (README +
+  DEVELOPER); `35669df` fixed the clone coordinate to the real repo URL and
+  swept placeholder coordinates; `0a9969f` brought the Node prerequisite to
+  engines truth (>=24) and swept the README's version claims. The nine-row
+  first-pass entry stays exactly as landed — history verbatim; this is the
+  fresh top entry the currency law requires.
+
 ### Fixed — W-min55 minors cluster: iOS background audio + PiP honesty, player title & control labels, tab-bar insets + focus pill, 44pt chrome targets outside/inside the player, README feature-truth (SyncPlay/volume/speed), signing-doc contradictions — 2026-10-30
 
 - **M-MOBILE-02 (background/lock-screen media, casualgamer)**: iOS gains the
