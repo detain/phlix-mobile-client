@@ -1,7 +1,12 @@
 # Phlix Mobile
 
 [![CI](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml/badge.svg)](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml)
-[![Version](https://img.shields.io/github/v/tag/detain/phlix-mobile-client?label=version&sort=semver)](https://github.com/detain/phlix-mobile-client/tags)
+<!-- M-MOBILE-56 (review mobile__writer): the semver-tag version badge was
+     retired. The repo publishes no versioned git tags — the only tag is the
+     release machinery's rolling `latest` (build-android.yml resets it to the
+     current tip on every master push), which `sort=semver` can never
+     resolve. The app's real version lives in package.json; the rolling
+     `latest` GitHub prerelease is described in §CI/CD and §Deployment. -->
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![React Native](https://img.shields.io/badge/React%20Native-0.85-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -414,12 +419,33 @@ automate (there is no fastlane or store-upload machinery in this repository).
    configured for automated device distribution.
 
 ### CI/CD
+<!-- M-MOBILE-20 (review mobile__devops): this section is now the verified
+     workflow truth (triggers, jobs, and artifacts read from
+     .github/workflows/*.yml). Claims it previously made and dropped:
+     "iOS Build … manual trigger" (no workflow_dispatch exists on any of
+     the three files), "Android debug APK on every push" (it also runs on
+     PRs, and master pushes additionally build a release APK + republish
+     the rolling `latest` prerelease). -->
 
-The project includes GitHub Actions workflows for automated:
+Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
+`build-ios.yml` — run on every push **and** pull request targeting
+`main`/`master`/`develop`:
 
-- **Testing**: Runs on every push and PR
-- **iOS Build**: Builds iOS app (requires macOS runner, manual trigger)
-- **Android Build**: Builds Android debug APK on every push
+- **Tests**: `tsc` type check, ESLint, and the Jest suite (serial), with
+  coverage uploaded.
+- **Build Android**: builds the debug APK and uploads it as a workflow
+  artifact on every push/PR. Pushes to `main`/`master` additionally build
+  a release APK — debug-signed until real signing is wired (see
+  [docs/signing.md](docs/signing.md)) — and republish a rolling `latest`
+  GitHub **prerelease** carrying the raw, directly installable APK
+  (Actions artifacts are always served zipped; a Release is the only way
+  to offer a bare installable `.apk`).
+- **Build iOS**: runs on a macOS runner and builds the app for the iOS
+  **simulator** unsigned (`xcodebuild … CODE_SIGNING_ALLOWED=NO`) as a
+  compile gate, plus a standalone JS bundle uploaded for inspection —
+  the bundle is NOT the device payload. There is no device-signing or
+  TestFlight/App Store automation; that remains the manual archive
+  described in §Deployment.
 
 ## Troubleshooting
 

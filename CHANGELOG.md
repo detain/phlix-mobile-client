@@ -32,6 +32,27 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — W-min58 minors cluster (M-MOBILE-20, -56): CI/CD section to workflow truth, unresolvable version badge retired — 2026-10-30
+
+- **M-MOBILE-20 (CURED)**: README §CI/CD now states the verified workflow
+  truth — all three workflows trigger on push AND pull request
+  (`main`/`master`/`develop`); "iOS Build … manual trigger" was live-false
+  (no `workflow_dispatch` exists on any file; iOS is an unsigned simulator
+  compile gate on every push/PR), and the Android line now covers PR
+  builds, the master-only release job, and the rolling `latest`
+  prerelease republish. Doc-only change; claims re-read from
+  `.github/workflows/*.yml` at this tip.
+- **M-MOBILE-56 (CURED — second clause; first clause STALE)**: the
+  header's `github/v/tag … sort=semver` version badge queried tag data
+  the repo never publishes (`git tag -l` and `ls-remote --tags` = the
+  CI-reset rolling `latest` alone, non-semver) — retired with an honest
+  HTML comment. The React Native badge clause was already cured
+  pre-queue by `0a9969f` (0.76 → 0.85, content-verified + ancestor).
+- **M-MOBILE-11 (STALE-VERIFIED — cured by sibling batch W-min57)**:
+  `.env.example` lists `PHLIX_SYNCPLAY_WS_PORT` (added in `1b1b167`,
+  ancestor-verified) and `src/syncplay/wsEndpoint.ts` reads the
+  react-native-config seam — the queue item predated the sibling cure.
+
 ### Fixed — W-min61 minors cluster (M-MOBILE-26, -27, -28, -32, -41, -48, -49, -50): seek clamped at the native boundary, frame admission capped, hold-to-delete discovered, detail-page IA untangled, hub roster scheme-allowlisted, WS predicate unified — 2026-10-30
 
 - **M-MOBILE-26 (CURED — same defect as M-MOBILE-54)**: the review's number/
