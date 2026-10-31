@@ -32,6 +32,25 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-08 (majors): every CI install leg now honors the tracked lockfile — `npm ci --allow-git=all` replaces `npm install` x5, with a workflow fs-gate — 2026-10-31
+
+- **M-MOBILE-08 (MAJORS queue; review mobile__devops MAJ-2 — not the
+  same-numbered minors-era item):** all five legs (`test.yml`,
+  `build-android.yml` ×2, `build-ios.yml` ×2) ran `npm install` against a
+  tracked `lockfileVersion 3` lock — the command that silently rewrites the
+  committed lock mid-CI (this repo's CHANGELOG records exactly that churn:
+  152 devOptional→dev marker flips, 2026-10-01). All five now run the
+  tizen-proven `npm ci --allow-git=all`: lock-verbatim install, failing loud
+  on drift (npm ci IS the drift gate — a redundant
+  `git diff --exit-code package-lock.json` step was deliberately not added).
+  Satisfiability proven on a clean clone at tip: npm 11 `ci --allow-git=all`
+  exit 0 with ZERO lock drift after install. New fs-gate pins the count at
+  exactly five legs. DISCLOSED residuals, out of this lane's authority: no
+  dependency-audit leg / allowlist exists yet (the known-red transitive
+  `image-size` and the windows/website audit-gate port need their own
+  owner-approved dispatch — external advisory data), and no Dependabot
+  config lives in-repo (org-level scope).
+
 ### Fixed — M-MOBILE-07 (majors): Android release-chain docs told a story the repo doesn't ship — publish notes now disclose debug signing + runner-identity churn; the fictional CI-secret/tag-trigger Gradle comment replaced with truth — 2026-10-31
 
 - **M-MOBILE-07 (MAJORS queue; review mobile__devops MAJ-1 — not the

@@ -30,7 +30,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # The tracked package-lock.json is the source of truth: `npm install`
+        # re-resolves ranges and silently rewrites the lock mid-CI (this
+        # repo's own CHANGELOG records a 152-marker devOptional->dev churn
+        # from exactly that command). `npm ci` installs the lock verbatim and
+        # fails loud on drift. --allow-git=all admits the @phlix/* github:
+        # tarball pins (npm 11 install hardening; same form as phlix-tizen).
+        run: npm ci --allow-git=all
 
       - name: Setup JDK 17
         uses: actions/setup-java@v5
@@ -72,7 +78,8 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # Lock-honoring install; rationale at the Build (Debug) leg.
+        run: npm ci --allow-git=all
 
       - name: Setup JDK 17
         uses: actions/setup-java@v5
