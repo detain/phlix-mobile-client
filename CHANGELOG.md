@@ -32,6 +32,23 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-04 (majors): Android downloads now land in the native-published private dir — the scoped-storage-forbidden hardcoded path is gone (JS↔native contract unified) — 2026-10-31
+
+- **M-MOBILE-04 (MAJORS queue; review mobile__crossfe M1 — not the
+  same-numbered minors-era item):** `getLocalPath()` consumed the native
+  `documentsPath` constant ONLY on iOS; on Android it returned the literal
+  `/storage/emulated/0/Download/Phlix/<file>`, where enforced scoped storage
+  at targetSdk 36 forbids raw `File` creation (no `MANAGE_EXTERNAL_STORAGE`,
+  legacy `WRITE_EXTERNAL_STORAGE` a no-op) — jest could not see it because
+  the suite's own fallback mock fed the simulated lane. The Kotlin module had
+  been exporting `reactContext.filesDir` as `documentsPath` all along; JS
+  simply never used it there. Cure: ONE constant on both platforms
+  (`documentsPath || ''` + filename); the forbidden literal is pinned OUT of
+  the file by a source-text law gate (versionSync/routeManifest fs-read
+  precedent) and an exact-destination Android test (the harness already
+  loads the service under `Platform.OS === 'android'`). The manifest's
+  existing "downloads land in app-private dirs" claim becomes literally true.
+
 ### Security — M-MOBILE-10 (majors): the vault token and refresh token can never ride to a host that did not mint them — per-origin binding on both REST legs + target-change teardown — 2026-10-31
 
 - **M-MOBILE-10 (MAJORS queue; review mobile__exploiter M1 — not the
