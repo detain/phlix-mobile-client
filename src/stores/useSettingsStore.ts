@@ -19,7 +19,6 @@ interface SettingsState {
 
   // Download settings
   downloadQuality: string;
-  downloadOverWifiOnly: boolean;
   maxConcurrentDownloads: number;
   downloadPath: string;
 
@@ -40,7 +39,6 @@ interface SettingsState {
   setDefaultSubtitleLanguage: (language: string) => void;
   setDefaultAudioLanguage: (language: string) => void;
   setDownloadQuality: (quality: string) => void;
-  setDownloadOverWifiOnly: (wifiOnly: boolean) => void;
   setMaxConcurrentDownloads: (max: number) => void;
   setDownloadPath: (path: string) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
@@ -90,7 +88,12 @@ const defaultSettings = {
   defaultSubtitleLanguage: 'en',
   defaultAudioLanguage: 'en',
   downloadQuality: 'high',
-  downloadOverWifiOnly: true,
+  // The former "Download over Wi-Fi only" key was REMOVED here (review
+  // mobile__casualgamer #1, MAJORS queue M-MOBILE-01): zero consumers in the
+  // download lane, and bare RN exposes no network-type API (no netinfo in
+  // the lock). A gate needs a native connectivity module — separate feature
+  // decision, not a lying toggle. Old persisted blobs simply lose the key at
+  // sanitizeSettings (unknown-key drop, no migration).
   maxConcurrentDownloads: 2,
   downloadPath: '',
   theme: 'dark' as const,
@@ -126,10 +129,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setDownloadQuality: (quality) => {
     set({ downloadQuality: quality });
-    get().saveSettings();
-  },
-  setDownloadOverWifiOnly: (wifiOnly) => {
-    set({ downloadOverWifiOnly: wifiOnly });
     get().saveSettings();
   },
   setMaxConcurrentDownloads: (max) => {
@@ -194,7 +193,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         defaultSubtitleLanguage: state.defaultSubtitleLanguage,
         defaultAudioLanguage: state.defaultAudioLanguage,
         downloadQuality: state.downloadQuality,
-        downloadOverWifiOnly: state.downloadOverWifiOnly,
         maxConcurrentDownloads: state.maxConcurrentDownloads,
         downloadPath: state.downloadPath,
         theme: state.theme,

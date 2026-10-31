@@ -38,8 +38,6 @@ const SettingsScreen: React.FC = () => {
     setAutoplay,
     autoPlayNextEpisode,
     setAutoPlayNextEpisode,
-    downloadOverWifiOnly,
-    setDownloadOverWifiOnly,
     enableNotifications,
     setEnableNotifications,
     enableBiometricAuth,
@@ -512,27 +510,20 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Download Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Downloads</Text>
-          <View style={styles.card}>
-            {renderSettingRow(
-              'Download over Wi-Fi only',
-              <Switch
-                value={downloadOverWifiOnly}
-                onValueChange={setDownloadOverWifiOnly}
-                trackColor={{ false: '#3d3d3d', true: '#0066cc' }}
-              />
-            )}
-          </View>
-        </View>
+        {/* The former Downloads section held only the defunct Wi-Fi-only
+            switch (review mobile__casualgamer #1, MAJORS queue M-MOBILE-01)
+            — no download lane ever read it, so it is removed with the store
+            key rather than kept as settings theater. */}
 
         {/* Notifications Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.card}>
             {renderSettingRow(
-              'Push notifications',
+              // Not "Push": this app has no FCM/APNs registration anywhere.
+              // The toggle gates LOCAL notifee displays (download-complete
+              // lane, review mobile__crossfe M3 / M-MOBILE-06).
+              'Notifications',
               <Switch
                 value={enableNotifications}
                 onValueChange={setEnableNotifications}

@@ -218,6 +218,11 @@ const PlayerScreen: React.FC = () => {
   // media playlist. `defaultQuality` (persisted setting) seeds the pick.
   const defaultQuality = useSettingsStore((state) => state.defaultQuality);
   const setDefaultQuality = useSettingsStore((state) => state.setDefaultQuality);
+  // M-MOBILE-01 (review mobile__casualgamer): the Autoplay setting used to be
+  // theater — persisted, rendered, read by nothing while the view below
+  // hardcoded autoPlay={true}. It now owns the native start-immediately prop
+  // (default ON == the old hardcoded truth; flipping it means manual start).
+  const autoplayEnabled = useSettingsStore((state) => state.autoplay);
   const [qualityVariants, setQualityVariants] = useState<Rendition[]>([]);
   const [qualityMasterUrl, setQualityMasterUrl] = useState('');
   const [selectedQuality, setSelectedQuality] = useState<QualitySelection>(AUTO_QUALITY);
@@ -997,7 +1002,7 @@ const PlayerScreen: React.FC = () => {
             // the native player gets a bare URI (no Authorization header). Falls
             // back to the unsigned url for older servers.
             src={streamInfo.stream_url || streamInfo.url}
-            autoPlay={true}
+            autoPlay={autoplayEnabled}
             startPosition={playerStartPosition}
             volume={1.0}
             muted={false}

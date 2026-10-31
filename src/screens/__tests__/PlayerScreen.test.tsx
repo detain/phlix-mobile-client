@@ -161,6 +161,9 @@ jest.mock('react', () => {
 jest.mock('../../stores/useSettingsStore', () => {
   const state = {
     defaultQuality: 'auto',
+    // M-MOBILE-01: the Autoplay toggle drives the native start-immediately
+    // prop; honest default mirrors the store (ON = today's hardcoded truth).
+    autoplay: true,
     // M-MOBILE-15: the autoplay law reads this via getState() at event time.
     // Honest default here is OFF so the pre-existing suites keep asserting
     // the stop-behavior; the autoplay describe flips it deliberately.
@@ -299,6 +302,7 @@ import PlayerScreen, { AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE } from '../PlayerScr
 
 const mockSettings = (jest.requireMock('../../stores/useSettingsStore') as any).__state as {
   defaultQuality: string;
+  autoplay: boolean;
   autoPlayNextEpisode: boolean;
   setDefaultQuality: jest.Mock;
 };
@@ -512,6 +516,9 @@ beforeEach(() => {
   // M-MOBILE-15: honest default is OFF — every pre-existing suite keeps
   // asserting the stop-behavior unchanged; the autoplay describe flips it.
   mockSettings.autoPlayNextEpisode = false;
+  // M-MOBILE-01: restore the honest default so a flipped sibling test cannot
+  // leak an OFF state into the suites whose finders key on autoPlay === true.
+  mockSettings.autoplay = true;
   // jest.clearAllMocks() keeps implementations; the autoplay wire fakes MUST
   // start each test blank (a leaked mockResolvedValue would fake a "next").
   mockLibrary.getMediaItem.mockReset();
@@ -1755,5 +1762,41 @@ describe('PlayerScreen — M-MOBILE-44 r2 persistent progress rail', () => {
     expect(findSeekBar(h.host.tree)).toBeNull();
     // The rest of the chrome is a gate, not a wipe.
     expect(findButton(h.host.tree, 'Close player')).not.toBeNull();
+  });
+});
+
+// ── M-MOBILE-01 (review mobile__casualgamer #1): the "Autoplay" toggle ────
+// Used to be persisted, rendered, and read by NOTHING while the screen
+// hardcoded autoPlay={true} on the native view — settings theater. The
+// native start-immediately prop is its one legitimate consumer; wired there,
+// the toggle now actually decides whether playback begins on open.
+describe('PlayerScreen — M-MOBILE-01 Autoplay toggle drives the native prop', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+  });
+
+  // The generic view finder: the shared findPlayer keys on autoPlay === true,
+  // which is exactly the law under test, so locate the element structurally.
+  const findNativeView = (tree: unknown): El | null =>
+    findEl(
+      tree,
+      (el) => 'startPosition' in el.props && typeof el.props.onProgress === 'function',
+    );
+
+  it('toggle OFF → the native view is handed autoPlay=false (no start on open)', async () => {
+    mockSettings.autoplay = false;
+    const h = await bootDirectPlay();
+    const player = findNativeView(h.host.tree);
+    expect(player).not.toBeNull();
+    expect(player!.props.autoPlay).toBe(false);
+  });
+
+  it('toggle ON (default) → the native view is handed autoPlay=true (unchanged behavior)', async () => {
+    mockSettings.autoplay = true;
+    const h = await bootDirectPlay();
+    const player = findNativeView(h.host.tree);
+    expect(player).not.toBeNull();
+    expect(player!.props.autoPlay).toBe(true);
   });
 });

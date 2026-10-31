@@ -6,6 +6,8 @@
  */
 
 // src/stores/__tests__/useSettingsStore.test.ts
+import fs from 'fs';
+import path from 'path';
 import { useSettingsStore } from '../useSettingsStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,7 +26,6 @@ describe('useSettingsStore', () => {
       defaultSubtitleLanguage: 'en',
       defaultAudioLanguage: 'en',
       downloadQuality: 'high',
-      downloadOverWifiOnly: true,
       maxConcurrentDownloads: 2,
       downloadPath: '',
       theme: 'dark',
@@ -45,7 +46,6 @@ describe('useSettingsStore', () => {
       expect(state.defaultSubtitleLanguage).toBe('en');
       expect(state.defaultAudioLanguage).toBe('en');
       expect(state.downloadQuality).toBe('high');
-      expect(state.downloadOverWifiOnly).toBe(true);
       expect(state.maxConcurrentDownloads).toBe(2);
       expect(state.downloadPath).toBe('');
       expect(state.theme).toBe('dark');
@@ -96,10 +96,8 @@ describe('useSettingsStore', () => {
       expect(saveSpy).toHaveBeenCalled();
     });
 
-    it('setDownloadOverWifiOnly triggers saveSettings', async () => {
-      const saveSpy = jest.spyOn(useSettingsStore.getState(), 'saveSettings');
-      useSettingsStore.getState().setDownloadOverWifiOnly(false);
-      expect(saveSpy).toHaveBeenCalled();
+    it('the retired wifi-only setter is gone from the store surface (M-MOBILE-01)', () => {
+      expect(useSettingsStore.getState()).not.toHaveProperty('setDownloadOverWifiOnly');
     });
 
     it('setMaxConcurrentDownloads triggers saveSettings', async () => {
@@ -310,6 +308,57 @@ describe('useSettingsStore', () => {
 
       const stored = await AsyncStorage.getItem('phlix_settings');
       expect(stored).toBeNull();
+    });
+  });
+
+  // Review mobile__casualgamer #1 (MAJORS queue, M-MOBILE-01): five toggles
+  // were settings theater. autoplay / autoPlayNextEpisode / biometric were
+  // since genuinely consumed (cures under other rows — see fixlog); the
+  // wifi-only toggle had ZERO consumers in the download lane and no network
+  // type API exists in bare RN (no @react-native-community/netinfo in the
+  // lock) — the honest minimal cure is to remove the lying toggle until a
+  // real native connectivity gate ships. Push-label honesty: no FCM/APNs
+  // registration exists anywhere; the toggle gates LOCAL notifications only
+  // (real consumer landed with review mobile__crossfe M3 / M-MOBILE-06).
+  describe('retired wifi-only toggle (M-MOBILE-01 theater cure)', () => {
+    it('a persisted blob still carrying the retired key hydrates and drops it', async () => {
+      await AsyncStorage.setItem(
+        'phlix_settings',
+        JSON.stringify({ downloadOverWifiOnly: false, autoplay: false, theme: 'dark' })
+      );
+      await useSettingsStore.getState().loadSettings();
+      const state = useSettingsStore.getState();
+      // The rest of the blob still hydrates (the key is not poison).
+      expect(state.autoplay).toBe(false);
+      // The retired key never reaches state (sanitizeSettings drops keys the
+      // defaults do not know — tolerance for old installs, no migration).
+      expect('downloadOverWifiOnly' in state).toBe(false);
+    });
+
+    it('the lying wifi toggle stays OUT of the UI and the store (permanent law pins)', () => {
+      const screen = fs.readFileSync(
+        path.resolve(__dirname, '../../screens/SettingsScreen.tsx'),
+        'utf8'
+      );
+      const store = fs.readFileSync(
+        path.resolve(__dirname, '../useSettingsStore.ts'),
+        'utf8'
+      );
+      expect(screen).not.toContain('downloadOverWifiOnly');
+      expect(store).not.toContain('downloadOverWifiOnly');
+    });
+
+    it('the notifications row is honestly labeled — local notifee only, no push backend', () => {
+      const screen = fs.readFileSync(
+        path.resolve(__dirname, '../../screens/SettingsScreen.tsx'),
+        'utf8'
+      );
+      // No push transport exists in this app (grep: no FCM/APNs registration)
+      // — calling it "Push" lied. The row must stay, gating the real local
+      // notifications lane wired by M-MOBILE-06.
+      expect(screen).not.toContain('Push notifications');
+      expect(screen).toContain("'Notifications',");
+      expect(screen).toContain('value={enableNotifications}');
     });
   });
 });

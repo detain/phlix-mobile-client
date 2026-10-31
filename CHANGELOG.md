@@ -32,6 +32,24 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-01 (majors): settings theater completed — defunct Wi-Fi-only toggle removed, Autoplay wired to the native start prop, notifications row honestly labeled — 2026-10-31
+
+- **M-MOBILE-01 (MAJORS queue; review mobile__casualgamer #1 — not the
+  same-numbered minors-era item):** five Settings toggles were claimed
+  theater. At tip, the Autoplay-next-episode and Biometric rows were already
+  genuinely consumed (wired under other findings — fixlog carries the
+  ancestry proofs, no re-cure invented here); what remained is closed in this
+  commit. The "Download over Wi-Fi only" toggle had ZERO readers and bare RN
+  exposes no network-type API (no netinfo in the lock) — a data-fear guard
+  that cannot exist in JS; the honest minimal cure is removal of the lying
+  row and key (an old persisted blob simply loses the unknown key at the
+  sanitize boundary — tolerance pinned). `autoplay` gained its real consumer:
+  PlayerScreen now hands the setting to the native `autoPlay`
+  start-immediately prop that was hardcoded `true` (default ON = byte-same
+  behavior). The "Push notifications" row is labeled "Notifications": no
+  FCM/APNs registration exists anywhere — the toggle gates the LOCAL
+  notifee lane wired by the M-MOBILE-06 fix above.
+
 ### Fixed — M-MOBILE-06 (majors): notifications shipped — download-complete wired through the service, POST_NOTIFICATIONS declared, press router routes the wired type — 2026-10-31
 
 - **M-MOBILE-06 (MAJORS queue; review mobile__crossfe M3 — not the
