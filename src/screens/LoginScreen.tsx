@@ -212,6 +212,13 @@ const LoginScreen: React.FC = () => {
                 onSubmitEditing={() => usernameRef.current?.focus()}
                 blurOnSubmit={false}
               />
+              {/* M-MOBILE-02 (review mobile__casualgamer #2): the placeholder
+                  advertised http:// while a prefix-less address dials https
+                  (audit-M6 law — kept verbatim). Say what the field does. */}
+              <Text style={styles.inputHelp}>
+                No prefix connects over https — for a server on your network,
+                use the full http:// address.
+              </Text>
             </View>
 
             <View style={styles.inputContainer}>
@@ -409,6 +416,12 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: 16,
+  },
+  inputHelp: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 17,
   },
   inputLabel: {
     color: '#888',

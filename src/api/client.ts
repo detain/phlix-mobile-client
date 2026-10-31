@@ -145,6 +145,22 @@ const REST_ERROR_USER_MESSAGES: Readonly<Record<string, string>> = {
  * twins). Anything else never reaches the user — it may itself be injected. */
 const MACHINE_CODE_SHAPE = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 
+/**
+ * M-MOBILE-02 (review mobile__casualgamer #2): axios labels a request that
+ * never got ANY HTTP response with one of these codes. It is not server
+ * input — the dial timed out or the host never answered — so the app owns
+ * the copy outright, instead of printing the raw "Network Error" string.
+ */
+const TRANSPORT_ERROR_CODES = new Set(['ERR_NETWORK', 'ETIMEDOUT', 'ECONNABORTED']);
+
+/** Transport-failure guidance, including the explicit http:// LAN path:
+ * scheme-less input defaults to https (audit-M6 law), and home servers on
+ * :8096 usually have no TLS — the hint untwists the most common first-
+ * evening mistake. */
+export const SERVER_UNREACHABLE_MESSAGE =
+  "Can't reach your Phlix server. Check that it's running and that this device is on the same network; " +
+  'for a local server use the full address, e.g. http://192.168.1.100:8096.';
+
 /** Cap for server-sourced prose rendered in the UI — long enough for honest
  * sentences, short enough that walls of text can't impersonate the app. */
 const QUARANTINE_MAX = 140;
@@ -185,8 +201,9 @@ function firstWireString(...candidates: unknown[]): string | undefined {
  * must be parsed at this boundary (audit M2) — but the body is server input,
  * so it no longer renders verbatim (M-MOBILE-34/52). Precedence:
  * catalog copy for a known code → `Server says:`-attributed quarantined
- * server text (code appended when it is a well-formed machine code) → the
- * thrown message (also quarantined) → caller fallback.
+ * server text (code appended when it is a well-formed machine code) →
+ * transport-class guidance for response-less network failures (M-MOBILE-02) →
+ * the thrown message (also quarantined) → caller fallback.
  */
 export const apiErrorMessage = (error: unknown, fallback: string): string => {
   const body = (
@@ -208,6 +225,17 @@ export const apiErrorMessage = (error: unknown, fallback: string): string => {
       const codeSuffix = code !== undefined && MACHINE_CODE_SHAPE.test(code) ? ` (${code})` : '';
       return `Server says: ${quarantined}${codeSuffix}`;
     }
+  }
+  // M-MOBILE-02: transport class — no response exists at all, so this can
+  // never be server-injected prose; the app's checklist copy wins over the
+  // bare axios string that users used to read after the 30 s timeout.
+  const axiosError = error as AxiosError | undefined;
+  if (
+    axiosError?.response === undefined &&
+    typeof axiosError?.code === 'string' &&
+    TRANSPORT_ERROR_CODES.has(axiosError.code)
+  ) {
+    return SERVER_UNREACHABLE_MESSAGE;
   }
   // Axios errors are `instanceof Error`, but re-thrown JSON (RN fetch paths)
   // arrives as a plain `{ message }` object — accept either shape. The

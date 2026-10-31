@@ -209,6 +209,43 @@ describe('apiErrorMessage (contract error parsing, code-first)', () => {
   });
 });
 
+// M-MOBILE-02 (review mobile__casualgamer #2): transport failures carry NO
+// response at all — the old lane fell through to the raw axios string, so
+// after the 30 s dial timeout users read "Network Error" with no guidance.
+describe('apiErrorMessage transport lane (M-MOBILE-02)', () => {
+  it.each(['ERR_NETWORK', 'ETIMEDOUT', 'ECONNABORTED'])(
+    'maps response-less %s to app guidance, never the raw axios string',
+    (code) => {
+      const message = apiErrorMessage(
+        { code, message: 'Network Error' } as unknown as Parameters<typeof apiErrorMessage>[0],
+        'f'
+      );
+      expect(message).toContain("Can't reach your Phlix server");
+      expect(message).not.toBe('Network Error');
+    }
+  );
+
+  it('the guidance names the LAN http:// path the https default punishes', () => {
+    const message = apiErrorMessage(
+      { code: 'ERR_NETWORK', message: 'Network Error' } as unknown as Parameters<typeof apiErrorMessage>[0],
+      'f'
+    );
+    expect(message).toContain('http://');
+  });
+
+  it('response-bearing errors are untouched by the lane', () => {
+    expect(
+      apiErrorMessage({ response: { data: { error: 'Account pending approval' } } }, 'f')
+    ).toBe('Server says: Account pending approval');
+    // A code that is NOT in the transport class (or missing) keeps the old
+    // quarantine/fallback precedence.
+    expect(
+      apiErrorMessage({ code: 'SOMETHING_ELSE', message: 'Socket hang up' }, 'f')
+    ).toBe('Socket hang up');
+    expect(apiErrorMessage({ message: 'Network Error' }, 'f')).toBe('Network Error');
+  });
+});
+
 // M3 — refresh failure must take the STORE down with the tokens: the vault
 // wipe alone left `isAuthenticated` true and the UI phantom-logged-in.
 describe('401 refresh-failure flow', () => {

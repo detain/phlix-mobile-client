@@ -32,6 +32,27 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-02 (majors): connection-failure honesty — Home server-blackout view with retry, transport-class error guidance, visible https-default law — 2026-10-31
+
+- **M-MOBILE-02 (MAJORS queue; review mobile__casualgamer #2 — not the
+  same-numbered minors-era item):** first-evening and connection-change
+  pain. LIVE cures here: Home's rails no longer swallow failures into
+  empty arrays — when EVERY rail the screen attempted fails (the classic
+  router-reboot IP change), the connection-error `ErrorView` with retry
+  renders instead of a cheerful empty shelf-world (pure policy extracted to
+  `src/screens/homeFailurePolicy.ts`, homeEmptyState pair-law precedent);
+  `apiErrorMessage` gained a transport lane — response-less
+  `ERR_NETWORK`/`ETIMEDOUT`/`ECONNABORTED` failures now show the app's own
+  reachability checklist (including the explicit `http://` LAN path)
+  instead of the raw axios string "Network Error" after the 30 s timeout;
+  and the Login server field SAYS that prefix-less input dials https
+  (audit-M6 law deliberately untouched — the complaint was silence, not
+  the rule). The scheme-less→https law and display-only Settings card
+  clauses carry dispositions in the fixlog: automatic server DISCOVERY
+  (mDNS/QR) is an honest PARK — a native-feature decision, not a JS fix —
+  and direct-mode address recovery is now the clean one-step sign-out →
+  sign-in flow M-MOBILE-10's vault teardown made safe.
+
 ### Fixed — M-MOBILE-03 (majors): iOS local-network privacy purpose string declared; blank-usage-string class guard — 2026-10-31
 
 - **M-MOBILE-03 (MAJORS queue; review mobile__casualgamer #3 — not the

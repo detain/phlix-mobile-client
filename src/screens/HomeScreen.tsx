@@ -30,6 +30,10 @@ import { ContinueWatching } from '../components/media/ContinueWatching';
 import { ErrorView } from '../components/ui/ErrorView';
 import { EmptyState } from '../components/ui/EmptyState';
 import { homeShowsEmptyState } from './homeEmptyState';
+import {
+  homeServerBlackout,
+  HOME_SERVER_BLACKOUT_MESSAGE,
+} from './homeFailurePolicy';
 import { GridSkeleton } from '../components/ui/ContentSkeleton';
 import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 
@@ -63,11 +67,44 @@ const HomeScreen: React.FC = () => {
   const loadHomeData = async () => {
     try {
       setError(null);
+      // M-MOBILE-02 (review mobile__casualgamer #2): each rail's catch no
+      // longer silently swallows — it RECORDS the failure so the blackout
+      // law can fire. A fully unreachable server must surface the
+      // connection-error view (with retry), not a cheerful empty
+      // shelf-world; partial failure stays graceful by design.
+      let recentFailed = false;
+      let continueFailed = false;
+      let librariesFailed = false;
       const [recent, continueList, libs] = await Promise.all([
-        libraryManager.getRecentlyAdded(20).catch(() => []),
-        user ? userManager.getContinueWatching().catch(() => []) : Promise.resolve([]),
-        libraryManager.getLibraries().catch(() => []),
+        libraryManager.getRecentlyAdded(20).catch(() => {
+          recentFailed = true;
+          return [];
+        }),
+        user
+          ? userManager.getContinueWatching().catch(() => {
+              continueFailed = true;
+              return [];
+            })
+          : Promise.resolve([]),
+        libraryManager.getLibraries().catch(() => {
+          librariesFailed = true;
+          return [];
+        }),
       ]);
+
+      if (
+        homeServerBlackout(
+          {
+            recentlyAdded: recentFailed,
+            continueWatching: continueFailed,
+            libraries: librariesFailed,
+          },
+          Boolean(user)
+        )
+      ) {
+        setError(HOME_SERVER_BLACKOUT_MESSAGE);
+        return; // `finally` still clears the spinner; ErrorView carries retry.
+      }
 
       setRecentlyAdded(recent);
       setContinueWatching(continueList);
