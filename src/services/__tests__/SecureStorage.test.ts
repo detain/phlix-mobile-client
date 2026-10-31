@@ -299,4 +299,61 @@ describe('SecureStorage (token vault)', () => {
       expect(await secureStorage.getHubRefreshToken()).toBe('hub-r');
     });
   });
+
+  // Vault WRITE-ORDERING law (review mobile__exploiter M1): the target-change
+  // teardown fires `clearTokens()` synchronously from a store subscription,
+  // and the very same user gesture can complete a login whose success leg
+  // stores a fresh pair. Unchained, the wipe's trailing resets delete the
+  // just-written slots (and its multiRemove sweeps the just-set host pin),
+  // orphaning the new session — a login that "fails" by immediately losing
+  // its tokens. The chain makes call order the law.
+  describe('write ordering (chain)', () => {
+    it('a pending wipe cannot erase a session stored behind it', async () => {
+      const keychain = jest.requireMock('react-native-keychain') as {
+        resetGenericPassword: jest.Mock;
+      };
+      const original = keychain.resetGenericPassword;
+      let releaseFirst!: () => void;
+      const held = new Promise<false>((resolve) => {
+        releaseFirst = () => resolve(false);
+      });
+      let gateUsed = false;
+      keychain.resetGenericPassword = jest.fn((options?: { service?: string }) => {
+        if (!gateUsed) {
+          gateUsed = true;
+          return held.then(() => original(options));
+        }
+        return original(options);
+      }) as jest.Mock;
+
+      try {
+        // Wipe FIRST (blocked inside its gated reset), issuance BEHIND it.
+        // eslint-disable-next-line no-void -- intentional fire-and-forget: the test drives the chain's ordering
+        void secureStorage.clearTokens();
+        const issued = secureStorage.storeTokens(
+          'fresh',
+          'fresh-ref',
+          'https://srv-a.example'
+        );
+        await Promise.resolve();
+        await Promise.resolve();
+        releaseFirst();
+        await issued;
+
+        expect(await secureStorage.getAccessToken()).toBe('fresh');
+        expect(await secureStorage.getRefreshToken()).toBe('fresh-ref');
+        expect(await secureStorage.getIssuedHost()).toBe('srv-a.example');
+      } finally {
+        keychain.resetGenericPassword = original;
+      }
+    });
+
+    it('a wipe issued after a store still wins (FIFO, not last-call-hijack)', async () => {
+      await secureStorage.storeTokens('acc', 'ref', 'https://srv-a.example');
+      await secureStorage.clearTokens();
+
+      expect(await secureStorage.getAccessToken()).toBeNull();
+      expect(await secureStorage.getIssuedHost()).toBeNull();
+    });
+  });
 });

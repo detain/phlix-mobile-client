@@ -32,6 +32,45 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Security — M-MOBILE-10 (majors): the vault token and refresh token can never ride to a host that did not mint them — per-origin binding on both REST legs + target-change teardown — 2026-10-31
+
+- **M-MOBILE-10 (MAJORS queue; review mobile__exploiter M1 — not the
+  same-numbered minors-era item):** switching the server URL leaked the
+  PREVIOUS server's entire credential set to the NEW host. The request
+  interceptor attached `secureStorage.getAccessToken()` unconditionally —
+  including to the login POST aimed at a just-typed host B — and the first
+  401 POSTed A's REFRESH token to `{B}/auth/refresh`; a crafted 200 from B
+  then replaced the vault pair, keeping the victim connected to the
+  attacker. Cure, three belts, one parser (`hostOf`, the same machine-identity
+  anchor the direct SyncPlay pin already uses):
+  - `api/client.ts` request interceptor: a vault token is attached ONLY when
+    `getIssuedHost()` (written by every `storeTokens` since the M2-era pin)
+    equals `hostOf` of the dialled base URL; a pre-pin (migrated) session has
+    no vouched origin and fails CLOSED — one honest re-login, same law the
+    SyncPlay lane already enforces.
+  - `api/client.ts` refresh leg: refuses BEFORE the POST when the vault pin
+    and the dialled host disagree; the failure route wipes the vault and
+    drops the store to signed-out, so attacker B never receives — and never
+    gets to re-issue — A's refresh token.
+  - `stores/useAuthStore.ts`: a module-level settings subscription performs
+    target-change teardown — ANY host change (even a FAILED login attempt)
+    clears the vault and signs the UI out before the next request leaves.
+- **`services/SecureStorage.ts` write ordering:** `storeTokens`/`clearTokens`
+  now serialize on one internal chain, so the teardown's async wipe can never
+  land after a same-gesture login's fresh issuance and orphan the new session
+  (call order is the law; rejections still propagate; reads stay unchained).
+- **Tests (+8, one law test rotated):** three interceptor laws replace the old
+  "stored token → header" pin (bound-attach / cross-host refusal / migrated-
+  orphan fail-closed); cross-host refresh refusal asserts `axios.post` was
+  NEVER called; two chain-ordering tests (held-reset gate proves the FIFO;
+  later wipe still wins); `useAuthStore.targetWipe.test.ts` (3) drives the
+  real settings store + vault: host-change teardown, same-host re-entry NOT
+  wiping, port-only hop NOT wiping. Mutation teeth: strip the interceptor
+  binding → exactly 2 reds; strip the refresh guard → exactly 1; unchain the
+  vault → exactly 1; disable the subscription → exactly 1. The existing 401
+  test was rotated (pin to the dialled host) to keep its failure-mode meaning
+  under the new guard.
+
 ### Fixed — R-MOBILE-01: the `server_time` carrier unit is normalized at the decode boundary — the mixed-unit field no longer leaks :8097 seconds into the ms-declaring command event — 2026-10-31
 
 - **R-MOBILE-01 (review rider):** the four playback-family decode sites in

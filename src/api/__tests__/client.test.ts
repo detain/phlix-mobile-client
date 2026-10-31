@@ -71,14 +71,43 @@ describe('ApiClient request interceptor', () => {
     expect(config.headers._store['X-Phlix-Device-Name']).toContain('Phlix Mobile');
   });
 
-  it('adds Authorization via the device-header builder when a token is stored', async () => {
-    await AsyncStorage.setItem('access_token', 'tok-123');
+  // Law rotated by review mobile__exploiter M1 (per-origin token binding):
+  // a bare stored token is NO LONGER attached unconditionally — the vault's
+  // minted-host pin must match the dialled host. These three replace the
+  // old "stored token → header" single test.
+  it('attaches Authorization when the vault is bound to the dialled host', async () => {
+    // Default test base (settings serverUrl '') resolves to
+    // https://api.phlix.app — pin the pair to exactly that minting host.
+    await secureStorage.storeTokens('tok-123', 'tok-ref', 'https://api.phlix.app');
     const interceptor = getRequestInterceptor();
     const config = makeConfig();
 
     await interceptor(config);
 
     expect(config.headers._store.Authorization).toBe('Bearer tok-123');
+  });
+
+  it('refuses to carry a vault token to a host that did not mint it (credential ride)', async () => {
+    await secureStorage.storeTokens('tok-of-A', 'tok-ref', 'https://victim-owned.example');
+    const interceptor = getRequestInterceptor();
+    const config = makeConfig();
+
+    await interceptor(config);
+
+    // Dial target is the build-time default host; the pair belongs to
+    // victim-owned.example → NO Authorization. Device headers still ride
+    // (non-credential), which the device-type test above keeps pinning.
+    expect(config.headers._store.Authorization).toBeUndefined();
+  });
+
+  it('fails CLOSED for legacy-migrated (pre-pin) tokens — no vouched origin, no ride', async () => {
+    await AsyncStorage.setItem('access_token', 'tok-legacy');
+    const interceptor = getRequestInterceptor();
+    const config = makeConfig();
+
+    await interceptor(config);
+
+    expect(config.headers._store.Authorization).toBeUndefined();
   });
 
   it('adds X-Phlix-Session-ID after setActiveSessionId', async () => {
@@ -193,6 +222,13 @@ describe('401 refresh-failure flow', () => {
   it('clears the vault and notifies listeners (auth store drops to signed-out)', async () => {
     // Import the store for its side-effect subscription on client.ts.
     const { useAuthStore } = require('../../stores/useAuthStore');
+    // Law added with review mobile__exploiter M1: the refresh leg is refused
+    // unless the vault's minted-host pin matches the dialled host, so this
+    // test (refresh POST actually fires and fails) must pin the pair to the
+    // host getBaseUrl() resolves to. Order: target first (any teardown the
+    // auth-store subscription fires lands BEFORE the write below — vault
+    // writes are chained by issuance order), then authenticate the store.
+    await useSettingsStore.getState().setServerUrl('https://login.example');
     useAuthStore.setState({
       user: { id: 'u1', username: 'bob' },
       isAuthenticated: true,
@@ -200,7 +236,7 @@ describe('401 refresh-failure flow', () => {
       error: null,
     });
 
-    await secureStorage.storeTokens('acc', 'ref-expired', 'login.example');
+    await secureStorage.storeTokens('acc', 'ref-expired', 'https://login.example');
     // The refresh POST itself fails (offline / dead refresh token).
     mockedAxios.post.mockRejectedValueOnce(new Error('refresh offline'));
 
@@ -215,6 +251,36 @@ describe('401 refresh-failure flow', () => {
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().error).toMatch(/session expired/i);
     expect(await secureStorage.getAccessToken()).toBeNull();
+  });
+
+  // Core of review mobile__exploiter M1: on a 401 from host B, the refresh
+  // leg must NOT POST host A's refresh token to B. The refusal happens
+  // BEFORE any network write; the failure route then wipes the vault and
+  // drops the store to signed-out (attacker B never sees the credential and
+  // never gets to re-issue it).
+  it('refuses to refresh across hosts: no POST, vault wiped, store signed out', async () => {
+    const { useAuthStore } = require('../../stores/useAuthStore');
+    await useSettingsStore.getState().setServerUrl('https://attacker.example');
+    await secureStorage.storeTokens('acc-A', 'ref-A', 'https://victim-owned.example');
+    useAuthStore.setState({
+      user: { id: 'u1', username: 'bob' },
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+
+    await expect(
+      responseErrorInterceptor({
+        config: { headers: {} },
+        response: { status: 401 },
+      })
+    ).rejects.toThrow(/host/i);
+
+    // The defining assertion: axios.post was NEVER called (no A-token to B).
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+    expect(await secureStorage.getAccessToken()).toBeNull();
+    expect(await AsyncStorage.getItem('phlix.access_issued_host')).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
   it('passes non-401 errors through untouched', async () => {

@@ -90,6 +90,30 @@ async function migrateSlot(service: string, legacyKey: string): Promise<void> {
 /** One-shot per process; reset on failure so the next read retries. */
 let migrationPromise: Promise<void> | null = null;
 
+/**
+ * Vault WRITE-ORDERING law: `storeTokens` and `clearTokens` serialize on one
+ * internal chain, so a wipe issued at time T can never land AFTER a store
+ * issued at T+ε and orphan a freshly-issued session. This is not
+ * hypothetical: the target-change teardown (useAuthStore's settings
+ * subscription, review mobile__exploiter M1) fires `clearTokens()` and the
+ * very same user gesture then dials a login whose success leg calls
+ * `storeTokens` — unchained, the wipe's trailing `multiRemove` can delete the
+ * new pair. Rejections still propagate to the awaiting caller; the chain
+ * never wedges on a failed op. Reads are deliberately NOT chained (a read
+ * racing a wipe has no durable effect, and chaining reads behind a hung
+ * keycall would stall every request).
+ */
+let vaultWriteChain: Promise<void> = Promise.resolve();
+
+function afterVaultWrite(op: () => Promise<void>): Promise<void> {
+  const result = vaultWriteChain.then(op, op);
+  vaultWriteChain = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
 function migratedOnce(): Promise<void> {
   if (!migrationPromise) {
     migrationPromise = Promise.all([
@@ -125,10 +149,12 @@ class SecureStorage {
         'SecureStorage: storeTokens requires the minting host of the token pair'
       );
     }
-    await AsyncStorage.setItem(ISSUED_HOST_KEY, pinnedHost);
-    await writeSlot(ACCESS_SERVICE, accessToken);
-    await writeSlot(REFRESH_SERVICE, refreshToken);
-    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    await afterVaultWrite(async () => {
+      await AsyncStorage.setItem(ISSUED_HOST_KEY, pinnedHost);
+      await writeSlot(ACCESS_SERVICE, accessToken);
+      await writeSlot(REFRESH_SERVICE, refreshToken);
+      await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    });
   }
 
   /**
@@ -175,12 +201,14 @@ class SecureStorage {
 
   /** Wipe every token trace: both vault slots, the minted-host pin, and both legacy keys. */
   async clearTokens(): Promise<void> {
-    await Keychain.resetGenericPassword({ service: ACCESS_SERVICE });
-    await Keychain.resetGenericPassword({ service: REFRESH_SERVICE });
-    await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, ISSUED_HOST_KEY]);
-    // A pending (or failed-and-cached) migration must not move values the
-    // user just revoked; arm a fresh pass over the now-empty legacy keys.
-    migrationPromise = null;
+    await afterVaultWrite(async () => {
+      await Keychain.resetGenericPassword({ service: ACCESS_SERVICE });
+      await Keychain.resetGenericPassword({ service: REFRESH_SERVICE });
+      await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, ISSUED_HOST_KEY]);
+      // A pending (or failed-and-cached) migration must not move values the
+      // user just revoked; arm a fresh pass over the now-empty legacy keys.
+      migrationPromise = null;
+    });
   }
 
   // ── Hub session vault slots (review mobile__crossfe M2) ──────────────────

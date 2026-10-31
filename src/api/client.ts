@@ -12,6 +12,7 @@ import { Platform } from 'react-native';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import { secureStorage } from '../services/SecureStorage';
+import { hostOf } from '../utils/serverHost';
 import {
   buildPhlixHeaders,
   type DeviceType,
@@ -269,12 +270,31 @@ class ApiClient {
         config.baseURL = getBaseUrl();
 
         const token = await secureStorage.getAccessToken();
+        // Per-origin token binding (review mobile__exploiter M1): a vault
+        // token may ride ONLY to the host that minted it. The pin is written
+        // by every `storeTokens` (the same one the direct SyncPlay lane
+        // checks), so a stale A-token is never attached to a request aimed
+        // at a typed-in host B. A pre-pin (migrated) session has NO origin
+        // the vault can vouch for and fails CLOSED — the rider dies, the
+        // user re-authenticates once on the server they are dialling (same
+        // law the SyncPlay lane already enforces).
+        let ridingToken: string | undefined;
+        if (token) {
+          const issuedHost = await secureStorage.getIssuedHost();
+          if (
+            issuedHost !== null &&
+            issuedHost !== '' &&
+            issuedHost === hostOf(config.baseURL ?? '')
+          ) {
+            ridingToken = token;
+          }
+        }
         const deviceHeaders = buildPhlixHeaders({
           deviceId: getCachedDeviceId(),
           deviceName: getDeviceName(),
           deviceType: DEVICE_TYPE,
           sessionId: activeSessionId,
-          token: token ?? undefined,
+          token: ridingToken,
         });
         // Merge device + auth headers without clobbering per-call headers
         // (e.g. Content-Type). buildPhlixHeaders sets Authorization when a token
@@ -327,6 +347,23 @@ class ApiClient {
       const refreshToken = await secureStorage.getRefreshToken();
       if (!refreshToken) {
         throw new Error('No refresh token available');
+      }
+
+      // Per-origin binding on the refresh leg (review mobile__exploiter M1):
+      // a refresh token minted by host A must never be POSTed to host B's
+      // `/auth/refresh`. If the dial target and the vault's issued-host pin
+      // disagree, refuse BEFORE any network write — throwing here routes the
+      // 401 handler to `clearTokens()` + `notifyAuthInvalidated()`, which is
+      // the honest outcome: the old session is not extendable on a foreign
+      // host, and the victim is dropped to signed-in on the host that owns
+      // the vault rather than silently issuing attacker-controlled tokens.
+      const vaultHost = await secureStorage.getIssuedHost();
+      if (
+        vaultHost === null ||
+        vaultHost === '' ||
+        vaultHost !== hostOf(getBaseUrl())
+      ) {
+        throw new Error('Refresh target host does not match the vault');
       }
 
       // Hit the real `/api/v1/auth/refresh` route (getBaseUrl includes /api/v1).

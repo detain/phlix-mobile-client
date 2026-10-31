@@ -14,6 +14,7 @@ import { notificationService } from '../services/NotificationService';
 import { secureStorage } from '../services/SecureStorage';
 import { useSettingsStore } from './useSettingsStore';
 import { useConnectionSecurityStore } from './useConnectionSecurityStore';
+import { hostOf } from '../utils/serverHost';
 
 interface AuthState {
   user: User | null;
@@ -195,3 +196,36 @@ onAuthInvalidated(() => {
     error: 'Your session expired. Please sign in again.',
   });
 });
+
+// Target-change session teardown (review mobile__exploiter M1): the moment
+// the dial target's HOST changes — a typed login address (even if the login
+// then FAILS), a re-entered scheme, anything — the previous host's
+// credentials stop existing: the vault is wiped and the store drops to
+// signed-out, so a stale A-token pair can never ride along to a new host B
+// even in the window before the first request. The interceptor's per-origin
+// pin check (api/client.ts) is the belt for calls that race this async
+// wipe; this subscription is the suspenders that also clears the UI state.
+// Identity is judged by the SHARED `hostOf` parser — the same anchor the
+// vault pin and the direct SyncPlay lane use; no second host law exists.
+// The `getState?.()` / `subscribe === 'function'` guards are for hermetic
+// suites that mock the settings store: a mocked-out store must not make this
+// module-level wiring throw (its law is pinned live in authTargetWipe).
+function currentServerHost(): string {
+  const state = useSettingsStore.getState?.() as { serverUrl?: unknown } | undefined;
+  return hostOf(typeof state?.serverUrl === 'string' ? state.serverUrl : '');
+}
+let boundServerHost = currentServerHost();
+if (typeof useSettingsStore.subscribe === 'function') {
+  useSettingsStore.subscribe((state) => {
+    const nextHost = hostOf(state.serverUrl);
+    if (nextHost === boundServerHost) {
+      return;
+    }
+    boundServerHost = nextHost;
+    useAuthStore.setState({ user: null, isAuthenticated: false });
+    // Fire-and-forget by law: a zustand subscriber cannot await, and the
+    // vault write-chain already orders this wipe against any later issuance.
+    // eslint-disable-next-line no-void -- intentional fire-and-forget (vault chain serializes it)
+    void secureStorage.clearTokens();
+  });
+}
