@@ -32,6 +32,21 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-03 (majors): iOS local-network privacy purpose string declared; blank-usage-string class guard — 2026-10-31
+
+- **M-MOBILE-03 (MAJORS queue; review mobile__casualgamer #3 — not the
+  same-numbered minors-era item):** iOS 14+ gates local-network access with
+  a privacy prompt that requires `NSLocalNetworkUsageDescription`; the key
+  was absent from `ios/PhlixMobile/Info.plist`, so the prompt could never
+  appear and LAN-server connections were silently denied on modern iOS.
+  The ATS block's `NSAllowsArbitraryLoads` (deliberate, documented) subsumes
+  `NSAllowsLocalNetworking` but NOT this purpose string — separate gate.
+  The finding's sibling clauses were already terminal: the empty-string
+  `NSLocationWhenInUseUsageDescription` was trimmed in the W-min59 era
+  (SHA-cited), and arbitrary-load ATS is the documented LAN tradeoff. New
+  gate test pins the key with a real string and guards the whole
+  blank-`NS*UsageDescription` class.
+
 ### Fixed — M-MOBILE-01 (majors): settings theater completed — defunct Wi-Fi-only toggle removed, Autoplay wired to the native start prop, notifications row honestly labeled — 2026-10-31
 
 - **M-MOBILE-01 (MAJORS queue; review mobile__casualgamer #1 — not the

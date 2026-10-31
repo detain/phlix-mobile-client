@@ -54,6 +54,14 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<!-- M-MOBILE-03 (review mobile__casualgamer #3, majors): iOS 14+ local
+	     network privacy is a SEPARATE gate from the ATS block above —
+	     NSAllowsArbitraryLoads subsumes NSAllowsLocalNetworking but not this
+	     purpose string. Without it the "find and connect to devices on your
+	     local network" prompt can never appear and connections to LAN server
+	     addresses are silently denied on modern iOS. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Phlix connects to your Phlix media server on your local network.</string>
 	<!-- M-MOBILE-17 (review mobile__crossfe): NSLocationWhenInUseUsageDescription
 	     (empty string) and UIRequiredDeviceCapabilities armv7 were RN template
 	     residue — CoreLocation is never linked (grep of pbxproj/podspec empty)
