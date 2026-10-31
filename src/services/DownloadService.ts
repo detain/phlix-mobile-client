@@ -10,7 +10,9 @@ import { NativeModules, NativeEventEmitter } from 'react-native';
 import type { EmitterSubscription } from 'react-native';
 import { MediaItem } from '../types/media';
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { playbackManager } from '../api/PlaybackManager';
+import { notificationService } from './NotificationService';
 import {
   DOWNLOAD_EVENTS,
   type PhlixDownloaderInterface,
@@ -302,6 +304,18 @@ class DownloadService {
     const updated = store.tasks[taskId];
     if (updated) {
       this.notifyListeners(updated);
+      // Review mobile__crossfe M3: the notification subsystem used to be
+      // dead-wired (zero production call sites). Download completion is the
+      // one user-visible event this app can emit locally; the settings gate
+      // is what makes the enableNotifications toggle real (M-01 theater).
+      if (useSettingsStore.getState().enableNotifications) {
+        notificationService.showLocalNotification({
+          title: 'Download complete',
+          message: `${updated.item.name} is ready for offline playback.`,
+          type: 'download_complete',
+          data: { itemId: updated.itemId },
+        });
+      }
     }
     this.processQueue();
   }

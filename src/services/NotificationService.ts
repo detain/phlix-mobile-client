@@ -93,6 +93,9 @@ class NotificationService {
       case 'sync_complete':
         this.handleSyncComplete(data);
         break;
+      case 'download_complete':
+        this.handleDownloadComplete(data);
+        break;
       default:
         console.log('Unknown notification type:', notificationType);
     }
@@ -161,6 +164,14 @@ class NotificationService {
   // Handle sync complete notification
   private handleSyncComplete(data: NotificationData): void {
     console.log('Sync complete:', data);
+  }
+
+  // Handle download-complete notification (wired production call site:
+  // DownloadService.handleNativeComplete, review mobile__crossfe M3).
+  // Press-to-Downloads navigation needs a navigation ref at the service
+  // layer — the same open seam as the sibling stubs above.
+  private handleDownloadComplete(data: NotificationData): void {
+    console.log('Download complete notification pressed:', data);
   }
 
   // Badges

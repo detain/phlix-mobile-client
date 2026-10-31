@@ -2,6 +2,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- M-MOBILE-06 (MAJORS queue; review mobile__crossfe M3): Android 13+
+         will not let notifee.requestPermission() grant at all unless
+         POST_NOTIFICATIONS is declared; at targetSdk 36 omitting it meant
+         every locally-displayed notification (download-complete lane)
+         silently never appeared on Android. fs-pinned by
+         src/__tests__/androidPermissions.gate.test.ts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- M-MOBILE-13 (review mobile__crossfe): the legacy READ/WRITE_EXTERNAL_STORAGE
          pair is retired. Nothing in this app reads or writes shared storage
          through the deprecated APIs — zero MediaStore/Environment usage in

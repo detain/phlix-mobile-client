@@ -11,6 +11,7 @@ import path from 'path';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaItem } from '../../types/media';
 import { useDownloadStore } from '../../store/downloadStore';
+import { useSettingsStore } from '../../stores/useSettingsStore';
 
 // ── playbackManager mock (E2 signed stream URL resolver) ───────────────────────
 const mockGetStreamUrl = jest.fn();
@@ -61,6 +62,7 @@ function loadService(opts: { withNative: boolean }): {
   service: typeof import('../DownloadService').downloadService;
   native: NativeDownloaderMock | null;
   emitter: EmitterMock;
+  showNotification: jest.Mock;
 } {
   const native: NativeDownloaderMock | null = opts.withNative
     ? {
@@ -82,6 +84,7 @@ function loadService(opts: { withNative: boolean }): {
   };
 
   let serviceMod!: typeof import('../DownloadService');
+  const showNotification = jest.fn();
   jest.isolateModules(() => {
     jest.doMock('react-native', () => ({
       Platform: { OS: 'android', select: (o: Record<string, unknown>) => o.android },
@@ -91,10 +94,19 @@ function loadService(opts: { withNative: boolean }): {
     // Keep the isolated DownloadService bound to the SAME store singleton the
     // test inspects (isolateModules would otherwise give it a fresh store copy).
     jest.doMock('../../store/downloadStore', () => ({ useDownloadStore }));
+    // Same law for the settings singleton: the notification gate must read the
+    // store instance the test mutates, not a fresh isolated copy.
+    jest.doMock('../../stores/useSettingsStore', () => ({ useSettingsStore }));
+    // Capture the completion-notification seam (review mobile__crossfe M3):
+    // the wiring under test is the CALL SITE firing; NotificationService's own
+    // notifee surface is pinned in NotificationService.test.ts.
+    jest.doMock('../NotificationService', () => ({
+      notificationService: { showLocalNotification: showNotification },
+    }));
     serviceMod = require('../DownloadService');
   });
 
-  return { service: serviceMod.downloadService, native, emitter };
+  return { service: serviceMod.downloadService, native, emitter, showNotification };
 }
 
 function resetStore(): void {
@@ -256,6 +268,39 @@ describe('DownloadService', () => {
       const task = useDownloadStore.getState().tasks[taskId];
       expect(task.status).toBe('completed');
       expect(task.localPath).toBe('/Documents/item-1.mp4');
+    });
+
+    // Review mobile__crossfe M3: the completion lane must reach the user.
+    // handleNativeComplete is the one real production call site of the whole
+    // NotificationService subsystem; the enableNotifications gate is what
+    // makes the Settings toggle honest (the M-01 theater family).
+    it('fires a completion notification through the service when the setting is ON', async () => {
+      mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
+      useSettingsStore.setState({ enableNotifications: true });
+      const { service, showNotification } = loadService({ withNative: true });
+      const taskId = await service.startDownload(makeItem({ id: 'item-1' }));
+      await flush();
+
+      service.handleNativeComplete(taskId, '/Documents/item-1.mp4');
+      expect(showNotification).toHaveBeenCalledWith({
+        title: 'Download complete',
+        message: 'Test Movie is ready for offline playback.',
+        type: 'download_complete',
+        data: { itemId: 'item-1' },
+      });
+    });
+
+    it('stays silent when enableNotifications is OFF, and still completes the task', async () => {
+      mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
+      useSettingsStore.setState({ enableNotifications: false });
+      const { service, showNotification } = loadService({ withNative: true });
+      const taskId = await service.startDownload(makeItem({ id: 'item-1' }));
+      await flush();
+
+      service.handleNativeComplete(taskId, '/Documents/item-1.mp4');
+      expect(showNotification).not.toHaveBeenCalled();
+      expect(useDownloadStore.getState().tasks[taskId].status).toBe('completed');
+      useSettingsStore.setState({ enableNotifications: true });
     });
 
     it('handleNativeError marks failed with message', async () => {

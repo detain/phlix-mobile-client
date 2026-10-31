@@ -128,3 +128,62 @@ describe('NotificationService', () => {
     });
   });
 });
+
+// ── M-MOBILE-06 (review mobile__crossfe M3): the press router must know the
+// notification type the completion call site actually sends. Pre-cure the
+// subsystem had ZERO production call sites; the wired one is
+// DownloadService.handleNativeComplete → showLocalNotification(type:
+// 'download_complete'), pinned in DownloadService.test.ts.
+describe('NotificationService — M-MOBILE-06 download_complete press routing', () => {
+  // The router itself is the law under test: configure() registers
+  // handleForegroundEvent via notifee.onForegroundEvent at module-load, and
+  // the FILE-GLOBAL jest.clearAllMocks() in the sibling describe wipes that
+  // registration history before any test body runs. So invoke the same
+  // function object the registration would have received — it is an own
+  // property of the singleton instance — instead of chasing the lost call
+  // record. Precondition: it exists and is the registered shape (arity 1).
+  const notificationService = require('../NotificationService').notificationService;
+  const handleEvent = (notificationService as any).handleForegroundEvent as (e: {
+    type: number;
+    detail: { notification?: { data?: Record<string, string> } };
+  }) => void;
+
+  it('the foreground press handler exists (law precondition)', () => {
+    expect(typeof handleEvent).toBe('function');
+    expect(handleEvent.length).toBe(1);
+  });
+
+  it('press on download_complete routes to its lane, not the unknown-type fall-through', () => {
+    const notifeeMod = require('@notifee/react-native');
+    const logSpy = jest
+      .spyOn(console, 'log')
+      .mockImplementation(() => undefined);
+    try {
+      handleEvent({
+        type: notifeeMod.EventType.PRESS,
+        detail: { notification: { data: { type: 'download_complete' } } },
+      });
+      expect(logSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Unknown notification type')
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Download complete notification pressed'),
+        expect.anything()
+      );
+
+      // Control: an unregistered type still lands in the unknown branch —
+      // proving the assertions above are routing teeth, not logging silence.
+      logSpy.mockClear();
+      handleEvent({
+        type: notifeeMod.EventType.PRESS,
+        detail: { notification: { data: { type: 'bogus_type' } } },
+      });
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown notification type'),
+        'bogus_type'
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+});

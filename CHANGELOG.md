@@ -32,6 +32,25 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-06 (majors): notifications shipped — download-complete wired through the service, POST_NOTIFICATIONS declared, press router routes the wired type — 2026-10-31
+
+- **M-MOBILE-06 (MAJORS queue; review mobile__crossfe M3 — not the
+  same-numbered minors-era item):** `@notifee/react-native` shipped full
+  native code and `NotificationService` implemented channels, permission
+  request and a press router — with ZERO production call sites, while the
+  manifest omitted `POST_NOTIFICATIONS`, so `notifee.requestPermission()`
+  could never grant at Android 13+ (targetSdk 36): the review's landmine.
+  Shipped, not dropped: `DownloadService.handleNativeComplete` displays the
+  completion notification through the service, gated by the existing
+  `enableNotifications` setting (which ceases to be theater with this); the
+  foreground press router learned the wired `download_complete` type; the
+  manifest declares the permission. Laws: call-site ON/OFF pair
+  (DownloadService.test.ts), press routing with an unknown-type control
+  (NotificationService.test.ts), manifest fs-gate
+  (androidPermissions.gate.test.ts). The playback-notification lane and the
+  sibling router stubs stay unwired (no producer ships), and press
+  navigation is an open service-layer seam — both disclosed, not silent.
+
 ### Fixed — M-MOBILE-04 (majors): Android downloads now land in the native-published private dir — the scoped-storage-forbidden hardcoded path is gone (JS↔native contract unified) — 2026-10-31
 
 - **M-MOBILE-04 (MAJORS queue; review mobile__crossfe M1 — not the
