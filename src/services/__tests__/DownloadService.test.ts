@@ -6,6 +6,8 @@
  */
 
 // src/services/__tests__/DownloadService.test.ts
+import fs from 'fs';
+import path from 'path';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaItem } from '../../types/media';
 import { useDownloadStore } from '../../store/downloadStore';
@@ -199,6 +201,34 @@ describe('DownloadService', () => {
       const taskId = await service.startDownload(makeItem({ id: 'item-1' }));
       await flush();
       expect(useDownloadStore.getState().tasks[taskId].status).toBe('failed');
+    });
+
+    // Review mobile__crossfe M1: the Android arm used to hand the native
+    // module a hardcoded /storage/emulated/0/Download/Phlix/ path — raw File
+    // creation there is forbidden by enforced scoped storage at targetSdk 36,
+    // while the module's OWN exported private-dir constant (reactContext
+    // .filesDir as `documentsPath`) was simply ignored. This harness loads
+    // the service under Platform.OS === 'android', so the test asserts the
+    // real Android lane of the unified law: native-published constant, both
+    // platforms.
+    it('Android destination derives from the native-published private dir', async () => {
+      mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
+      const { service, native } = loadService({ withNative: true });
+      await service.startDownload(makeItem({ id: 'item-1', name: 'Ep One' }));
+      await flush();
+
+      const destination = String(native!.startDownload.mock.calls[0][2]);
+      expect(destination).toBe('/Documents/item_1_Ep_One.mp4');
+      expect(destination).not.toMatch(/\/storage\//);
+    });
+
+    it('the scoped-storage-forbidden literal stays OUT of the service (permanent law pin)', () => {
+      // fs-read gate precedent: versionSync.test.ts / routeManifest.gate.test.ts.
+      const src = fs.readFileSync(
+        path.resolve(__dirname, '../DownloadService.ts'),
+        'utf8'
+      );
+      expect(src).not.toContain('/storage/emulated/0');
     });
   });
 

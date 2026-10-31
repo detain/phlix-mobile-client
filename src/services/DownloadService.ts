@@ -6,7 +6,7 @@
  */
 
 // src/services/DownloadService.ts
-import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
+import { NativeModules, NativeEventEmitter } from 'react-native';
 import type { EmitterSubscription } from 'react-native';
 import { MediaItem } from '../types/media';
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
@@ -267,10 +267,20 @@ class DownloadService {
     const safeId = item.id.replace(/[^a-z0-9]/gi, '_');
     const safeName = item.name.replace(/[^a-z0-9]/gi, '_');
     const filename = `${safeId}_${safeName}.mp4`;
-    if (Platform.OS === 'ios') {
-      return `${getNativeDownloader()?.documentsPath || ''}/${filename}`;
-    }
-    return `/storage/emulated/0/Download/Phlix/${filename}`;
+    // BOTH platforms consume the native-published `documentsPath` constant
+    // (review mobile__crossfe M1). The Android arm used to return a hardcoded
+    // a shared-storage Downloads path: at targetSdk 36, enforced
+    // scoped storage forbids raw File creation in shared external storage
+    // (no MANAGE_EXTERNAL_STORAGE is declared and the legacy
+    // WRITE_EXTERNAL_STORAGE is a no-op at this target), while the native
+    // module already exported its private `reactContext.filesDir` as
+    // `documentsPath` — which the JS side simply ignored. The Kotlin side
+    // writes exactly the path JS hands it, so the JS↔native contract is now
+    // ONE constant on both platforms. The module-absent simulated fallback
+    // yields a root-relative fiction that is never written to disk (unchanged
+    // iOS-era behavior); the destination law-pin test keeps that honest.
+    const docsPath = getNativeDownloader()?.documentsPath || '';
+    return `${docsPath}/${filename}`;
   }
 
   handleNativeProgress(taskId: string, downloadedBytes: number, totalBytes: number): void {
