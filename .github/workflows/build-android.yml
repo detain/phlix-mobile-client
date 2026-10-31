@@ -133,9 +133,15 @@ jobs:
           name: Latest (master)
           body: |
             Rolling build of the latest `master` commit (${{ github.sha }}).
-            - **`app-release.apk`** — Android release build, download + install
-              directly (no zip). iOS isn't published here: App Store / device
-              installs need Apple code signing, which CI builds without
+            - **`app-release.apk`** — Android release build, **debug-signed**
+              (CI has no release keystore), download + install directly (no
+              zip); fine for sideload and testing, not for a store. Because
+              each CI runner auto-generates its own debug key, consecutive
+              builds can carry different signing identities — if Android
+              rejects an update with a signature mismatch
+              (INSTALL_FAILED_UPDATE_INCOMPATIBLE), uninstall the old build
+              first. iOS isn't published here: App Store / device installs
+              need Apple code signing, which CI builds without
               (`CODE_SIGNING_ALLOWED=NO`).
           prerelease: true
           make_latest: false

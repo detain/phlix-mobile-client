@@ -32,6 +32,24 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — M-MOBILE-07 (majors): Android release-chain docs told a story the repo doesn't ship — publish notes now disclose debug signing + runner-identity churn; the fictional CI-secret/tag-trigger Gradle comment replaced with truth — 2026-10-31
+
+- **M-MOBILE-07 (MAJORS queue; review mobile__devops MAJ-1 — not the
+  same-numbered minors-era item):** the rolling `latest` `app-release.apk`
+  is deliberately debug-key-signed (an unsigned APK can't be sideloaded) —
+  but the release NOTES promised it without saying so, and the Gradle
+  comment pointed at "CI secrets on a version tag" machinery that exists
+  nowhere (verified: no workflow has a `tags:` trigger; only CODACY +
+  GITHUB_TOKEN secrets are read; no keystore seeding). Runner debug
+  keystores are per-machine, so consecutive `latest` builds may not
+  upgrade in place. Both texts now carry the truth, with fs-gate pins
+  across the three docs that make the claim. The finding's other clauses
+  were already terminal at tip: eternal `versionCode 1` is cured (the
+  version stamps derive from package.json under a sync test — SHA-cited
+  era commits) and the README store claims were already honestly rewritten
+  to sideload-only + manual-store procedure (SHA-cited era commit; the
+  fixlog carries the ancestry proofs).
+
 ### Fixed — M-MOBILE-02 (majors): connection-failure honesty — Home server-blackout view with retry, transport-class error guidance, visible https-default law — 2026-10-31
 
 - **M-MOBILE-02 (MAJORS queue; review mobile__casualgamer #2 — not the
