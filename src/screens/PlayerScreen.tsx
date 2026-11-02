@@ -611,6 +611,14 @@ const PlayerScreen: React.FC = () => {
         bitrate: 0,
         duration_seconds: 0,
       };
+      // playjump incident class: the fallback swap obeys the SAME G3 finding-1
+      // law `handleQualitySelect` owns — a native player restarts the item from
+      // `startPosition` on a `src` change, so re-point it at the LIVE playback
+      // position read from `currentPositionRef` BEFORE swapping. Without this a
+      // mid-play direct→transcode flip (e.g. an expired signed URL) jumped back
+      // to the mount-time resume point, or to 0 on a fresh play.
+      const resumeAt = Math.max(0, currentPositionRef.current || 0);
+      setPlayerStartPosition(resumeAt);
       setStreamInfo(hlsStreamInfo);
       setPlayerStreamInfo(hlsStreamInfo);
 

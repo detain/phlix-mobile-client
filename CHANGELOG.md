@@ -32,6 +32,26 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — playjump incident class: transcode fallback now re-anchors the start position to the LIVE playback clock — 2026-11-02
+
+- **startTranscodeFallback stale re-anchor (INCIDENT-playjump-clients.md,
+  mobile latent defect):** the direct→transcode fallback swapped the player
+  `src` without re-pointing `playerStartPosition`, so a mid-playback
+  direct-URL failure (e.g. an expired signed stream URL) restarted the item
+  from the MOUNT-time position — a resumed item jumped back to its resume
+  point, a fresh one jumped to 0. The G3 finding-1 law already lived in
+  `handleQualitySelect` (native players restart from `startPosition` on a
+  `src` change; snapshot `currentPositionRef` immediately before the swap);
+  the fallback path simply never obeyed it. Fix reuses that exact idiom —
+  `setPlayerStartPosition(Math.max(0, currentPositionRef.current || 0))`
+  directly before `setStreamInfo(hlsStreamInfo)`. New pin mirrors the
+  quality-swap test: mount at a non-zero resume (42 s), advance to 300 s,
+  fire the direct-play error, assert the swapped player carries
+  `startPosition === 300` — red on the pre-fix tree (received 42), green
+  after. Gates: tsc clean, eslint 0 errors (2 pre-existing warnings held
+  identical), jest --runInBand 115 suites / 1645→1646 pass +1 skip (delta
+  exactly the one new pin).
+
 ### Fixed — M-MOBILE-08 (majors): every CI install leg now honors the tracked lockfile — `npm ci --allow-git=all` replaces `npm install` x5, with a workflow fs-gate — 2026-10-31
 
 - **M-MOBILE-08 (MAJORS queue; review mobile__devops MAJ-2 — not the

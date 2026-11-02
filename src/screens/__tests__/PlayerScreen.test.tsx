@@ -648,6 +648,40 @@ describe('PlayerScreen — G3 quality wiring', () => {
     expect(after!.props.startPosition).toBe(88);
     expect(after!.props.src).toBe('https://cdn/master.m3u8');
   });
+
+  // ── playjump incident class: the TRANSCODE-FALLBACK swap carries the SAME law ─
+  // A mid-play direct-URL failure also swaps `src`, and native players restart
+  // the item from `startPosition` on a `src` change (the G3 finding-1 law,
+  // PlayerScreen handleQualitySelect). startTranscodeFallback must re-point at
+  // the LIVE position too — otherwise a resumed item jumps back to its mount-time
+  // resume point (a fresh one to 0) the moment the fallback engages.
+  it('resumes from the LIVE playback position (not the mount-time one) after a transcode fallback', async () => {
+    // Mount as a RESUME: the route seeds the player at 42 s. Without this
+    // non-zero mount position the defect hides — stale-42 and correct-42 agree.
+    mockReporterRouteParams.startPosition = 42;
+    try {
+      const h = await bootDirectPlay();
+
+      // Play advances to 300 s (well past the resume point), committed into
+      // currentPositionRef by the rerender.
+      const player = findPlayer(h.host.tree);
+      expect(player!.props.startPosition).toBe(42); // seed sanity
+      (player!.props.onProgress as (e: unknown) => void)({
+        nativeEvent: { currentTime: 300, duration: 600 },
+      });
+      h.rerender();
+
+      // First direct-play error → startTranscodeFallback swaps `src` to the ladder.
+      await triggerTranscode(h);
+
+      const after = findPlayer(h.host.tree);
+      expect(after!.props.src).toBe('https://cdn/master.m3u8');
+      // The swap must carry the LIVE position, never the mount-time resume.
+      expect(after!.props.startPosition).toBe(300);
+    } finally {
+      delete mockReporterRouteParams.startPosition;
+    }
+  });
 });
 
 // ── S293: SyncPlay send boundaries carry MILLISECONDS (SPEC.md:91) ─────────
