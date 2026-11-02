@@ -25,12 +25,11 @@
 // the 12 legacy SCREAMING_SNAKE codes of the server's `error_code` wire
 // history (verified at phlix-server 8dc17418: SyncPlayManager::sendError +
 // MessageHandler via Messages::error) and the 8 dotted `syncplay.*` twins
-// at contracts v0.5.3 — 7 LIVE on the current server since srv #798 flipped
-// the `_failed` trio, plus `syncplay.queue_limit_exceeded` RESERVED (the
-// queue-cap site at srv SyncPlayManager.php:1230 still stretches
-// `group_limit_reached` until the server's emit-switch lands; the registry's
-// own rule is "clients localize them now, so the switch needs no client
-// release"), and PROTOCOL_VERSION_MISMATCH inside the legacy set.
+// at contracts v0.5.4 — all 8 LIVE on the current server (srv #798 flipped the
+// `_failed` trio; `syncplay.queue_limit_exceeded` went LIVE at srv 7baa398a,
+// closing the RESERVED state it had at the v0.5.3 pin, where this file's queue
+// copy was already shipping so the server's emit-switch needed no client
+// release), and PROTOCOL_VERSION_MISMATCH inside the legacy set.
 // `Record<SyncPlayErrorCode, string>` makes omission a COMPILE error, and
 // syncplayErrors.test.ts pins the catalog against `SYNCPLAY_ERROR_CODES` so a
 // registry bump without a catalog entry turns red — exactly how the 19→20

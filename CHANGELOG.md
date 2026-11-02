@@ -32,6 +32,47 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — tag-wave C5 re-pin: @phlix/contracts #v0.5.3→#v0.5.4, @phlix/syncplay #v0.1.5→#v0.1.6 — 2026-11-02
+
+- **Inert-by-measurement cascade landing:** contracts v0.5.4 carries the
+  frozen trio UNMOVED (error-codes.json md5 `40c1da48…`, route manifest
+  `91579683…`, mcp-scopes `8c92c070…` — all md5-verified at the tag peel
+  `c491985317` and again in the installed tree) and its errors.ts delta vs
+  v0.5.3 is comment-only (cite-law sweep; strip-comments diff of the two
+  peels is empty). The `SyncPlayErrorCode` union therefore did not move:
+  the catalog census in `syncplayErrors.ts` stays 12 legacy + 8 twins = 20
+  with ZERO row rotations — the v0.5.3-era TS2741 hazard class did not
+  recur this wave (tsc measured exit 0 on the new bytes, not just inferred).
+  The vendored S280 route fixture is byte-identical to the v0.5.4 artifact
+  (md5 equality proven both directions) — no re-vendor, gate-test comment
+  now records the equality. syncplay v0.1.6 (peel `081687742`) grows the
+  client +1053 lines (chat/queue frames, seek-throttle, host_elect cure,
+  SPEC-correct time-sync) but its public export surface (`src/index.ts`)
+  is byte-identical to v0.1.5, `SYNCPLAY_MESSAGE_TYPES` holds 19 members,
+  and every constant this app consumes is value-unchanged
+  (PROTOCOL_VERSION 1, OFFSET_SAMPLE_COUNT 5, MAX_ACCEPTABLE_RTT 1000,
+  STABILITY_VARIANCE_THRESHOLD 50). No new wire codes; chat/queue client
+  seams are NOT adopted here (opt-in feature work, not pin hygiene).
+- **Currency folded in the same commit:** `syncplayErrors.ts` header now
+  tells the v0.5.4-era truth — `syncplay.queue_limit_exceeded` is LIVE on
+  the server since srv `7baa398a` (it was RESERVED when this catalog
+  localized it at the v0.5.3 pin, per the registry's "localize early" rule);
+  the census test comment records the HELD-UNMOVED state at v0.5.4 with the
+  19→20 precedent kept verbatim as history. AGENTS.md pin prose rotated.
+- **Lock mechanics:** package.json 2+/2−; package-lock.json surgical 6+/6−
+  hand-edit (root-mirror pair + version + resolved per pin, the 32fc7b8
+  shape at two-pin scale — both local npm builds rewrite unrelated
+  metadata so no `npm install` touch was allowed near the lock); integrity
+  proven by `npm ci --allow-git=all` under npm11 exiting 0 WITHOUT lock
+  rewrite (M-MOBILE-08's own CI law used as the verifier).
+- **Gates on the new bytes:** tsc 0 errors; eslint 0 errors / 2 warnings
+  (pre-existing `no-unused-disable` pair, held era); jest `--runInBand`
+  115 suites / 1646 passed + 1 skipped, 0 failures — the brief's carried
+  "83 suites / 1243+1skip" figure is the v0.5.3-era (38d5a63) baseline:
+  52 landed review-campaign commits since then added 43 test files
+  (M-MOBILE-*, R-MOBILE-01, W-min*, playjump cure); this lane added zero
+  tests and rotated zero floors.
+
 ### Fixed — playjump incident class: transcode fallback now re-anchors the start position to the LIVE playback clock — 2026-11-02
 
 - **startTranscodeFallback stale re-anchor (INCIDENT-playjump-clients.md,
