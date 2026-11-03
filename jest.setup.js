@@ -105,6 +105,47 @@ jest.mock('react-native-keychain', () => {
   };
 });
 
+// M3 (deferred lane): netinfo stand-in for the data-plan guard. In-memory
+// current state feeds fetch() and pushes to subscribers; tests flip the
+// network via `require('@react-native-community/netinfo').__setNetwork(...)`
+// (listeners fire synchronously, mirroring the real module's emit-on-change).
+jest.mock('@react-native-community/netinfo', () => {
+  const wifiState = () => ({
+    isConnected: true,
+    isInternetReachable: true,
+    type: 'wifi',
+    details: { isConnectionExpensive: false },
+  });
+  let current = wifiState();
+  const listeners = new Set();
+  const netinfo = {
+    fetch: jest.fn(async () => current),
+    refresh: jest.fn(async () => current),
+    addEventListener: jest.fn((cb) => {
+      listeners.add(cb);
+      cb(current);
+      return () => listeners.delete(cb);
+    }),
+    configure: jest.fn(),
+    useNetInfo: () => current,
+    NetInfoStateType: {
+      unknown: 'unknown', none: 'none', cellular: 'cellular', wifi: 'wifi',
+      bluetooth: 'bluetooth', ethernet: 'ethernet', wimax: 'wimax', vpn: 'vpn', other: 'other',
+    },
+    __setNetwork: (patch) => {
+      current = { ...current, ...patch };
+      listeners.forEach((cb) => cb(current));
+    },
+    __resetNetwork: () => {
+      current = wifiState();
+      // Deliberately KEEP subscribers (services hold their unsubscribe across
+      // tests) and push the reset state to them, mirroring a real Wi-Fi join.
+      listeners.forEach((cb) => cb(current));
+    },
+  };
+  return { __esModule: true, default: netinfo, ...netinfo };
+});
+
 // Mock axios
 jest.mock('axios', () => {
   const mockInstance = {

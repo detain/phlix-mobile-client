@@ -21,6 +21,10 @@ interface SettingsState {
   downloadQuality: string;
   maxConcurrentDownloads: number;
   downloadPath: string;
+  // M3 (deferred lane): the gate the removed theater key promised, now REAL —
+  // netinfo is in the lock and DownloadService.processQueue() refuses to
+  // start a download on a cellular connection while this is on.
+  downloadOverWifiOnly: boolean;
 
   // App settings
   theme: 'dark' | 'light' | 'system';
@@ -47,6 +51,7 @@ interface SettingsState {
   setDownloadQuality: (quality: string) => void;
   setMaxConcurrentDownloads: (max: number) => void;
   setDownloadPath: (path: string) => void;
+  setDownloadOverWifiOnly: (enabled: boolean) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
   setEnableNotifications: (enable: boolean) => void;
   setEnableBiometricAuth: (enable: boolean) => void;
@@ -99,6 +104,11 @@ const defaultSettings = {
   // the lock). A gate needs a native connectivity module — separate feature
   // decision, not a lying toggle. Old persisted blobs simply lose the key at
   // sanitizeSettings (unknown-key drop, no migration).
+  // M3 (deferred lane): the key is BACK as `downloadOverWifiOnly`, now REAL —
+  // @react-native-community/netinfo is in the lock and DownloadService
+  // .processQueue() consults utils/networkState before every start; queued
+  // tasks wait and auto-start when the connection leaves cellular.
+  downloadOverWifiOnly: true,
   maxConcurrentDownloads: 2,
   downloadPath: '',
   theme: 'dark' as const,
@@ -142,6 +152,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setDownloadPath: (path) => {
     set({ downloadPath: path });
     get().saveSettings();
+  },
+  setDownloadOverWifiOnly: (enabled) => {
+    set({ downloadOverWifiOnly: enabled });
+    get().saveSettings();
+    // The queue kick lives in DownloadService's store subscription (an
+    // import here would circle back through DownloadService → settings).
   },
   setTheme: (theme) => {
     set({ theme });
@@ -193,6 +209,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         defaultSubtitleLanguage: state.defaultSubtitleLanguage,
         defaultAudioLanguage: state.defaultAudioLanguage,
         downloadQuality: state.downloadQuality,
+        downloadOverWifiOnly: state.downloadOverWifiOnly,
         maxConcurrentDownloads: state.maxConcurrentDownloads,
         downloadPath: state.downloadPath,
         theme: state.theme,

@@ -26,6 +26,7 @@ describe('useSettingsStore', () => {
       defaultSubtitleLanguage: 'en',
       defaultAudioLanguage: 'en',
       downloadQuality: 'high',
+      downloadOverWifiOnly: true,
       maxConcurrentDownloads: 2,
       downloadPath: '',
       theme: 'dark',
@@ -45,6 +46,7 @@ describe('useSettingsStore', () => {
       expect(state.defaultSubtitleLanguage).toBe('en');
       expect(state.defaultAudioLanguage).toBe('en');
       expect(state.downloadQuality).toBe('high');
+      expect(state.downloadOverWifiOnly).toBe(true);
       expect(state.maxConcurrentDownloads).toBe(2);
       expect(state.downloadPath).toBe('');
       expect(state.theme).toBe('dark');
@@ -94,8 +96,11 @@ describe('useSettingsStore', () => {
       expect(saveSpy).toHaveBeenCalled();
     });
 
-    it('the retired wifi-only setter is gone from the store surface (M-MOBILE-01)', () => {
-      expect(useSettingsStore.getState()).not.toHaveProperty('setDownloadOverWifiOnly');
+    it('the wifi-only setter EXISTS — M3 landed it back as a real gate (M-MOBILE-01 superseded)', () => {
+      // The M-MOBILE-01 cure deleted the SETTER because nothing could read
+      // network type. M3 (deferred lane) added netinfo and a live consumer,
+      // so the setter is required again — its absence would be regression.
+      expect(typeof useSettingsStore.getState().setDownloadOverWifiOnly).toBe('function');
     });
 
     it('setMaxConcurrentDownloads triggers saveSettings', async () => {
@@ -312,22 +317,26 @@ describe('useSettingsStore', () => {
   // real native connectivity gate ships. Push-label honesty: no FCM/APNs
   // registration exists anywhere; the toggle gates LOCAL notifications only
   // (real consumer landed with review mobile__crossfe M3 / M-MOBILE-06).
-  describe('retired wifi-only toggle (M-MOBILE-01 theater cure)', () => {
-    it('a persisted blob still carrying the retired key hydrates and drops it', async () => {
+  describe('wifi-only toggle — M-MOBILE-01 theater, CURED REAL by M3 (deferred lane)', () => {
+    it('a pre-M3 persisted blob carrying the key hydrates it (known boolean now)', async () => {
+      // M-MOBILE-01 made this key UNKNOWN (dropped by sanitize). M3 re-added
+      // it to defaultSettings, so an old blob's explicit boolean now passes
+      // the type gate and is honored verbatim — including the OFF that was
+      // theater when written. Key is not poison; it is law again.
       await AsyncStorage.setItem(
         'phlix_settings',
         JSON.stringify({ downloadOverWifiOnly: false, autoplay: false, theme: 'dark' })
       );
       await useSettingsStore.getState().loadSettings();
       const state = useSettingsStore.getState();
-      // The rest of the blob still hydrates (the key is not poison).
       expect(state.autoplay).toBe(false);
-      // The retired key never reaches state (sanitizeSettings drops keys the
-      // defaults do not know — tolerance for old installs, no migration).
-      expect('downloadOverWifiOnly' in state).toBe(false);
+      expect(state.downloadOverWifiOnly).toBe(false);
     });
 
-    it('the lying wifi toggle stays OUT of the UI and the store (permanent law pins)', () => {
+    it('the toggle is REAL: key + setter in the store, row in the UI, reader in the gate', () => {
+      // Inverted M-MOBILE-01 permanent pin. The theater law ("an unwired
+      // toggle must stay OUT") still holds as a principle — it just now
+      // enforces the OPPOSITE direction: a wired toggle must stay IN.
       const screen = fs.readFileSync(
         path.resolve(__dirname, '../../screens/SettingsScreen.tsx'),
         'utf8'
@@ -336,8 +345,16 @@ describe('useSettingsStore', () => {
         path.resolve(__dirname, '../useSettingsStore.ts'),
         'utf8'
       );
-      expect(screen).not.toContain('downloadOverWifiOnly');
-      expect(store).not.toContain('downloadOverWifiOnly');
+      const downloader = fs.readFileSync(
+        path.resolve(__dirname, '../../services/DownloadService.ts'),
+        'utf8'
+      );
+      expect(screen).toContain('downloadOverWifiOnly');
+      expect(store).toContain('downloadOverWifiOnly: true');
+      // Anti-theater proof: the consumer exists and reads BOTH the setting
+      // and the network probe — a switch nobody consumes is banned by law.
+      expect(downloader).toContain('downloadOverWifiOnly');
+      expect(downloader).toContain('isCellularNow');
     });
 
     it('the notifications row is honestly labeled — local notifee only, no push backend', () => {

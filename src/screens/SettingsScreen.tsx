@@ -42,6 +42,8 @@ const SettingsScreen: React.FC = () => {
     setAutoplay,
     autoPlayNextEpisode,
     setAutoPlayNextEpisode,
+    downloadOverWifiOnly,
+    setDownloadOverWifiOnly,
     enableNotifications,
     setEnableNotifications,
     enableBiometricAuth,
@@ -54,6 +56,8 @@ const SettingsScreen: React.FC = () => {
       setAutoplay: state.setAutoplay,
       autoPlayNextEpisode: state.autoPlayNextEpisode,
       setAutoPlayNextEpisode: state.setAutoPlayNextEpisode,
+      downloadOverWifiOnly: state.downloadOverWifiOnly,
+      setDownloadOverWifiOnly: state.setDownloadOverWifiOnly,
       enableNotifications: state.enableNotifications,
       setEnableNotifications: state.setEnableNotifications,
       enableBiometricAuth: state.enableBiometricAuth,
@@ -541,10 +545,23 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* The former Downloads section held only the defunct Wi-Fi-only
-            switch (review mobile__casualgamer #1, MAJORS queue M-MOBILE-01)
-            — no download lane ever read it, so it is removed with the store
-            key rather than kept as settings theater. */}
+        {/* Downloads Section — M3 (deferred lane). The ORIGINAL era of this
+            row was theater (M-MOBILE-01: no network API existed to read);
+            with netinfo in the lock the gate is real — DownloadService holds
+            queued tasks on cellular while this switch is on. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Downloads</Text>
+          <View style={styles.card}>
+            {renderSettingRow(
+              'Download over Wi-Fi only',
+              <Switch
+                value={downloadOverWifiOnly}
+                onValueChange={setDownloadOverWifiOnly}
+                trackColor={{ false: '#3d3d3d', true: '#0066cc' }}
+              />
+            )}
+          </View>
+        </View>
 
         {/* Notifications Section */}
         <View style={styles.section}>

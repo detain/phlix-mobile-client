@@ -13,6 +13,7 @@ import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { playbackManager } from '../api/PlaybackManager';
 import { notificationService } from './NotificationService';
+import { isCellularNow, onNetworkChange } from '../utils/networkState';
 import {
   DOWNLOAD_EVENTS,
   type PhlixDownloaderInterface,
@@ -36,10 +37,39 @@ class DownloadService {
   private listeners: Set<(task: DownloadTask) => void> = new Set();
   private resumeData: Map<string, { downloadedBytes: number }> = new Map();
   private eventSubscriptions: EmitterSubscription[] = [];
+  // M3 (deferred lane): wifi-gate subscriptions + pump coalescing state.
+  private networkUnsubscribe: (() => void) | undefined;
+  private settingsUnsubscribe: (() => void) | undefined;
+  private queuePumpRunning = false;
+  private queuePumpRerun = false;
 
   constructor() {
     useDownloadStore.getState().loadPersistedTasks();
     this.initNativeEvents();
+    this.armWifiGateWatchers();
+  }
+
+  /**
+   * M3 (deferred lane): data-plan gate wiring. Every connectivity change (and
+   * every flip of `downloadOverWifiOnly`) re-runs the queue, so tasks that
+   * were held on cellular auto-start the moment the connection leaves it —
+   * no user action, no polling. The NetInfo listener contract also fires the
+   * callback once with the CURRENT state on subscribe; a queue-empty pump is
+   * a cheap no-op there.
+   */
+  private armWifiGateWatchers(): void {
+    this.networkUnsubscribe = onNetworkChange(() => this.processQueue());
+    try {
+      this.settingsUnsubscribe = useSettingsStore.subscribe((state, prev) => {
+        if (state.downloadOverWifiOnly !== prev.downloadOverWifiOnly) {
+          this.processQueue();
+        }
+      });
+    } catch {
+      // Subscription is a nicety; the NetInfo arm + normal event pumps still
+      // cover the common paths if the store shape ever changes.
+      this.settingsUnsubscribe = undefined;
+    }
   }
 
   /**
@@ -86,6 +116,8 @@ class DownloadService {
   dispose(): void {
     this.eventSubscriptions.forEach((sub) => sub.remove());
     this.eventSubscriptions = [];
+    this.networkUnsubscribe?.();
+    this.settingsUnsubscribe?.();
   }
 
   async startDownload(item: MediaItem, quality = 'original'): Promise<string> {
@@ -185,18 +217,51 @@ class DownloadService {
     await store.removeDownload(taskId);
   }
 
-  private processQueue(): void {
+  /**
+   * Queue pump. Kept a synchronous-void entry point (every existing call
+   * site treats it as fire-and-forget); the async body runs at most once at
+   * a time, and a kick that arrives mid-pump is COALESCED into one re-run so
+   * a state change during the network probe can never be swallowed.
+   */
+  processQueue(): void {
+    if (this.queuePumpRunning) {
+      this.queuePumpRerun = true;
+      return;
+    }
+    this.queuePumpRunning = true;
+    this.pumpQueue().finally(() => {
+      this.queuePumpRunning = false;
+      if (this.queuePumpRerun) {
+        this.queuePumpRerun = false;
+        this.processQueue();
+      }
+    });
+  }
+
+  private async pumpQueue(): Promise<void> {
     const store = useDownloadStore.getState();
-    const activeCount = Object.values(store.tasks).filter((t) => t.status === 'downloading').length;
+    const tasks = Object.values(store.tasks);
+    const activeCount = tasks.filter((t) => t.status === 'downloading').length;
     if (activeCount >= MAX_CONCURRENT_DOWNLOADS) {
       return;
     }
-
-    const queued = Object.values(store.tasks).filter((t) => t.status === 'queued');
+    const queued = tasks.filter((t) => t.status === 'queued');
     if (queued.length === 0) {
       return;
     }
-    this.beginDownload(queued[0]);
+    // M3 (deferred lane): the Wi-Fi-only gate, made real by netinfo. Held
+    // tasks STAY 'queued' (visible as waiting in the list) and start via the
+    // watcher the moment the connection leaves cellular.
+    if (useSettingsStore.getState().downloadOverWifiOnly && (await isCellularNow())) {
+      return;
+    }
+    // The probe above is async — re-read the slot; it may have been
+    // cancelled or started by a concurrent event while we awaited.
+    const fresh = useDownloadStore.getState().tasks[queued[0].id];
+    if (!fresh || fresh.status !== 'queued') {
+      return;
+    }
+    this.beginDownload(fresh);
   }
 
   private async beginDownload(task: DownloadTask): Promise<void> {
