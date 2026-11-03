@@ -40,6 +40,8 @@ import { QualityMenu } from '../components/player/QualityMenu';
 import { AudioTrackList } from '../components/player/AudioTrackList';
 import { SubtitleTrackList } from '../components/player/SubtitleTrackList';
 import { SleepTimerMenu, SleepTimerDisplay, useSleepTimer } from '../components/player/SleepTimer';
+import { notificationService } from '../services/NotificationService';
+import { useCellularConnection } from '../utils/useCellularConnection';
 import { absolutizeApiPath } from '../api/client';
 import {
   buildQualityOptions,
@@ -200,6 +202,68 @@ const PlayerScreen: React.FC = () => {
   // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
   // a small "Offline" badge in the top bar.
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  // M3 (deferred lane): live cellular verdict for the data-plan banner — the
+  // viewer can now SEE that playback is spending mobile data (the old app
+  // had no network-type API at all, which is why the Wi-Fi-only setting was
+  // removed as theater in M-MOBILE-01). Downloads have the hard gate; a video
+  // in progress must never be killed mid-watch, so the player guards with a
+  // NOTICE, not a block.
+  const onCellular = useCellularConnection();
+
+  // ── M14 (deferred lane): the playback-notification methods on
+  // notificationService were DEAD code (zero call sites). Wired here to the
+  // native 'play'/'pause'/'ended' events; the enableNotifications setting is
+  // what makes the toggle real for this lane too. Android gets the ongoing
+  // LOW-importance notification; media3 AudioFocus + wake mode are set on the
+  // native side (PhlixPlayerView.kt). Full media3 MediaSession / lock-screen
+  // controls and iOS MPNowPlayingInfoCenter remain companion follow-ups.
+  const playbackNotifAskedRef = useRef(false);
+  const playbackNotifVisibleRef = useRef(false);
+  const updatePlaybackNotification = useCallback((playing: boolean) => {
+    if (!useSettingsStore.getState().enableNotifications) {
+      return; // toggle OFF == no playback notification, same doctrine as downloads
+    }
+    const title = mediaTitle ?? 'Phlix';
+    if (playing) {
+      playbackNotifVisibleRef.current = true;
+      if (playbackNotifAskedRef.current) {
+        notificationService.showPlaybackNotification(title, true);
+        return;
+      }
+      // M-MOBILE-72 doctrine: ask at the first moment the notification matters.
+      playbackNotifAskedRef.current = true;
+      notificationService
+        .requestPermissions()
+        .then((granted) => {
+          if (granted && playbackNotifVisibleRef.current) {
+            notificationService.showPlaybackNotification(title, true);
+          }
+        })
+        .catch(() => undefined);
+      return;
+    }
+    if (playbackNotifVisibleRef.current) {
+      notificationService.showPlaybackNotification(title, false);
+    }
+  }, [mediaTitle]);
+  const dismissPlaybackNotification = useCallback(() => {
+    if (!playbackNotifVisibleRef.current) {
+      return;
+    }
+    playbackNotifVisibleRef.current = false;
+    notificationService.cancelPlaybackNotification();
+  }, []);
+  useEffect(
+    () => () => {
+      // Screen teardown (back / autoplay replace / app quit) must not leave a
+      // stale ongoing "Now Playing" behind.
+      if (playbackNotifVisibleRef.current) {
+        playbackNotifVisibleRef.current = false;
+        notificationService.cancelPlaybackNotification();
+      }
+    },
+    [],
+  );
 
   // ── E3: transcode lifecycle ──────────────────────────────────────────────
   const [preparingTranscode, setPreparingTranscode] = useState(false);
@@ -816,6 +880,8 @@ const PlayerScreen: React.FC = () => {
       case 'play':
         setIsPlaying(true);
         playerSetIsPlaying(true);
+        // M14 (deferred lane): ongoing "Now Playing" notification (settings-gated).
+        updatePlaybackNotification(true);
         // C17: a resumed tick bypasses the throttle so the server row flips
         // out of `paused` at the transition, not at the next 15s window.
         if (!isLiveStream) {
@@ -835,6 +901,7 @@ const PlayerScreen: React.FC = () => {
       case 'pause':
         setIsPlaying(false);
         playerSetIsPlaying(false);
+        updatePlaybackNotification(false);
         // C17: a pause is the resume point — capture it immediately.
         if (!isLiveStream) {
           playbackProgressReporter
@@ -853,6 +920,7 @@ const PlayerScreen: React.FC = () => {
       case 'ended':
         setIsPlaying(false);
         playerSetIsPlaying(false);
+        dismissPlaybackNotification();
         // C17: the explicit finish signal (POST /sessions/{id}/complete,
         // reached_end=true) — the only thing that marks the item watched,
         // drops it from Continue Watching, and finalizes watch-time stats.
@@ -872,7 +940,7 @@ const PlayerScreen: React.FC = () => {
       setCurrentTime(ct);
       playerSetCurrentTime(ct);
     }
-  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, maybeAutoplayNextEpisode]);
+  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, maybeAutoplayNextEpisode, updatePlaybackNotification, dismissPlaybackNotification]);
 
   const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
     const { currentTime: ct, duration: dur } = event.nativeEvent;
@@ -1129,6 +1197,16 @@ const PlayerScreen: React.FC = () => {
             ) : null}
 
             <View style={styles.topBarRight}>
+              {/* M3 (deferred lane): data-plan notice — mirrors the offline
+                  badge, shown whenever the active connection is cellular and
+                  playback is NOT a local file (which consumes no data). */}
+              {onCellular && !isOfflineMode && (
+                <View style={styles.cellularBadge} accessibilityLabel="Playing over mobile data">
+                  <Text style={styles.cellularBadgeText} maxFontSizeMultiplier={1.5}>
+                    ⚠ Mobile data
+                  </Text>
+                </View>
+              )}
               {/* E4: offline badge — shown when playing a local downloaded file */}
               {isOfflineMode && (
                 <View style={styles.offlineBadge} accessibilityLabel="Playing offline">
@@ -1499,6 +1577,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   offlineBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  // M3 (deferred lane): amber so it reads as a CAUTION, distinct from the
+  // blue "Offline" badge it shares the top-bar slot with.
+  cellularBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(191,121,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+    marginRight: 8,
+  },
+  cellularBadgeText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',

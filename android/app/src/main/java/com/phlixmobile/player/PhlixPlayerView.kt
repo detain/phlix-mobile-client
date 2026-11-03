@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 // PlayerView.useController, MimeTypes.TEXT_VTT, C.SELECTION_FLAG_DEFAULT)
 // is a direct rename in Media3 — no behavior was rewritten. E3-native:
 // compile is CI-gated (Build Android), untested on device in this venue.
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -21,6 +22,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.uimanager.events.RCTEventEmitter
@@ -57,6 +59,22 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
     }
 
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // M14: declared BEFORE init{} — Kotlin member initializers run in source
+    // order, and the init block registers this listener.
+    private val lifecycleListener = object : LifecycleEventListener {
+        override fun onHostResume() {
+            // Manual resume only: returning to the app must not auto-play.
+        }
+
+        override fun onHostPause() {
+            player?.pause()
+        }
+
+        override fun onHostDestroy() {
+            releasePlayer()
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -109,6 +127,14 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
 
     init {
         setupPlayerView()
+        // M14 (deferred lane): backgrounding the app used to leave ExoPlayer
+        // playing blind (no audio focus, no lifecycle awareness — a video
+        // audio bed running behind a closed app, or silently dropped when the
+        // OS reclaimed the stream). Pausing on host-pause is the same posture
+        // every mainstream player takes without a lock-screen MediaSession;
+        // the JS 'pause' event fires through onIsPlayingChanged, so the UI
+        // and the notification mirror stay in sync automatically.
+        (context as? ReactContext)?.addLifecycleEventListener(lifecycleListener)
     }
 
     private fun setupPlayerView() {
@@ -125,10 +151,20 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
     private fun initializePlayer() {
         if (player != null) return
 
-        player = ExoPlayer.Builder(context).build().apply {
-            playerView?.player = this
-            addListener(playerListener)
-        }
+        player = ExoPlayer.Builder(context)
+            // M14 (deferred lane): the builder used to ship the player with NO
+            // audio attributes — no AudioFocus handling (media3 defaults to
+            // handleAudioFocus=false when unset) and no wake lock, so audio
+            // could not duck/be ducked and network streaming had no keep-alive
+            // posture. USAGE_MEDIA + focus handling + NETWORK wake mode is the
+            // media3-recommended configuration for streaming video.
+            .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+            .apply {
+                playerView?.player = this
+                addListener(playerListener)
+            }
 
         updatePlayerState()
     }
@@ -268,6 +304,9 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        // M14: the lifecycle listener holds a reference to this view — remove
+        // it on detach or the ReactContext outlives every discarded player.
+        (context as? ReactContext)?.removeLifecycleEventListener(lifecycleListener)
         releasePlayer()
     }
 }
