@@ -105,7 +105,7 @@ Phlix Mobile supports **Hub Mode** for remote access to your Phlix servers:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| **Direct** | Connects directly to server hostname (e.g., `https://192.168.1.100:8096`) | Same network as server |
+| **Direct** | Connects directly to server hostname (e.g., `http://192.168.1.100:8096`) | Same network as server |
 | **Via Hub Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
 
 Hub sessions survive app restarts. The hub JWT pair is persisted in the OS keychain vault via `react-native-keychain` (the plugin provides access to the Keychain on iOS and the Keystore on Android); `AsyncStorage` holds only non-secret session metadata — hub URL, user id, expiry, active server, connection mode. Pre-vault installs that stored the whole session in plaintext `AsyncStorage` are migrated on first read, and signing out of the hub wipes both the vault slots and the metadata blob.
@@ -456,7 +456,31 @@ Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
 
 ## Troubleshooting
 
-### Common Issues
+### Can't connect? Check these first
+
+- **Wrong scheme (most common).** A server address typed with **no prefix connects over
+  https** — but a Phlix server on your home network usually speaks plain
+  **http** on its API port. If `192.168.1.50:8096` fails, type the full
+  `http://192.168.1.50:8096`. TLS on a LAN port only works if you configured a real
+  certificate on the server itself.
+- **iOS Local Network permission.** On first connection to a LAN address, iOS asks
+  Phlix to find devices on the local network. If that prompt was denied, LAN servers
+  fail **silently** (no error text — the connection just never completes). Re-enable:
+  **Settings → Privacy & Security → Local Network → Phlix**, then restart the app.
+- **Server address changed.** Home DHCP leases move. If a saved server suddenly
+  dials into nothing, confirm the machine's current IP (or connect by hostname /
+  via Hub relay mode when off-network).
+- **Self-signed https is refused by design.** The app does not offer a "proceed
+  anyway" TLS bypass. Either serve plain http on the LAN or install a certificate
+  the device trusts.
+- **Server offline / different network.** Verify the server is running and the
+  phone is on the same Wi-Fi; when away from home, sign in to your hub and use
+  relay mode instead of a direct LAN address.
+- **Notifications denied (Android 13+).** Downloads still work without the
+  notification permission — you just lose the progress and completion
+  notifications. Grant it under **Settings → Apps → Phlix → Notifications**.
+
+### Common Issues (build & development)
 
 #### iOS Build Failures
 

@@ -165,8 +165,13 @@ const ProfileSelectScreen: React.FC = () => {
       return;
     }
     if (pinProfile) {
-      // The server validates the PIN on the next admin action; locally we gate
-      // selection on a well-formed PIN entry.
+      // M-MOBILE-66 (review mobile__exploiter Major 5): this form-check
+      // is ALL the gate does on-device. The server scopes nothing per profile
+      // until `POST /profiles/{id}/switch` is adopted (see ProfileManager
+      // docblock — deliberately unadopted), so the session keeps the parent's
+      // full-rights token and content filtering does not follow the selection.
+      // The modal discloses that plainly; never re-add wording that claims the
+      // server validated this selection.
       selectProfile(pinProfile);
     }
     setPinVisible(false);
@@ -352,7 +357,13 @@ const ProfileSelectScreen: React.FC = () => {
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Enter PIN</Text>
             <Text style={styles.modalSubtitle}>
-              {pinProfile?.name} requires a PIN.
+              {pinProfile?.name} is PIN-gated.
+            </Text>
+            <Text style={styles.modalNote}>
+              This phone checks the PIN on-device only — it is a courtesy lock.
+              Selecting the profile does not restrict what your signed-in
+              session can load; server-side profile enforcement is not applied
+              yet.
             </Text>
             <TextInput
               style={[styles.input, styles.pinInput]}
@@ -365,7 +376,7 @@ const ProfileSelectScreen: React.FC = () => {
               maxLength={6}
             />
             <TouchableOpacity style={styles.submitButton} onPress={handleConfirmPin}>
-              <Text style={styles.submitButtonText}>Unlock</Text>
+              <Text style={styles.submitButtonText}>Continue</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -510,6 +521,13 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     color: '#888',
     fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalNote: {
+    color: '#999',
+    fontSize: 12,
+    lineHeight: 17,
     marginBottom: 16,
     textAlign: 'center',
   },

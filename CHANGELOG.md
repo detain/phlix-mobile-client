@@ -32,6 +32,28 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign docs/truth batch: Direct-mode example contradicted the https-default law, no user-facing connect checklist, profile PIN gate disclosed as verification it never performs — 2026-11-02
+
+- **Major 17 (writer):** the Hub-Mode table advertised
+  `https://192.168.1.100:8096` — TLS to the plain-HTTP server port, a
+  copy-paste guaranteed failure that contradicts the same README's build
+  example and the LoginScreen hint. The Direct row now shows `http://`.
+- **Major 18 (writer):** Troubleshooting covered only developer build
+  failures. Added a "Can't connect?" checklist for the app's core journey:
+  the prefix-less-https trap, the iOS Local Network permission denial
+  (silent-failure recovery path: Settings → Privacy & Security → Local
+  Network), DHCP address drift, self-signed https refusal-by-design,
+  offline/off-network guidance, and the Android 13+ notification-denial
+  consequence.
+- **Major 5 (exploiter, honest-label arm):** `handleConfirmPin` accepts any
+  well-formed 4/6-digit PIN — no server round-trip, and the bearer token is
+  never scoped per profile (`/profiles/{id}/switch` deliberately unadopted).
+  The sheet said "requires a PIN" with an "Unlock" button, implying
+  enforcement it does not provide. It now reads "is PIN-gated" with an
+  explicit note that the check is an on-device courtesy lock, the button
+  says "Continue", and the code comment no longer claims server validation.
+  Full token-scoping adoption stays an owner-gated wire-flow decision.
+
 ### Fixed — review-campaign security/network batch: hub-HTTP cleartext lane, boot-order token loss, unbounded fetches, stalled refresh, path-bending ids, backup-migratable vault, foreign-scheme player URLs — 2026-11-02
 
 - **M6 (exploiter):** the cleartext banner listened to three lanes and the
