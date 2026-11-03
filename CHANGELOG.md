@@ -32,6 +32,53 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign sync cluster: watch-party reconnect, host liveness, position reporting, socket lifecycle, gate-digest replay, reconnect park, WS-error quarantine — 2026-11-02
+
+- **C1 (asphp):** the auto-rejoin sent a BARE `group_join` into gated rooms
+  (no credential) — a reconnect silently dropped the member from their own
+  watch party. The service now caches the SPEC §4 `password_hash` digest
+  process-locally (keyed by group id; cleared on leave/disconnect);
+  `connectWithRoom` carries it for the REST-proven create/join legs and
+  `joinGroup` replays it on every rejoin. An `invalid_password` landing
+  during the auto-rejoin wipes the stale group from the store (the UI stops
+  presenting a party this phone is not in) instead of lying connected.
+- **C2 (asphp):** the command handler closed over RENDER-TIME `isHost` —
+  host promotion/demotion never reached the command path. The check now
+  reads the store at DISPATCH time.
+- **C3 (asphp):** `reportPosition` had ZERO callers — the member's drift was
+  invisible to the S291 host re-anchor and the S446 policy. PlayerScreen's
+  progress tick now feeds `noteLocalPosition` (wire-ms, S293), throttled to
+  one `playback_sync` frame per 2 s inside the service.
+- **C4 (asphp):** PlayerScreen's unmount wiped the store + socket MID-PARTY
+  (rotate/episode-advance lost the member's own group) and unregistered
+  handlers without identity. `off(event, handler)` is now identity-guarded
+  and the socket only comes down when no group is active.
+- **M10 (asphp):** AppState pair — background closes the socket on the
+  app's terms (iOS jetsam / Android Doze were the unpredictable owners);
+  foreground re-dials an intended group at attempt 0. Plus a pong
+  watchdog: a `time_ping` unanswered for 10 s declares the OPEN-but-deaf
+  socket dead and lets the ladder re-dial.
+- **M11 (asphp):** both reconnect ladders (SyncPlay socket + hub relay)
+  self-terminated after 5 attempts — one ~31 s commute-zone outage stranded
+  the phone deaf forever. Park-at-cap (hub Federation 229d3d1 shape): after
+  the fast budget a 60 s probe keeps retrying and restarts the ladder. The
+  two budget-tail assertions were CONVERTED to the new law (disclosed).
+- **M7/M9 (exploiter/asphp):** the WS `syncplay_error` fallback renders
+  server prose QUARANTINED (URL-masking, control-strip, one-line, 140-cap —
+  same sanitizer as REST, lifted to `utils/quarantineProse.ts`); and the
+  connection state + pong results now mirror into the store (the modal's
+  time-sync row read constants before).
+- **M4 (gameux):** the Join tab gained its missing password field (gated
+  rooms were unjoinable by shared Room ID — the exact purpose of the tab);
+  both modal connect legs carry the gate digest. Plus m6 (secnet: hub-relay
+  rebind identity is the serverId+hubBaseUrl PAIR — a hub switch kept the
+  dead socket), m10 (secnet: relay ladder equal-jitter + 30 s ceiling — the
+  docblock claimed it, the code did not), m12 (casualgamer: identical
+  SyncPlay failures Alert once per 5 s window, not per frame), m4 (gameux:
+  the member's display-only seek bar now says WHY on the bar itself).- **Spec read-only law honored:** no wire fields, codes or payload shapes
+  changed — everything above aligns the client to `phlix-syncplay` SPEC
+  §4/§9/§10 as documented.
+
 ### Changed — tag-wave C5 re-pin: @phlix/contracts #v0.5.3→#v0.5.4, @phlix/syncplay #v0.1.5→#v0.1.6 — 2026-11-02
 
 - **Inert-by-measurement cascade landing:** contracts v0.5.4 carries the

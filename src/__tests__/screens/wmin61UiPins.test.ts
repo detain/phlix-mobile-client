@@ -86,3 +86,29 @@ describe('M-MOBILE-54/26 — group playbackState narrows at the parser', () => {
     expect(source).not.toMatch(/groupData\.playback_state as string/);
   });
 });
+
+// ── Review mobile__gameux M4 + asphp C1 — the gated join is joinable ───────
+// A private room's whole point is a shared Room ID; until this lane the Join
+// tab had NO password field and neither connectWithRoom leg carried the
+// SPEC §4 gate digest — gated rooms were silently unjoinable from mobile and
+// auto-reconnects dropped members. Source-level pins (house idiom) keep the
+// affordance and both digest legs from regressing away.
+describe('M4/C1 — SyncPlayModal gated-join surface', () => {
+  const source = read('src/components/syncplay/SyncPlayModal.tsx');
+
+  it('the Join tab carries a password field', () => {
+    expect(source).toMatch(/value=\{joinPassword\}/);
+    expect(source).toMatch(/secureTextEntry/);
+  });
+
+  it('join-by-id forwards the password into the REST join', () => {
+    expect(source).toMatch(/handleJoinRoom\(joinRoomId\.trim\(\), joinPassword/);
+  });
+
+  it('BOTH connect legs carry the SPEC §4 gate digest to the socket', () => {
+    // join: proven plaintext → hashed carrier
+    expect(source).toMatch(/hashGroupPassword\(roomPassword\)/);
+    // create-with-gate: same carrier for the post-open WS join
+    expect(source).toMatch(/hashGroupPassword\(password\)/);
+  });
+});

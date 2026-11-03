@@ -430,12 +430,12 @@ describe('openHubRelayConnection', () => {
     expect(onPendingCommand).toHaveBeenCalledTimes(2);
   });
 
-  it('schedules a capped, exponential reconnect ladder on close', () => {
+  it('runs a capped, jittered reconnect ladder, then parks at low frequency', () => {
     jest.useFakeTimers();
     try {
       openHubRelayConnection(config());
       socket().drop();
-      // 1st reconnect after 1s
+      // 1st reconnect after 1s (equal jitter ∈ [500,1000) still lands inside)
       jest.advanceTimersByTime(1000);
       expect(FakeWebSocket.instances).toHaveLength(2);
       socket().drop();
@@ -454,11 +454,20 @@ describe('openHubRelayConnection', () => {
       // 5th after 16s
       jest.advanceTimersByTime(16000);
       expect(FakeWebSocket.instances).toHaveLength(6);
-      // Capped: no 6th reconnect
+      // Budget spent (5 attempts). NEW LAW (review mobile__asphp: the old
+      // dead-end left a sign-in-era hub outage permanently deaf): a PARK
+      // re-arm keeps one probe per 60 s, and the parked probe restarts the
+      // fast ladder. This replaced the "no 6th reconnect, ever" assertion.
       socket().drop();
-      jest.advanceTimersByTime(60000);
-      expect(FakeWebSocket.instances).toHaveLength(6);
       expect(getHubRelaySocket()).toBeNull();
+      jest.advanceTimersByTime(59_999);
+      expect(FakeWebSocket.instances).toHaveLength(6); // park not yet due
+      jest.advanceTimersByTime(1);
+      expect(FakeWebSocket.instances).toHaveLength(7); // parked dial fired
+      // The parked dial reset the attempt budget: next drop redials fast.
+      socket().drop();
+      jest.advanceTimersByTime(1000);
+      expect(FakeWebSocket.instances).toHaveLength(8);
     } finally {
       jest.useRealTimers();
     }
@@ -515,5 +524,37 @@ describe('closeHubRelayConnection', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+describe('openHubRelayConnection — rebinding identity (review mobile__secnet m6)', () => {
+  const config = (over: Partial<Parameters<typeof openHubRelayConnection>[0]> = {}) => ({
+    serverId: 'srv-1',
+    hubBaseUrl: 'http://127.0.0.1:8800',
+    tokenProvider: () => 'relay-token-1',
+    onPendingCommand: jest.fn(),
+    ...over,
+  });
+  afterEach(() => {
+    closeHubRelayConnection();
+  });
+
+  it('the SAME serverId pointed at a different hub URL re-dials (old early-return kept the dead socket)', () => {
+    openHubRelayConnection(config());
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    // Hub re-login elsewhere / hubUrl edit: the open socket belongs to the
+    // OLD hub. Keying only on serverId (the defect) returned it verbatim.
+    openHubRelayConnection(config({ hubBaseUrl: 'http://hub.example:8800' }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(FakeWebSocket.instances[1].url).toContain('hub.example');
+    // The superseded socket was retired, not leaked:
+    expect(FakeWebSocket.instances[0].onclose).toBeNull(); // detached before close
+    expect(FakeWebSocket.instances[0].closed).toBe(true);
+  });
+
+  it('identical config on an open socket stays idempotent (no extra dial)', () => {
+    openHubRelayConnection(config());
+    openHubRelayConnection(config());
+    expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });

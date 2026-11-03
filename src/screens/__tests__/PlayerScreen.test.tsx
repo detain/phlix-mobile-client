@@ -283,6 +283,10 @@ jest.mock('../../syncplay/SyncPlayService', () => ({
     sendPlay: jest.fn(),
     sendPause: jest.fn(),
     sendSeek: jest.fn(),
+    // C3 feed seam (review mobile__asphp): the progress arm calls it every
+    // tick; the service owns throttle/liveness. The mock carries it so the
+    // screen's contract surface stays complete.
+    noteLocalPosition: jest.fn(),
   },
 }));
 jest.mock('../../api/SyncPlayManager', () => ({
@@ -1832,5 +1836,113 @@ describe('PlayerScreen — M-MOBILE-01 Autoplay toggle drives the native prop', 
     const player = findNativeView(h.host.tree);
     expect(player).not.toBeNull();
     expect(player!.props.autoPlay).toBe(true);
+  });
+});
+
+// ── Review mobile__asphp C2/C4 + mobile__casualgamer m12 — screen-side pins ─
+// C2: the command handler used to close over the RENDER-TIME isHost (frozen
+//     at mount) — host gained or lost mid-session never reached the command
+//     path. The cure reads the store at DISPATCH time; the mock store's
+//     getState reflects __state mutations, so the flip below is exactly the
+//     promoted-host scenario the closure used to miss.
+// C4: unmount must not evict a successor's handlers (identity off) and must
+//     not drop the socket while the viewer is still in a group.
+// m12: an identical failure inside the coalescing window Alerts once, not
+//     per frame.
+describe('PlayerScreen — syncplay handler liveness (C2), unmount law (C4), Alert coalescing (m12)', () => {
+  const svcMock = () =>
+    (jest.requireMock('../../syncplay/SyncPlayService') as any)
+      .syncPlayService as {
+        on: jest.Mock;
+        off: jest.Mock;
+        disconnect: jest.Mock;
+        connect: jest.Mock;
+        noteLocalPosition: jest.Mock;
+      };
+
+  function grabCommandHandler(): (cmd: unknown) => void {
+    const handler = svcMock().on.mock.calls
+      .filter(([event]) => event === 'onPlaybackCommand')
+      .map(([, fn]) => fn)
+      .pop() as (cmd: unknown) => void;
+    expect(handler).toBeDefined();
+    return handler;
+  }
+
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    mockSyncplayStore.currentGroup = null;
+    mockSyncplayStore.isHost = false;
+    svcMock().on.mockClear();
+    svcMock().off.mockClear();
+    svcMock().disconnect.mockClear();
+    svcMock().noteLocalPosition.mockClear();
+  });
+
+  it('C2: a seek command from a newly-PROMOTED host position is NOT followed (live isHost)', async () => {
+    const h = await bootDirectPlay();
+    const seekHandler = grabCommandHandler();
+
+    // Member arm moves the clock (control — the S441 describe pins this too).
+    seekHandler({ type: 'seek', position: 30, serverTime: Date.now() });
+    h.rerender();
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(30);
+
+    // Promotion happens AFTER the effect registered (the frozen-closure era
+    // would keep following here).
+    mockSyncplayStore.isHost = true;
+    h.rerender();
+    seekHandler({ type: 'seek', position: 90, serverTime: Date.now() });
+    h.rerender();
+    expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(30); // unmoved
+  });
+
+  it('C4: handlers unregister BY IDENTITY and the socket survives an in-group remount', async () => {
+    const h = await bootDirectPlay();
+    h.host.unmount();
+    expect(svcMock().off).toHaveBeenCalledWith('onPlaybackCommand', expect.any(Function));
+    expect(svcMock().off).toHaveBeenCalledWith('onError', expect.any(Function));
+    // Ungrouped teardown keeps the full-close law:
+    expect(svcMock().disconnect).toHaveBeenCalledTimes(1);
+
+    svcMock().disconnect.mockClear();
+    mockSyncplayStore.currentGroup = { id: 'sp_live', name: 'Room', members: [], hostId: 'u-x' };
+    const h2 = await bootDirectPlay();
+    h2.host.unmount();
+    // Still in the group → the socket stays for the successor screen; a
+    // mid-party remount must never wipe the store (the C4 defect).
+    expect(svcMock().disconnect).not.toHaveBeenCalled();
+  });
+
+  it('m12: an identical failure within the window Alerts once; a distinct one still lands', async () => {
+    const alertSpy = jest.spyOn(RNAlert, 'alert').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await bootDirectPlay();
+      const errHandler = svcMock().on.mock.calls
+        .filter(([event]) => event === 'onError')
+        .map(([, fn]) => fn)
+        .pop() as (code: string, message: string) => void;
+
+      errHandler('SEND_FAILED', 'Socket not open — dropped x');
+      errHandler('SEND_FAILED', 'Socket not open — dropped x');
+      errHandler('SEND_FAILED', 'Socket not open — dropped x');
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+
+      errHandler('NOT_HOST', 'Only the host can control playback');
+      expect(alertSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      alertSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('C3 wiring: a progress tick feeds noteLocalPosition in WIRE MS (S293)', async () => {
+    const h = await bootDirectPlay();
+    (findPlayer(h.host.tree)!.props.onProgress as (e: unknown) => void)({
+      nativeEvent: { currentTime: 42.5, duration: 600 },
+    });
+    expect(svcMock().noteLocalPosition).toHaveBeenCalledWith(42_500);
   });
 });

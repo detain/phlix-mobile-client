@@ -21,6 +21,7 @@ import {
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
+import { hashGroupPassword } from '../../syncplay/sha256';
 import { describeSyncPlayRestError } from '../../syncplay/syncplayErrors';
 import { fireHaptic } from '../../utils/haptics';
 
@@ -41,6 +42,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
   const [isPublic, setIsPublic] = useState(true);
   const [password, setPassword] = useState('');
   const [joinRoomId, setJoinRoomId] = useState('');
+  const [joinPassword, setJoinPassword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +93,15 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       // resolved inside the service by `syncplay/wsEndpoint.ts`; the modal has
       // no business building WS URLs (audit H1: the old {apiHost}/…/ws URL
       // pointed at the HTTP port and carried no token).
-      syncPlayService.connectWithRoom(result.roomId, result.sessionId);
+      // C1 (review mobile__asphp): a gated room also needs its WS join arm
+      // to carry the gate — the REST create proved the plaintext, the socket
+      // frame needs the SPEC §4 digest. Pass it while the viewer still holds
+      // it (process-local cache; never persisted).
+      syncPlayService.connectWithRoom(
+        result.roomId,
+        result.sessionId,
+        password !== '' ? hashGroupPassword(password) : undefined
+      );
 
       setRoomName('');
       setPassword('');
@@ -116,7 +126,20 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       fireHaptic('medium');
 
       // Open the socket (endpoint resolved internally — see handleCreateRoom).
-      syncPlayService.connectWithRoom(roomId, result.sessionId);
+      // C1: same gate-digest carrier as the create arm — the REST join proved
+      // the plaintext; the WS join frame must ride the digest or a gated room
+      // refuses the socket-join and the viewer never lands in their party.
+      syncPlayService.connectWithRoom(
+        roomId,
+        result.sessionId,
+        roomPassword !== undefined && roomPassword !== ''
+          ? hashGroupPassword(roomPassword)
+          : undefined
+      );
+
+      // Don't let the gate linger in the reopened form (the digest cache in
+      // the service is the only place it needs to survive).
+      setJoinPassword('');
 
       onClose();
     } catch (err) {
@@ -132,7 +155,14 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       setError('Room ID is required');
       return;
     }
-    await handleJoinRoom(joinRoomId.trim());
+    // M4 (review mobile__gameux): the Join tab had no password field even
+    // though `handleJoinRoom` accepts one — a gated room was unjoinable from
+    // the exact screen whose purpose is joining by a shared id, so private
+    // watch parties silently excluded the members they were made for. The
+    // field is optional (a room ID without a gate still joins); the REST
+    // join demands the plaintext (documented boundary) and the WS join arm
+    // carries the SPEC §4 digest (see handleJoinRoom above).
+    await handleJoinRoom(joinRoomId.trim(), joinPassword || undefined);
   };
 
   const handleLeaveRoom = () => {
@@ -353,6 +383,18 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 onChangeText={setJoinRoomId}
                 placeholder="Enter room ID"
                 placeholderTextColor="#666"
+              />
+
+              {/* M4: gated rooms are exactly what a shared Room ID implies —
+               * the password arm of the join form. */}
+              <Text style={styles.inputLabel}>Password (if the room has one)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={joinPassword}
+                onChangeText={setJoinPassword}
+                placeholder="Enter password"
+                placeholderTextColor="#666"
+                secureTextEntry
               />
 
               <TouchableOpacity

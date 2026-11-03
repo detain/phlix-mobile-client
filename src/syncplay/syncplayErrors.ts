@@ -36,6 +36,7 @@
 // union growth arrived with the v0.5.3 pin (TS2741, measured).
 
 import type { SyncPlayErrorCode } from '@phlix/contracts';
+import { quarantineServerProse } from '../utils/quarantineProse';
 
 /** Last-resort copy when neither the code nor the server text can help. */
 const GENERIC_ROOM_ERROR = 'Something went wrong in the SyncPlay room.';
@@ -106,6 +107,13 @@ export const SYNCPLAY_HOST_UNPINNED_MESSAGE =
  * Precedence (doctrine): catalog hit for the code → server's English message
  * (honest last signal for codes newer than this app) → generic fallback.
  *
+ * The server-message arm is QUARANTINED (review mobile__exploiter M7): the
+ * text is untrusted server input rendered inside an app-branded Alert, so it
+ * passes through the same sanitizer the REST lane uses (`apiErrorMessage`,
+ * M-MOBILE-34/52) — URL masking, control/zero-width stripping, one-line
+ * collapse, 140-char cap — instead of reaching the modal verbatim. Well-behaved
+ * prose is unchanged by the pass; hostile or wall-of-text prose is not.
+ *
  * @param code           wire code, already parsed by the SPEC read order
  *                       (`error_code` ?? `code`); the service's 'UNKNOWN'
  *                       sentinel intentionally degrades like an unknown code.
@@ -116,7 +124,10 @@ export function describeSyncPlayError(code: string | undefined, serverMessage?: 
     return SYNCPLAY_USER_MESSAGES[code];
   }
   if (serverMessage !== undefined && serverMessage.trim() !== '') {
-    return serverMessage;
+    const quarantined = quarantineServerProse(serverMessage);
+    if (quarantined !== '') {
+      return quarantined;
+    }
   }
   return GENERIC_ROOM_ERROR;
 }

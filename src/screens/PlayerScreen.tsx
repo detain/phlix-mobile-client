@@ -51,12 +51,16 @@ import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
 import type { PlaybackEvent } from '../native/types';
-import { syncPlayService } from '../syncplay/SyncPlayService';
+import { syncPlayService, type PlaybackCommand } from '../syncplay/SyncPlayService';
 import { clampSeekSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { resolveNextEpisodeId } from '../utils/autoplayNextEpisode';
 import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
+
+/** Window in which an identical SyncPlay failure is Alerted once, not per
+ * frame (review mobile__casualgamer m12). Distinct failures are unaffected. */
+const ERROR_ALERT_COALESCE_MS = 5000;
 
 // Define the native player props interface
 interface NativePhlixPlayerProps {
@@ -195,6 +199,9 @@ const PlayerScreen: React.FC = () => {
   // resume reporter can read truth at event boundaries (forced pause report,
   // unmount flush) without stale closures — same pattern as currentPositionRef.
   const durationRef = useRef(0);
+  /** m12 — per-failure Alert timestamps (identical code+sentence inside the
+   * coalescing window are logged, not stacked). */
+  const errorAlertTimesRef = useRef<Map<string, number>>(new Map());
   const isPlayingRef = useRef(false);
   // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
   // a small "Offline" badge in the top bar.
@@ -287,9 +294,17 @@ const PlayerScreen: React.FC = () => {
     // authoritative once a snapshot lands; this is the pre-snapshot claim.
     const memberId = useAuthStore.getState().user?.id ?? '';
 
-    // Set up SyncPlay event handlers
-    syncPlayService.on('onPlaybackCommand', (cmd) => {
-      if (!isHost) {
+    // Set up SyncPlay event handlers.
+    //
+    // C2 (review mobile__asphp): the host check reads the store AT DISPATCH
+    // TIME. The old code closed over the render-time `isHost` from the single
+    // mount run of this effect ([itemId] deps), so a viewer who joined the
+    // group later — or was promoted by the host-elect — followed commands
+    // forever as if frozen, and a demoted host kept ignoring them. The store
+    // subscription below still drives the UI's isHost rendering; this is the
+    // command-path authority the same frame of truth.
+    const handleSyncPlayCommand = (cmd: PlaybackCommand) => {
+      if (!useSyncplayStore.getState().isHost) {
         // Non-host members follow playback commands from host
         switch (cmd.type) {
           case 'play':
@@ -320,17 +335,33 @@ const PlayerScreen: React.FC = () => {
             break;
         }
       }
-    });
+    };
 
-    syncPlayService.on('onError', (code, message) => {
+    // m12 (review mobile__casualgamer): a flapping group can emit the SAME
+    // failure every reconnect tick — an Alert per frame is an unusable modal
+    // machine-gun. Identical code+sentence within the coalescing window are
+    // logged, not stacked; distinct failures still surface immediately.
+    const handleSyncPlayError = (code: string, message: string) => {
       console.warn(`SyncPlay error [${code}]: ${message}`);
       // Error-code-first doctrine: surface the failure to the viewer through
       // the repo's transient-feedback idiom (Alert, as used by the access-
       // schedule / stream-limit denial arms in this file). The catalog
       // picks the sentence from the stable wire code; the server's English
-      // text is only a fallback.
-      Alert.alert('SyncPlay error', describeSyncPlayError(code, message));
-    });
+      // text is only a fallback (and quarantined — review mobile__exploiter
+      // M7 — inside describeSyncPlayError).
+      const sentence = describeSyncPlayError(code, message);
+      const key = `${code}\u0000${sentence}`;
+      const now = Date.now();
+      const last = errorAlertTimesRef.current.get(key);
+      if (last !== undefined && now - last < ERROR_ALERT_COALESCE_MS) {
+        return; // already on screen for this exact failure
+      }
+      errorAlertTimesRef.current.set(key, now);
+      Alert.alert('SyncPlay error', sentence);
+    };
+
+    syncPlayService.on('onPlaybackCommand', handleSyncPlayCommand);
+    syncPlayService.on('onError', handleSyncPlayError);
 
     // Gate (audit M5): opening a player is not joining a group. The socket
     // must ONLY exist while a SyncPlay group is active — group join/create
@@ -341,9 +372,17 @@ const PlayerScreen: React.FC = () => {
     }
 
     return () => {
-      syncPlayService.off('onPlaybackCommand');
-      syncPlayService.off('onError');
-      syncPlayService.disconnect();
+      // C4 (review mobile__asphp): handlers unregister by IDENTITY, so this
+      // unmount cannot evict a successor screen's freshly-registered pair,
+      // and the SOCKET only comes down when the viewer is truly out of the
+      // group. The old unconditional disconnect() wiped the store mid-
+      // party whenever the player remounted (rotate→relaunch, episode
+      // advance): the member lost their own watch party.
+      syncPlayService.off('onPlaybackCommand', handleSyncPlayCommand);
+      syncPlayService.off('onError', handleSyncPlayError);
+      if (useSyncplayStore.getState().currentGroup === null) {
+        syncPlayService.disconnect();
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
@@ -860,6 +899,13 @@ const PlayerScreen: React.FC = () => {
           paused: !isPlayingRef.current,
         })
         .catch(() => undefined);
+      // C3 (review mobile__asphp): the SAME tick is the only place the phone
+      // knows where its video sits, and until now that never reached the
+      // group — reportPosition had zero callers, so this member's drift was
+      // invisible to the host re-anchor (S291) and the S446 policy. The
+      // service owns the cadence (≥2 s); this arm just feeds it wire-ms
+      // (S293: convert once at the send boundary).
+      syncPlayService.noteLocalPosition(toSyncPlayPositionMs(ct));
     }
   }, [duration, isLiveStream, itemId, playerSetCurrentTime, playerSetDuration]);
 
@@ -1246,6 +1292,14 @@ const PlayerScreen: React.FC = () => {
             // SPEC §9) — the bar goes display-only for them.
             canSeek={currentGroup === null || isHost}
           />
+          {/* m4 (review mobile__gameux): the bar going dead for members was
+           * explained only inside the SyncPlay modal — on the viewing surface
+           * it read as a broken scrubber. One honest line at the bar itself. */}
+          {currentGroup !== null && !isHost && (
+            <Text style={styles.memberTimelineHint}>
+              The host controls the timeline — your playback follows theirs
+            </Text>
+          )}
         </View>
       )}
 
@@ -1516,6 +1570,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  // m4 — the on-bar "host drives the timeline" line for members: quiet,
+  // caption-grade, never competing with the scrubber it explains.
+  memberTimelineHint: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 12, // M-MOBILE-45 floor (12pt) — captions obey it too
+    textAlign: 'center',
+    marginTop: 6,
   },
   bottomControlsSpacer: {
     height: 70,

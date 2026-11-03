@@ -106,11 +106,20 @@ import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore
 import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
 import { isHttpsBase } from '../utils/serverHost';
 
-/** Maximum reconnect attempts before giving up (mirrors the SyncPlay socket). */
+/** Maximum fast-ladder attempts before the low-frequency park re-arm takes
+ * over (mirrors the SyncPlay socket — same shape as the hub Federation lane
+ * 229d3d1; review mobile__asphp: a dead-end ladder strands a phone whose
+ * one outage happened to burn the budget). */
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 /** Base delay in ms for the exponential backoff ladder. */
 const RECONNECT_BASE_DELAY_MS = 1000;
+
+/** Ceiling for one ladder step (mirrors SyncPlayService). */
+const RECONNECT_MAX_DELAY_MS = 30_000;
+
+/** Park cadence after the fast budget is spent (mirrors SyncPlayService). */
+const RECONNECT_PARK_DELAY_MS = 60_000;
 
 /**
  * Replay window for a delivered `pending_command`, in seconds
@@ -244,7 +253,17 @@ function setStatus(status: HubRelayStatus): void {
  * token becomes available.
  */
 export function openHubRelayConnection(config: HubRelayConfig): void {
-  if (hubWs && hubConfig?.serverId === config.serverId) {
+  // m6 (review mobile__secnet): identity is the PAIR the socket is bound to.
+  // Keying only on serverId let a same-serverId re-bind (hub re-login on a
+  // different hub URL — or a hubUrl edit pointing the same server id
+  // somewhere else) return the stale socket dialed at the OLD hub: frames
+  // would keep flowing to the retired endpoint and the new one would never
+  // be dialed.
+  if (
+    hubWs &&
+    hubConfig?.serverId === config.serverId &&
+    hubConfig?.hubBaseUrl === config.hubBaseUrl
+  ) {
     return;
   }
   // A DIFFERENT server id means the app re-pointed at another server (the hub
@@ -372,16 +391,35 @@ async function connectHubRelaySocket(): Promise<void> {
   };
 }
 
+/**
+ * Hub-side reconnect ladder — same shape as the SyncPlay socket (m10/M11,
+ * review mobile__secnet + asphp): capped exponential with equal jitter (no
+ * thundering-herd synchronization when a hub restart clears 50 phones at
+ * once), and a low-frequency PARK after the fast budget instead of the old
+ * silent dead-end that left the relay deaf until an app restart.
+ */
 function scheduleHubReconnect(): void {
   if (!hubConfig || hubWs !== null) {
     return;
   }
   if (hubReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.warn(
+      `HubRelay: fast reconnect budget (${MAX_RECONNECT_ATTEMPTS} attempts) spent — parking at one retry per ${RECONNECT_PARK_DELAY_MS / 1000}s`
+    );
     setStatus('closed');
-    hubReconnectAttempts = 0;
+    hubReconnectAttempts = 0; // the parked dial restarts the fast ladder
+    hubReconnectTimer = setTimeout(() => {
+      hubReconnectTimer = null;
+      // eslint-disable-next-line no-void -- fire-and-forget; the connect owns its errors
+      void connectHubRelaySocket();
+    }, RECONNECT_PARK_DELAY_MS);
     return;
   }
-  const delay = RECONNECT_BASE_DELAY_MS * 2 ** hubReconnectAttempts;
+  const ceiling = Math.min(
+    RECONNECT_BASE_DELAY_MS * 2 ** hubReconnectAttempts,
+    RECONNECT_MAX_DELAY_MS
+  );
+  const delay = Math.round(ceiling / 2 + Math.random() * (ceiling / 2));
   hubReconnectAttempts++;
   setStatus('reconnecting');
   hubReconnectTimer = setTimeout(() => {

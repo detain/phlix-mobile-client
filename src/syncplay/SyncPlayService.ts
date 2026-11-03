@@ -91,6 +91,37 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 
+/**
+ * Park-at-cap re-arm (review mobile__asphp M2 / mobile__exploiter Info, fix
+ * shaped after the hub's Federation lane 229d3d1): once the fast ladder's
+ * budget is spent the socket does NOT dead-end in 'error' until a screen
+ * drives an explicit connect() — it parks at a low frequency and keeps
+ * retrying, because a phone walking between LTE/Wi-Fi zones can burn the
+ * 5-attempt budget in ~31 s of one outage and then sit deaf forever. The
+ * next dial restarts the fast ladder. The server's `JoinPasswordThrottle`
+ * remains the outer abuse backstop.
+ */
+const RECONNECT_PARK_DELAY_MS = 60_000;
+
+/**
+ * Pong watchdog (review mobile__asphp M10): the 30 s `time_ping` had no
+ * answer-oracle, so a socket whose peer silently vanished (iOS tears the TCP
+ * down on suspend; Android Doze can strand it) believed `readyState === OPEN`
+ * and serialized frames into a black hole forever. An unanswered ping older
+ * than this window means the socket is a zombie: kill it and let the ladder
+ * re-dial.
+ */
+const PONG_TIMEOUT_MS = 10_000;
+
+/**
+ * Minimum spacing between `syncplay_playback_sync` state reports (SPEC §4/
+ * §9.1 "periodic, all members"; review mobile__asphp C3). 2 s matches the
+ * estate cadence the library client keeps — fast enough to feed the S291
+ * host re-anchor and the S446 drift policy, slow enough to never be the 1 s
+ * chatter the battery audit (Info 20) warns against.
+ */
+const POSITION_REPORT_INTERVAL_MS = 2000;
+
 // ---------------------------------------------------------------------------
 // TimeSync - NTP-style clock offset calculation
 //
@@ -349,6 +380,25 @@ class SyncPlayService {
   /** Member ids seen in the last group_state — the basis of join/left diffs. */
   private lastMemberIds = new Set<string>();
   private reconnectAttempts = 0;
+  /**
+   * Cached GROUP GATE digest for the room we intend to be in (review
+   * mobile__asphp C1 / exploiter M11): the wire credential for `group_join`
+   * is the SHA-256 hex digest (SPEC §4), which the server accepts replayably
+   * (SPEC §8.2 — the gate is a weak presence-check by design, the REST
+   * boundary is where plaintext is demanded). A reconnect used to send a bare
+   * join into a gated room → invalid_password → the member was silently
+   * dropped from their own watch party. Keyed by groupId so a stale digest
+   * can never ride into a different room; cleared on leave/disconnect.
+   */
+  private groupGate: { groupId: string; digest: string } | null = null;
+  /** True while handleOpen's auto-rejoin arm waits for the group_state that
+   * confirms it (cleared by handleGroupState / disconnect / leaveGroup). */
+  private awaitingAutoRejoin = false;
+  /** When we last sent a position report (C3 throttle basis). */
+  private lastPositionReportAt = 0;
+  /** When the outstanding `time_ping` was sent; null = no ping awaiting a
+   * pong. Basis of the zombie-socket watchdog (M10). */
+  private pongPendingAt: number | null = null;
 
   /**
    * Connect to the SyncPlay WebSocket endpoint.
@@ -371,12 +421,35 @@ class SyncPlayService {
    * the transport law (port, token carrier) lives in `wsEndpoint.ts` alone
    * (audit H1 — the old signature took a `{apiHost}/api/v1/syncplay/ws` URL
    * built against the HTTP port, which no listener serves).
+   *
+   * `gateDigest` (review mobile__asphp C1): the SHA-256 hex of the room gate
+   * the caller already proved knowledge of over REST. The WS `group_join`
+   * frame after socket-open needs it too for gated rooms — without it the
+   * join is refused and the viewer sits in a room the server says they never
+   * entered. Held process-locally (never persisted), keyed to `roomId`.
    */
-  connectWithRoom(roomId: string, sessionId: string): void {
+  connectWithRoom(roomId: string, sessionId: string, gateDigest?: string): void {
     this.memberId = sessionId;
     this.pendingJoinRoomId = roomId;
+    this.groupGate = gateDigest !== undefined && gateDigest !== '' ? { groupId: roomId, digest: gateDigest } : null;
+    this.awaitingAutoRejoin = false;
     this.reconnectAttempts = 0;
     this.startConnection();
+  }
+
+  /**
+   * Cache the group gate digest supplied in plaintext by a caller that just
+   * proved it (create-with-gate / join-by-id-with-gate). Empty gate clears
+   * any stale cache.
+   */
+  rememberGroupGate(groupId: string, password: string | undefined): void {
+    if (password === undefined || password === '') {
+      if (this.groupGate?.groupId === groupId) {
+        this.groupGate = null;
+      }
+      return;
+    }
+    this.groupGate = { groupId, digest: hashGroupPassword(password) };
   }
 
   /**
@@ -395,6 +468,10 @@ class SyncPlayService {
     this.lastMemberIds.clear();
     this.pendingJoinRoomId = null;
     this.reconnectAttempts = 0;
+    this.groupGate = null;
+    this.awaitingAutoRejoin = false;
+    this.pongPendingAt = null;
+    this.lastPositionReportAt = 0;
     useSyncplayStore.getState().reset();
   }
 
@@ -405,8 +482,21 @@ class SyncPlayService {
     this.events[event] = handler;
   }
 
-  off(event: keyof SyncPlayServiceEvents): void {
-    delete this.events[event];
+  /**
+   * Remove an event handler (review mobile__asphp C4). With a handler
+   * argument the removal is identity-guarded: a screen unmounting while a
+   * newer screen already owns the slot must not silently unregister the
+   * successor's handler (React double-invocation / re-mount races). Without
+   * an argument the slot is cleared unconditionally — the documented
+   * "remove whatever is there" behaviour callers rely on.
+   */
+  off<K extends keyof SyncPlayServiceEvents>(
+    event: K,
+    handler?: SyncPlayServiceEvents[K]
+  ): void {
+    if (handler === undefined || this.events[event] === handler) {
+      delete this.events[event];
+    }
   }
 
   /**
@@ -432,7 +522,13 @@ class SyncPlayService {
     // the omission decision; `hashGroupPassword` carries the matching
     // fail-loud tripwire for any future caller that skips this guard.
     if (password !== undefined && password !== '') {
-      payload.password_hash = hashGroupPassword(password);
+      const digest = hashGroupPassword(password);
+      payload.password_hash = digest;
+      // A group you just created over WS is the group you will rejoin on
+      // every reconnect — cache the gate UNBOUND (the server has not named
+      // the group yet; handleGroupState binds it on the first snapshot) so
+      // the replay arm never sends a bare join into a gated room (C1).
+      this.groupGate = { groupId: '', digest };
     }
 
     this.send(payload);
@@ -452,9 +548,17 @@ class SyncPlayService {
     };
 
     // Same gate-omission law as createGroup (no hash-of-empty on the wire;
-    // the tripwire lives in hashGroupPassword).
+    // the tripwire lives in hashGroupPassword). A caller that supplies the
+    // plaintext proves knowledge and refreshes the cache; a caller that
+    // supplies nothing (the reconnect arms) rides the cached digest when it
+    // belongs to THIS group — the C1 cure for "auto-rejoin drops you from a
+    // gated room".
     if (password !== undefined && password !== '') {
-      payload.password_hash = hashGroupPassword(password);
+      const fresh = hashGroupPassword(password);
+      payload.password_hash = fresh;
+      this.groupGate = { groupId, digest: fresh };
+    } else if (this.groupGate?.groupId === groupId) {
+      payload.password_hash = this.groupGate.digest;
     }
 
     this.send(payload);
@@ -480,6 +584,13 @@ class SyncPlayService {
     useSyncplayStore.getState().setCurrentGroup(null);
     this.lastMemberIds.clear();
     this.stopSyncInterval();
+    // Leaving is a decision to not come back — the cached gate dies with the
+    // membership so a later auto-rejoin can't sneak back in (C1) and nothing
+    // keeps the digest in memory once the user is out (M11 hygiene). Cleared
+    // unconditionally: the store id is '' until the first group_state, and
+    // "I am leaving this room" outranks any key-matching cleverness.
+    this.groupGate = null;
+    this.awaitingAutoRejoin = false;
   }
 
   /**
@@ -597,6 +708,70 @@ class SyncPlayService {
   }
 
   /**
+   * Feed the periodic member position report (review mobile__asphp C3):
+   * PlayerScreen's progress callback is the ONLY place the phone knows where
+   * its video is, and until now that knowledge never reached the group —
+   * `reportPosition` had zero callers, so this member's drift was invisible
+   * to the host re-anchor (S291) and the S446 drift policy.
+   *
+   * Throttle: at most one frame per POSITION_REPORT_INTERVAL_MS, and only
+   * when the position actually moved (a paused viewer sends nothing). `ms`
+   * is the WIRE-milliseconds position (callers convert once, S293 law).
+   */
+  noteLocalPosition(positionMs: number): void {
+    if (this.connectionState !== 'connected' || this.ws === null) {
+      return;
+    }
+    if (!useSyncplayStore.getState().currentGroup) {
+      return;
+    }
+    const now = Date.now();
+    if (now - this.lastPositionReportAt < POSITION_REPORT_INTERVAL_MS) {
+      return;
+    }
+    this.lastPositionReportAt = now;
+    this.reportPosition(positionMs);
+  }
+
+  /**
+   * App went to background (review mobile__asphp M10 — iOS jetsams a socket
+   * mid-stream and Android Doze can strand one silently): stop all timers and
+   * close the socket on OUR terms instead of letting the OS do it at an
+   * unpredictable moment. Membership intent (group, gate, member id) is kept
+   * — the foreground arm re-dials.
+   */
+  handleAppBackground(): void {
+    if (this.connectionState === 'disconnected' && this.ws === null && this.reconnectTimeout === null) {
+      return; // nothing running — stay inert
+    }
+    this.stopReconnect();
+    this.stopSyncInterval();
+    this.pongPendingAt = null;
+    this.closeSocketQuietly();
+    this.setConnectionState('disconnected');
+  }
+
+  /**
+   * App returned to the foreground: if the viewer still intends to be in a
+   * group (store says so, or a gate cache/join is pending) and nothing is
+   * already dialing, restart the FAST ladder from attempt 0 — a background
+   * gap is not the socket's fault.
+   */
+  handleAppForeground(): void {
+    if (this.ws !== null || this.reconnectTimeout !== null) {
+      return; // already connected or already re-dialing
+    }
+    const intendsGroup =
+      this.memberId !== '' &&
+      (useSyncplayStore.getState().currentGroup !== null || this.pendingJoinRoomId !== null);
+    if (!intendsGroup) {
+      return;
+    }
+    this.reconnectAttempts = 0;
+    this.startConnection();
+  }
+
+  /**
    * Request time synchronization with the server.
    */
   requestTimeSync(): void {
@@ -604,12 +779,16 @@ class SyncPlayService {
 
     // The pong is routed back through handleMessage → handleTimePong, which adds
     // the completed sample and fires onTimeSyncUpdate. We only send the ping here.
+    // Stamping the pending moment arms the zombie-socket watchdog (M10): if no
+    // pong answers within PONG_TIMEOUT_MS, the socket is declared dead even
+    // though its readyState still says OPEN.
     this.send({
       type: MSG.TIME_PING,
       protocol_version: PROTOCOL_VERSION,
       client_time: t1,
       timestamp: t1,
     });
+    this.pongPendingAt = t1;
   }
 
   /**
@@ -755,6 +934,12 @@ class SyncPlayService {
 
   private setConnectionState(state: ConnectionState): void {
     this.connectionState = state;
+    // M9 (review mobile__asphp): mirror the liveness rail into the store so
+    // every screen — not just event subscribers — reads an honest
+    // connected/connecting flag. The event keeps its own subscribers.
+    const store = useSyncplayStore.getState();
+    store.setIsConnected(state === 'connected');
+    store.setIsConnecting(state === 'connecting');
     this.events.onConnectionStateChange?.(state);
   }
 
@@ -762,10 +947,45 @@ class SyncPlayService {
     this.stopSyncInterval();
     this.requestTimeSync();
     this.syncInterval = setInterval(() => {
-      if (this.connectionState === 'connected') {
-        this.requestTimeSync();
+      if (this.connectionState !== 'connected') {
+        return;
       }
+      // M10: a ping with no pong inside the window means the socket is a
+      // zombie (silent peer death keeps readyState OPEN on both RN engines).
+      // Declare it dead and let the ladder re-dial instead of serializing
+      // frames into a black hole.
+      if (this.pongPendingAt !== null && Date.now() - this.pongPendingAt > PONG_TIMEOUT_MS) {
+        this.killZombieSocket();
+        return;
+      }
+      this.requestTimeSync();
     }, SYNC_INTERVAL_MS);
+  }
+
+  /**
+   * Force-close a socket the watchdog proved deaf: detach its handlers first
+   * (the close event must not double-drive the state machine through the old
+   * wiring), then run the standard closed-connection path so the reconnect
+   * ladder, interval stop and store mirrors behave exactly as on a real drop.
+   */
+  private killZombieSocket(): void {
+    console.warn('SyncPlay: time_ping unanswered — treating the socket as dead and re-dialing');
+    this.pongPendingAt = null;
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      try {
+        socket.close();
+      } catch {
+        // A dead socket refusing close() changes nothing: we have already
+        // unbound it from this state machine.
+      }
+    }
+    this.handleClose(this.connectionGeneration);
   }
 
   private stopSyncInterval(): void {
@@ -777,17 +997,26 @@ class SyncPlayService {
 
   /**
    * Capped exponential backoff with equal jitter (mirrors the hubRelay.ts
-   * ladder, ceiling at RECONNECT_MAX_DELAY_MS, self-terminating after
-   * MAX_RECONNECT_ATTEMPTS). The previous fixed 5s uncapped retry hammered the
-   * listener forever behind an outage (audit M5).
+   * ladder, ceiling at RECONNECT_MAX_DELAY_MS). The previous fixed 5s uncapped
+   * retry hammered the listener forever behind an outage (audit M5); the
+   * previous capped version then DEAD-ENDED at 5 attempts, which strands a
+   * phone that burned the budget during one commute (review mobile__asphp
+   * M2/exploiter Info — hub Federation 229d3d1 shape): after the budget the
+   * state reads 'error' for the UI, but a low-frequency PARK re-arm keeps
+   * probing and restarts the fast ladder when a dial finally lands.
    */
   private scheduleReconnect(): void {
     this.stopReconnect();
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.error(
-        `SyncPlay: reconnect budget exhausted after ${MAX_RECONNECT_ATTEMPTS} attempts — reopening needs an explicit connect()`
+      console.warn(
+        `SyncPlay: fast reconnect budget (${MAX_RECONNECT_ATTEMPTS} attempts) spent — parking at one retry per ${RECONNECT_PARK_DELAY_MS / 1000}s`
       );
       this.setConnectionState('error');
+      this.reconnectTimeout = setTimeout(() => {
+        this.reconnectTimeout = null;
+        this.reconnectAttempts = 0;
+        this.openSocket(this.connectionGeneration);
+      }, RECONNECT_PARK_DELAY_MS);
       return;
     }
     const ceiling = Math.min(
@@ -815,6 +1044,7 @@ class SyncPlayService {
     }
     this.setConnectionState('connected');
     this.reconnectAttempts = 0;
+    this.pongPendingAt = null;
     // SPEC §10.1 (audit M5): every established connection — first or
     // auto-reconnect — starts in a fresh clock domain. Old offsets measured
     // against a dead process must not skew the new one.
@@ -824,13 +1054,19 @@ class SyncPlayService {
     if (this.pendingJoinRoomId !== null) {
       const roomId = this.pendingJoinRoomId;
       this.pendingJoinRoomId = null;
+      this.awaitingAutoRejoin = false;
       this.joinGroup(roomId);
       return;
     }
 
-    // Re-join group if we had one
+    // Re-join group if we had one. `joinGroup` replays the cached gate digest
+    // (C1) — and `awaitingAutoRejoin` lets the error arm tell "the room moved
+    // on without us" apart from a mid-session command failure: an
+    // invalid_password here means membership is gone, and the UI must say so
+    // instead of rendering a group we are no longer part of.
     const { currentGroup } = useSyncplayStore.getState();
     if (currentGroup) {
+      this.awaitingAutoRejoin = true;
       this.joinGroup(currentGroup.id);
     }
   }
@@ -991,6 +1227,15 @@ class SyncPlayService {
       hasPassword: groupData.has_password === true,
     };
 
+    // A WS-created group learns its server-assigned id only here; bind the
+    // unbound gate cache so reconnects can replay it (createGroup, C1).
+    if (this.groupGate !== null && this.groupGate.groupId === '' && group.id !== '') {
+      this.groupGate = { groupId: group.id, digest: this.groupGate.digest };
+    }
+    // The snapshot is the proof the (auto-)join succeeded — the error arm
+    // stops treating failures as "membership lost" from here (C1).
+    this.awaitingAutoRejoin = false;
+
     useSyncplayStore.getState().setCurrentGroup(group);
     useSyncplayStore.getState().setIsHost(you !== '' && you === group.hostId);
 
@@ -1106,6 +1351,20 @@ class SyncPlayService {
     const code = wireString(msg.error_code) ?? wireString(msg.code) ?? 'UNKNOWN';
     const message = wireString(msg.message) ?? 'Unknown error';
 
+    // C1 tail: if the refused moment is the auto-rejoin, the room no longer
+    // accepts our (possibly expired) membership — wipe the group so the UI
+    // stops presenting a watch party we are not in, and drop the gate cache
+    // so we cannot hammer a dead key. The onError emit below still alerts.
+    if (code === 'syncplay.invalid_password' && this.awaitingAutoRejoin) {
+      this.awaitingAutoRejoin = false;
+      this.groupGate = null;
+      const store = useSyncplayStore.getState();
+      if (store.currentGroup) {
+        store.setCurrentGroup(null);
+        store.setIsHost(false);
+      }
+    }
+
     this.events.onError?.(code, message);
   }
 
@@ -1123,12 +1382,21 @@ class SyncPlayService {
     const t4 = Date.now();
 
     this.timeSync.addSample(t1, t2, t2, t4);
+    this.pongPendingAt = null;
 
-    this.events.onTimeSyncUpdate?.({
+    const status = {
       offset: this.timeSync.getOffset(),
       latency: this.timeSync.getLatency(),
       isStable: this.timeSync.isStable(),
-    });
+    };
+
+    // M9 (review mobile__asphp): the store's time-sync fields were write-
+    // never — the modal's "Time sync: …" row read a constant. The pong is
+    // the only honest source, so mirror it into the store here (and the
+    // event rail keeps serving live subscribers).
+    useSyncplayStore.getState().setTimeSyncStatus(status);
+
+    this.events.onTimeSyncUpdate?.(status);
   }
 }
 

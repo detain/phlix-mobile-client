@@ -7,7 +7,7 @@
 
 // src/App.tsx
 import React, { useEffect } from 'react';
-import { StatusBar, LogBox, StyleSheet } from 'react-native';
+import { AppState, StatusBar, LogBox, StyleSheet, type AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -16,6 +16,7 @@ import { useAuthStore } from './stores/useAuthStore';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { initDeviceIdentity } from './api/deviceIdentity';
 import { startHubRelayConsumer, stopHubRelayConsumer } from './syncplay/HubRelayConsumer';
+import { syncPlayService } from './syncplay/SyncPlayService';
 
 // Ignore specific warnings in development
 LogBox.ignoreLogs([
@@ -59,6 +60,28 @@ const App: React.FC = () => {
     return () => {
       stopHubRelayConsumer();
     };
+  }, []);
+
+  // SyncPlay socket lifecycle vs the OS (review mobile__asphp M10): iOS
+  // suspends/jetsus a backgrounded socket mid-stream and Android Doze can
+  // strand one silently — the old code let the OS decide when the transport
+  // died, so a member who backgrounded the app for a phone call could return
+  // to a dead group that still rendered "connected". On background we close
+  // the socket OUR terms (membership intent kept); on foreground we re-dial
+  // from attempt 0 if the viewer still means to be in a group.
+  useEffect(() => {
+    const onChange = (status: AppStateStatus) => {
+      // 'inactive' is deliberately not a teardown trigger: it fires for
+      // transient interruptions (notification shade, permission dialogs) and
+      // dropping the group for a swipe-down would be its own bug.
+      if (status === 'background') {
+        syncPlayService.handleAppBackground();
+      } else if (status === 'active') {
+        syncPlayService.handleAppForeground();
+      }
+    };
+    const subscription = AppState.addEventListener('change', onChange);
+    return () => subscription.remove();
   }, []);
 
   return (

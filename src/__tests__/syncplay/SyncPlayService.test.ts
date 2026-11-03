@@ -461,7 +461,7 @@ describe('SyncPlayService - Reconnect ladder', () => {
     jest.useRealTimers();
   });
 
-  it('reconnects with a bounded, jittered delay and stops after the budget', async () => {
+  it('reconnects with a bounded, jittered delay, then parks (never dead-ends)', async () => {
     const stateChange = jest.fn();
     syncPlayService.on('onConnectionStateChange', stateChange as any);
     // Deterministic jitter: 0.5 → delay = ceiling·¾ exactly.
@@ -500,13 +500,28 @@ describe('SyncPlayService - Reconnect ladder', () => {
     }
     expect(MockWebSocket.builds).toBe(6);
 
-    // Budget spent (5 attempts) → the next close terminates in 'error' and NO
-    // further socket is ever constructed (the old ladder ran forever).
+    // Budget spent (5 attempts). NEW LAW (review mobile__asphp M2 — this
+    // replaced the self-terminating ladder the old assertion pinned): the
+    // state reads 'error' for the UI, but a PARK re-arm keeps probing at
+    // low frequency instead of stranding a phone whose one outage happened
+    // to burn the budget (a commute between LTE/Wi-Fi zones is ~31 s).
     MockWebSocket.simulateClose();
-    jest.advanceTimersByTime(120_000);
-    await pump();
     expect(stateChange).toHaveBeenLastCalledWith('error');
-    expect(MockWebSocket.builds).toBe(6);
+    jest.advanceTimersByTime(59_999);
+    await pump();
+    expect(MockWebSocket.builds).toBe(6); // the park tick has NOT fired yet
+
+    // At the 60 s park cadence the socket dials again…
+    jest.advanceTimersByTime(1);
+    await pump();
+    expect(MockWebSocket.builds).toBe(7);
+
+    // …and the parked dial RESTARTED the fast ladder: the next drop redials
+    // at the FIRST step (750 ms), not another 60 s park.
+    MockWebSocket.simulateClose();
+    jest.advanceTimersByTime(750);
+    await pump();
+    expect(MockWebSocket.builds).toBe(8);
 
     randomSpy.mockRestore();
     syncPlayService.off('onConnectionStateChange');
@@ -1624,5 +1639,256 @@ describe('SyncPlayService - TimeSync', () => {
     // Without samples, offset is 0 so syncTime ≈ Date.now()
     expect(syncTime).toBeGreaterThanOrEqual(before);
     expect(syncTime).toBeLessThanOrEqual(after);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Membership continuity — review mobile__asphp C1/C3/C4 + M9/M10 law-pins
+// ---------------------------------------------------------------------------
+
+describe('SyncPlayService - Membership continuity (C1/C3/C4/M9/M10)', () => {
+  const GROUP = {
+    id: 'sp_room1',
+    name: 'Party',
+    members: [],
+    currentMediaId: null,
+    playbackState: 'playing' as const,
+    playbackPosition: 5,
+    hostId: 'other-1',
+    hasPassword: true,
+  };
+  const GATE_DIGEST = createHash('sha256').update('gate-pass', 'utf8').digest('hex');
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    setupMocks();
+    MockWebSocket.reset();
+    syncPlayService.disconnect();
+  });
+
+  it('C1: the post-open join carries the gate digest handed to connectWithRoom', async () => {
+    setupMocks({}, { currentGroup: null });
+    syncPlayService.connectWithRoom('sp_room1', 'sess-1', GATE_DIGEST);
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const join = findSentMessage('syncplay_group_join');
+    expect(join).toBeDefined();
+    expect(join?.password_hash).toBe(GATE_DIGEST);
+  });
+
+  it('C1: auto-rejoin replays the cached digest — a gated room stays joined', async () => {
+    setupMocks({}, { currentGroup: GROUP });
+    syncPlayService.connectWithRoom('sp_room1', 'sess-1', GATE_DIGEST);
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    // Drop and let the ladder redial + open: handleOpen's rejoin arm must
+    // ride the cached digest, not send a bare join (the C1 defect).
+    jest.useFakeTimers();
+    MockWebSocket.simulateClose();
+    jest.advanceTimersByTime(1000);
+    await pump();
+    jest.useRealTimers();
+    MockWebSocket.simulateOpen();
+
+    const joins = MockWebSocket.instance?.send.mock.calls
+      .map((call) => JSON.parse(call[0] as string) as Record<string, unknown>)
+      .filter((msg) => msg.type === 'syncplay_group_join');
+    expect(joins).toHaveLength(1); // fresh socket — its own send log
+    expect(joins?.[0].password_hash).toBe(GATE_DIGEST);
+  });
+
+  it('C1 tail: invalid_password during the auto-rejoin wipes the stale group', async () => {
+    const setCurrentGroup = jest.fn();
+    const setIsHost = jest.fn();
+    setupMocks({}, { currentGroup: GROUP, setCurrentGroup, setIsHost });
+    syncPlayService.connectWithRoom('sp_room1', 'sess-1', GATE_DIGEST);
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    // Rejoin arm: drop → redial → open → awaitingAutoRejoin = true.
+    jest.useFakeTimers();
+    MockWebSocket.simulateClose();
+    jest.advanceTimersByTime(1000);
+    await pump();
+    jest.useRealTimers();
+    MockWebSocket.simulateOpen();
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_error',
+      error_code: 'syncplay.invalid_password',
+      message: 'Invalid group password',
+    });
+
+    // The UI must stop presenting a party this phone is no longer in, and
+    // the refused digest must not be retried forever.
+    expect(setCurrentGroup).toHaveBeenCalledWith(null);
+    expect(setIsHost).toHaveBeenCalledWith(false);
+  });
+
+  it('C1 hygiene: leaveGroup drops the cached gate', async () => {
+    setupMocks({}, { currentGroup: GROUP });
+    syncPlayService.connectWithRoom('sp_room1', 'sess-1', GATE_DIGEST);
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    syncPlayService.leaveGroup();
+    MockWebSocket.instance?.send.mockClear();
+
+    // A subsequent rejoin attempt (same process) must go bare again — the
+    // user opted out; sneaking the old key back would re-add them.
+    syncPlayService.joinGroup('sp_room1');
+    const join = findSentMessage('syncplay_group_join');
+    expect(join).toBeDefined();
+    expect(join).not.toHaveProperty('password_hash');
+  });
+
+  it('C3: noteLocalPosition reports wire-ms, throttled to one frame per 2 s', async () => {
+    jest.useFakeTimers();
+    try {
+      setupMocks({}, { currentGroup: GROUP });
+      syncPlayService.connect('member-123');
+      await pump(); // socket constructs on the vault microtask chain
+      MockWebSocket.simulateOpen();
+
+      const syncFrames = () =>
+        MockWebSocket.instance?.send.mock.calls
+          .map((call) => JSON.parse(call[0] as string) as Record<string, unknown>)
+          .filter((msg) => msg.type === 'syncplay_playback_sync').length ?? 0;
+
+      syncPlayService.noteLocalPosition(10_000);
+      expect(syncFrames()).toBe(1);
+
+      // Throttle: rapid progress ticks inside the window send nothing more.
+      syncPlayService.noteLocalPosition(10_500);
+      syncPlayService.noteLocalPosition(11_000);
+      expect(syncFrames()).toBe(1);
+
+      jest.advanceTimersByTime(2001);
+      syncPlayService.noteLocalPosition(13_000);
+      expect(syncFrames()).toBe(2);
+
+      syncPlayService.disconnect();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('C3 gate: no group, no socket → noteLocalPosition is silent', () => {
+    setupMocks(); // currentGroup null
+    expect(() => syncPlayService.noteLocalPosition(5_000)).not.toThrow();
+    expect(MockWebSocket.builds).toBe(0);
+  });
+
+  it('C4: off(event, handler) is identity-guarded — a stale unmount cannot evict the successor', async () => {
+    setupMocks();
+    const stale = jest.fn();
+    const current = jest.fn();
+    syncPlayService.on('onConnectionStateChange', stale as any);
+    syncPlayService.on('onConnectionStateChange', current as any);
+
+    // The OLD screen unmounts late and removes ITS handler only.
+    syncPlayService.off('onConnectionStateChange', stale as any);
+
+    syncPlayService.connect('member-123');
+    await pump();
+
+    expect(current).toHaveBeenCalledWith('connecting');
+    expect(stale).not.toHaveBeenCalled();
+
+    syncPlayService.off('onConnectionStateChange');
+  });
+
+  it('M9: connection-state rail mirrors into the store', async () => {
+    const setIsConnected = jest.fn();
+    const setIsConnecting = jest.fn();
+    setupMocks({}, { setIsConnected, setIsConnecting });
+
+    syncPlayService.connect('member-123');
+    await pump();
+    expect(setIsConnecting).toHaveBeenLastCalledWith(true);
+    expect(setIsConnected).toHaveBeenLastCalledWith(false);
+
+    MockWebSocket.simulateOpen();
+    expect(setIsConnected).toHaveBeenLastCalledWith(true);
+    expect(setIsConnecting).toHaveBeenLastCalledWith(false);
+
+    syncPlayService.disconnect();
+    expect(setIsConnected).toHaveBeenLastCalledWith(false);
+  });
+
+  it('M9: the pong mirrors time-sync status into the store', async () => {
+    const setTimeSyncStatus = jest.fn();
+    setupMocks({}, { setTimeSyncStatus });
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_time_pong',
+      client_time: Date.now() - 100,
+      server_time: Date.now() - 60,
+    });
+
+    expect(setTimeSyncStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ offset: expect.any(Number), latency: expect.any(Number) })
+    );
+  });
+
+  it('M10 watchdog: an unanswered ping kills the zombie socket and re-dials', async () => {
+    jest.useFakeTimers();
+    try {
+      setupMocks();
+      syncPlayService.connect('member-123');
+      await pump();
+      MockWebSocket.simulateOpen();
+      expect(MockWebSocket.builds).toBe(1);
+
+      // 30 s later the interval pings; NO pong ever arrives. The following
+      // tick finds the pending ping older than the 10 s window and declares
+      // the (readyState-OPEN) socket dead instead of trusting it.
+      jest.advanceTimersByTime(30_000); // tick 1: pings (pong answered by nobody)
+      jest.advanceTimersByTime(30_000); // tick 2: stale pending → zombie kill
+      await pump();
+      expect(MockWebSocket.builds).toBe(2); // ladder re-dialed
+
+      // And the next pong-healthy connection behaves: keep answering and no
+      // further dials happen.
+      MockWebSocket.simulateOpen();
+      const afterOpen = MockWebSocket.builds;
+      for (let i = 0; i < 4; i += 1) {
+        jest.advanceTimersByTime(30_000);
+        MockWebSocket.simulateMessage({
+          type: 'syncplay_time_pong',
+          client_time: Date.now(),
+          server_time: Date.now(),
+        });
+      }
+      expect(MockWebSocket.builds).toBe(afterOpen);
+    } finally {
+      jest.useRealTimers();
+      syncPlayService.disconnect();
+    }
+  });
+
+  it('M10 AppState pair: background closes on our terms; foreground re-dials an intended group', async () => {
+    setupMocks({}, { currentGroup: GROUP });
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+    expect(MockWebSocket.builds).toBe(1);
+
+    syncPlayService.handleAppBackground();
+    expect(MockWebSocket.instance?.close).toHaveBeenCalled();
+    expect(MockWebSocket.builds).toBe(1); // no ladder armed by our own close
+
+    // Back in the foreground while still intending to watch together:
+    // immediate fast re-dial (not a 5 s crawl).
+    syncPlayService.handleAppForeground();
+    await pump();
+    expect(MockWebSocket.builds).toBe(2);
+
+    syncPlayService.disconnect();
   });
 });

@@ -13,6 +13,7 @@ import { useSettingsStore } from '../stores/useSettingsStore';
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import { secureStorage } from '../services/SecureStorage';
 import { hostOf } from '../utils/serverHost';
+import { quarantineServerProse } from '../utils/quarantineProse';
 import {
   buildPhlixHeaders,
   type DeviceType,
@@ -161,27 +162,14 @@ export const SERVER_UNREACHABLE_MESSAGE =
   "Can't reach your Phlix server. Check that it's running and that this device is on the same network; " +
   'for a local server use the full address, e.g. http://192.168.1.100:8096.';
 
-/** Cap for server-sourced prose rendered in the UI — long enough for honest
- * sentences, short enough that walls of text can't impersonate the app. */
-const QUARANTINE_MAX = 140;
-
 /**
- * Render untrusted server prose safe for display: URLs masked, control and
- * zero-width characters dropped, whitespace collapsed to a single line, and
- * the whole thing capped. This is the fallback lane, not the primary one —
- * codes with catalog copy never come through here.
+ * M-MOBILE-34/52 quarantine lifted to `utils/quarantineProse.ts` (review
+ * mobile__exploiter M7): the SyncPlay WS error lane renders the SAME class of
+ * untrusted server prose and must not drag axios + the vault + the settings
+ * store into its module graph to share it. Re-exported here so every existing
+ * `from './client'` importer and pin keeps working through this door.
  */
-export const quarantineServerProse = (raw: string): string => {
-  const urlMasked = raw.replace(/\b(?:https?:\/\/|www\.)\S+/gi, '[link]');
-  // The sanitizer's whole job is removing control/zero-width characters, so
-  // the `no-control-regex` rule describes the intent, not a defect.
-  // eslint-disable-next-line no-control-regex
-  const printable = urlMasked.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]+/g, ' ');
-  const collapsed = printable.replace(/\s+/g, ' ').trim();
-  return collapsed.length > QUARANTINE_MAX
-    ? collapsed.slice(0, QUARANTINE_MAX - 1) + '…'
-    : collapsed;
-};
+export { quarantineServerProse };
 
 /** First candidate that is actually a non-empty string (boundary read). */
 function firstWireString(...candidates: unknown[]): string | undefined {
