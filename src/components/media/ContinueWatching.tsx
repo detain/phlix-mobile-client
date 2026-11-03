@@ -55,6 +55,7 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
       >
         {backdropUri !== undefined ? (
           <Image
+          resizeMethod="resize"
             source={{ uri: backdropUri }}
             style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
             resizeMode="cover"

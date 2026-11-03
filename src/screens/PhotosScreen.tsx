@@ -172,6 +172,7 @@ const PhotosScreen: React.FC = () => {
       >
         {cover !== undefined ? (
           <Image
+          resizeMethod="resize"
             source={{ uri: cover }}
             style={[styles.albumCover, { width: cellWidth, height: cellWidth }]}
           />

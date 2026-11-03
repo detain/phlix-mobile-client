@@ -49,6 +49,16 @@ describe('version stamping is single-sourced and in sync (M-MOBILE-15/25)', () =
     expect(pkgVersion).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   });
 
+  // M-MOBILE-86 (review mobile__writer Minor 31): the About screen showed a
+  // literal "Version 1.0.0" the sync law never covered — the first
+  // `npm version` bump would have left the UI lying. No PackageInfo module
+  // exists to derive from without a new dependency, so the string is PINNED
+  // here: bumping package.json reddens this test until the UI line follows.
+  it('the Settings About screen displays exactly the package.json version', () => {
+    const settings = read('src/screens/SettingsScreen.tsx');
+    expect(settings).toContain(`Version ${pkgVersion}`);
+  });
+
   it('build.gradle derives versionCode/versionName from package.json instead of hardcoding', () => {
     const gradle = read('android/app/build.gradle');
     // The derivation exists…

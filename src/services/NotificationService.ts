@@ -48,8 +48,12 @@ class NotificationService {
     this.initialized = true;
 
     try {
-      await notifee.requestPermission();
-
+      // M-MOBILE-72 (review mobile__casualgamer Minor 2): the OS permission
+      // prompt used to fire from the CONSTRUCTOR — a cold-launch popup
+      // before login, at the worst possible moment. Permission is now asked
+      // only where it means something: the Notifications toggle (Settings)
+      // and the first download that actually wants to notify
+      // (DownloadService). Everything below is boot-safe — it never prompts.
       if (Platform.OS === 'android') {
         await notifee.createChannel({
           id: GENERAL_CHANNEL_ID,
@@ -149,29 +153,33 @@ class NotificationService {
     void notifee.cancelNotification(PLAYBACK_NOTIFICATION_ID);
   }
 
+  // M-MOBILE-85 (review mobile__crossfe Minor 22 + secnet m3): these four
+  // handlers used to print their WHOLE payload data bags — library ids, titles
+  // and download state readable by any on-device log reader (adb logcat /
+  // sysdiagnose). Log the EVENT, never the payload.
   // Handle library update notification
-  private handleLibraryUpdate(data: NotificationData): void {
+  private handleLibraryUpdate(_data: NotificationData): void {
     // Navigate to library or refresh content
-    console.log('Library updated:', data);
+    console.log('[notifications] library_update');
   }
 
   // Handle new content notification
-  private handleNewContent(data: NotificationData): void {
+  private handleNewContent(_data: NotificationData): void {
     // Navigate to new content
-    console.log('New content available:', data);
+    console.log('[notifications] new_content');
   }
 
   // Handle sync complete notification
-  private handleSyncComplete(data: NotificationData): void {
-    console.log('Sync complete:', data);
+  private handleSyncComplete(_data: NotificationData): void {
+    console.log('[notifications] sync_complete');
   }
 
   // Handle download-complete notification (wired production call site:
   // DownloadService.handleNativeComplete, review mobile__crossfe M3).
   // Press-to-Downloads navigation needs a navigation ref at the service
   // layer — the same open seam as the sibling stubs above.
-  private handleDownloadComplete(data: NotificationData): void {
-    console.log('Download complete notification pressed:', data);
+  private handleDownloadComplete(_data: NotificationData): void {
+    console.log('[notifications] download_complete_pressed');
   }
 
   // Badges

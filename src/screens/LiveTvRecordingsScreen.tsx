@@ -11,7 +11,8 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
+  type SectionListData,
   TouchableOpacity,
   RefreshControl,
   Alert,
@@ -30,6 +31,12 @@ import {
   type Recording,
   type RecordingStatus,
 } from '../types/livetv';
+
+// M-MOBILE-82: section payload carries its own empty-state copy so the
+// footer renderer stays data-driven (see the SectionList note below).
+interface SectionData extends SectionListData<Recording> {
+  emptyHint: string;
+}
 
 const errText = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;
@@ -212,12 +219,29 @@ const LiveTvRecordingsScreen: React.FC = () => {
     </View>
   );
 
+  // M-MOBILE-82 (review mobile__crossfe Minor 18): this used to be a
+  // `<FlatList data={[]} renderItem={() => null}>` with EVERY row crammed
+  // into ListHeaderComponent — zero windowing as schedules grow, and props
+  // that mislead. The two recording rails are now real SectionList sections
+  // keyed on item.id; the (small, admin-managed) series-rules block rides a
+  // static footer.
   return (
     <SafeContainer edges={['top']}>
-      <FlatList<never>
-        data={[]}
-        renderItem={() => null}
-        keyExtractor={(_item, index) => String(index)}
+      <SectionList<Recording, SectionData>
+        sections={[
+          { title: 'Upcoming', data: upcoming, emptyHint: 'No upcoming recordings.' },
+          { title: 'All recordings', data: recordings, emptyHint: 'No recordings yet.' },
+        ]}
+        renderItem={({ item }) => renderRecording(item)}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionTitle}>{section.title}</Text>
+        )}
+        renderSectionFooter={({ section }) =>
+          section.data.length === 0 ? (
+            <Text style={styles.emptyHint}>{section.emptyHint}</Text>
+          ) : null
+        }
+        keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
             refreshing={recordingsLoading}
@@ -226,30 +250,15 @@ const LiveTvRecordingsScreen: React.FC = () => {
           />
         }
         ListHeaderComponent={
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Recordings</Text>
+            <TouchableOpacity style={styles.createButton} onPress={openCreate}>
+              <Text style={styles.createButtonText}>+ Schedule</Text>
+            </TouchableOpacity>
+          </View>
+        }
+        ListFooterComponent={
           <View>
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Recordings</Text>
-              <TouchableOpacity style={styles.createButton} onPress={openCreate}>
-                <Text style={styles.createButtonText}>+ Schedule</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Upcoming */}
-            <Text style={styles.sectionTitle}>Upcoming</Text>
-            {upcoming.length === 0 ? (
-              <Text style={styles.emptyHint}>No upcoming recordings.</Text>
-            ) : (
-              upcoming.map(renderRecording)
-            )}
-
-            {/* All recordings */}
-            <Text style={styles.sectionTitle}>All recordings</Text>
-            {recordings.length === 0 ? (
-              <Text style={styles.emptyHint}>No recordings yet.</Text>
-            ) : (
-              recordings.map(renderRecording)
-            )}
-
             {/* Series rules (list-only) */}
             <Text style={styles.sectionTitle}>Series rules</Text>
             {seriesRules.length === 0 ? (

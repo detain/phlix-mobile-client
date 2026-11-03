@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useProfileStore } from '../stores/useProfileStore';
 import { parentalControlsManager } from '../api';
+import { apiErrorMessage } from '../api/client';
 import { SafeContainer } from '../components/layout';
 import type { AccessSchedule, DayOfWeek, ProfileTag, ProfileStreamLimit } from '../types/parental';
 
@@ -126,7 +127,7 @@ const ParentalControlsScreen: React.FC = () => {
       const data = await parentalControlsManager.getSchedules(profileId);
       setSchedules(data);
     } catch (e) {
-      setErrorSchedules(e instanceof Error ? e.message : 'Failed to load schedules');
+      setErrorSchedules(apiErrorMessage(e, 'Failed to load schedules'));
     } finally {
       setLoadingSchedules(false);
     }
@@ -140,7 +141,7 @@ const ParentalControlsScreen: React.FC = () => {
       const data = await parentalControlsManager.getTags(profileId);
       setTags(data.filter((t) => t.tag_type === 'blocked'));
     } catch (e) {
-      setErrorTags(e instanceof Error ? e.message : 'Failed to load tags');
+      setErrorTags(apiErrorMessage(e, 'Failed to load tags'));
     } finally {
       setLoadingTags(false);
     }
@@ -154,7 +155,7 @@ const ParentalControlsScreen: React.FC = () => {
       const data = await parentalControlsManager.getStreamLimit(profileId);
       setStreamLimit(data);
     } catch (e) {
-      setErrorLimits(e instanceof Error ? e.message : 'Failed to load stream limit');
+      setErrorLimits(apiErrorMessage(e, 'Failed to load stream limit'));
     } finally {
       setLoadingLimits(false);
     }
@@ -244,7 +245,7 @@ const ParentalControlsScreen: React.FC = () => {
       closeScheduleForm();
       await loadSchedules();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save schedule');
+      Alert.alert('Save failed', apiErrorMessage(e, 'Failed to save schedule'));
     } finally {
       setSavingSchedule(false);
     }
@@ -252,7 +253,7 @@ const ParentalControlsScreen: React.FC = () => {
 
   const deleteSchedule = async (scheduleId: number) => {
     if (!profileId) return;
-    Alert.alert('Delete Schedule', 'Are you sure?', [
+    Alert.alert('Delete schedule', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -319,7 +320,7 @@ const ParentalControlsScreen: React.FC = () => {
       setEditingLimit(false);
       await loadStreamLimit();
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Failed to save limits');
+      Alert.alert('Save failed', apiErrorMessage(e, 'Failed to save limits'));
     } finally {
       setSavingLimit(false);
     }

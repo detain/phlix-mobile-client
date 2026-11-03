@@ -6,7 +6,7 @@
  */
 
 // src/screens/SearchScreen.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -110,6 +110,26 @@ const SearchScreen: React.FC = () => {
   const handleChangeText = (text: string) => {
     setQuery(text);
   };
+
+  // M-MOBILE-80 (review mobile__gameux Minor 25): typing used to change
+  // nothing on screen until Enter — users typed, looked up, and saw the stale
+  // browse grid. Run the search after a short silence; Enter-submit still
+  // works and the clear button keeps its own (resetting) lane, so empty text
+  // is deliberately NOT auto-run here.
+  const firstQueryEffectRef = useRef(true);
+  useEffect(() => {
+    if (firstQueryEffectRef.current) {
+      firstQueryEffectRef.current = false; // mount must not auto-search
+      return;
+    }
+    if (query.trim() === '') {
+      return;
+    }
+    const timer = setTimeout(() => {
+      performSearch().catch(() => undefined);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, performSearch]);
 
   const handleClear = () => {
     setQuery('');
@@ -297,6 +317,7 @@ const SearchScreen: React.FC = () => {
         placeholder="Search movies, shows…"
         onSubmit={performSearch}
         onClear={handleClear}
+        autoFocus
       />
 
       <View style={styles.toolbar}>

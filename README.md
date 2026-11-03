@@ -417,6 +417,19 @@ automate (there is no fastlane or store-upload machinery in this repository).
    Store Connect. Certificates, profiles, and exportOptions setup are covered
    in [docs/signing.md](docs/signing.md); the Xcode project itself is not yet
    configured for automated device distribution.
+3. **Your own iPhone (personal device, manual)**: there is no published
+   device build to download — CI ships no `.ipa`, so the only way to run
+   this app on a physical iPhone today is building it yourself in Xcode
+   with a free Apple ID: open `ios/PhlixMobile.xcworkspace`, set your team
+   under *Signing & Capabilities*, and run the app on the attached device.
+   Be aware of the free-provisioning trap: builds signed with a **personal
+   (non-paid) Apple ID expire after 7 days** and the app silently stops
+   launching until you reconnect to the Mac and rebuild — impractical for
+   a phone you actually use. A paid developer account lifts that to the
+   normal one-year profile lifetime. An officially supported personal-
+   device install path may arrive with TestFlight (item 2); until then
+   this manual Xcode route is the whole story, and it is not exercised by
+   CI (see the simulator-only note in §CI/CD).
 
 ### CI/CD
 <!-- M-MOBILE-20 (review mobile__devops): this section is now the verified
@@ -450,7 +463,11 @@ Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
 - **Build iOS**: runs on a macOS runner and builds the app for the iOS
   **simulator** unsigned (`xcodebuild … CODE_SIGNING_ALLOWED=NO`) as a
   compile gate, plus a standalone JS bundle uploaded for inspection —
-  the bundle is NOT the device payload. There is no device-signing or
+  the bundle is NOT the device payload. Note what the gate does NOT
+  cover: the `generic/platform=iOS Simulator` destination never compiles
+  the arm64 **device** slice, so a device-only break (signing-adjacent
+  build settings, an arm64-only pod) surfaces first at the manual
+  archive step, not in CI. There is no device-signing or
   TestFlight/App Store automation; that remains the manual archive
   described in §Deployment.
 

@@ -175,7 +175,9 @@ const MusicScreen: React.FC = () => {
           <Text style={styles.sectionHeader}>{selectedArtist.name}</Text>
           <FlatList
             data={artistAlbums}
-            keyExtractor={(item) => item.name}
+            // M-MOBILE-83 (review mobile__crossfe Minor 19): self-titled releases collide on name
+            // alone; the wire carries no album id (server aggregates by artist+name).
+            keyExtractor={(item) => `${item.artist}::${item.name}`}
             renderItem={({ item }) =>
               renderRow(item.name, albumSubtitle(item), () =>
                 handleAlbumPress(item)
@@ -233,7 +235,9 @@ const MusicScreen: React.FC = () => {
     return (
       <FlatList
         data={albums}
-        keyExtractor={(item) => item.name}
+        // M-MOBILE-83 (review mobile__crossfe Minor 19): self-titled releases collide on name
+        // alone; the wire carries no album id (server aggregates by artist+name).
+        keyExtractor={(item) => `${item.artist}::${item.name}`}
         renderItem={({ item }) =>
           renderRow(item.name, albumSubtitle(item), () =>
             handleAlbumPress(item)

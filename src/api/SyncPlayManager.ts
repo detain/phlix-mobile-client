@@ -213,18 +213,6 @@ class SyncPlayManager {
   }
 
   /**
-   * Leave a SyncPlay group.
-   * POST /api/v1/syncplay/groups/{id}/leave → { success }
-   * (the server registers leave as POST, not DELETE — an earlier mobile
-   * revision called DELETE and got a 405/404 class failure)
-   */
-  async leaveRoom(roomId: string): Promise<void> {
-    await apiClient.post<{ success?: boolean }>(
-      `/syncplay/groups/${encodeURIComponent(roomId)}/leave`
-    );
-  }
-
-  /**
    * Get the WebSocket LOCATION for real-time SyncPlay connections.
    * WS ws(s)://{serverHost}:8097/api/v1/syncplay/ws — credential-free by law.
    *

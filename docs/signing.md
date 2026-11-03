@@ -92,7 +92,7 @@ Alternatively, configure signing in the Xcode project directly:
 > (a deprecated generic identity; `project.pbxproj:317,402`) and define **no
 > `DEVELOPMENT_TEAM` and no `CODE_SIGN_STYLE`** anywhere (greps: zero hits).
 > CI never exercises any of it (both `build-ios.yml` invocations pass
-> `CODE_SIGNING_ALLOWED=NO`, `:40,:98` — a compile gate only). So the first
+> `CODE_SIGNING_ALLOWED=NO`, `:56,:121` — a compile gate only). So the first
 > real manual archive on your machine must explicitly set your team and your
 > distribution identity — leaving the committed values in place means
 > Xcode/codesign picks an identity that no longer exists on modern Apple
@@ -220,8 +220,10 @@ keytool -genkey -v -storetype JKS \
 > block in `android/app/build.gradle:43-48` sets
 > `signingConfig signingConfigs.debug`, so `assembleRelease` emits an
 > installable, debug-signed **`app-release.apk`**, never an
-> `app-release-unsigned.apk` (that is exactly the file
-> `.github/workflows/build-android.yml:84` uploads). The walkthrough below
+> `app-release-unsigned.apk`. What
+> `.github/workflows/build-android.yml:98-104` uploads is precisely the
+> debug-signed `app-release.apk` — an unsigned artifact never exists here.
+> The walkthrough below
 > therefore only applies AFTER you remove (or replace with your own
 > `signingConfigs.release`) that committed `signingConfig` line — otherwise
 > there is no unsigned artifact to sign and the steps operate on a file that

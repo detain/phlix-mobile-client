@@ -19,10 +19,15 @@ import { initDeviceIdentity } from './api/deviceIdentity';
 import { startHubRelayConsumer, stopHubRelayConsumer } from './syncplay/HubRelayConsumer';
 import { syncPlayService } from './syncplay/SyncPlayService';
 
-// Ignore specific warnings in development
-LogBox.ignoreLogs([
-  'Non-serializable values were found in the navigation state',
-]);
+// M-MOBILE-84 (review mobile__crossfe Minor 21): this ignore applied in
+// release builds too — production warning-silencing was never the feature's
+// intent. __DEV__-only now: dev keeps the calm console, release logs stay
+// honest (the offending non-serializable param remains a separate hunt).
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'Non-serializable values were found in the navigation state',
+  ]);
+}
 
 const App: React.FC = () => {
   const checkAuth = useAuthStore((state) => state.checkAuth);

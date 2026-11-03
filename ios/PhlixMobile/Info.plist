@@ -83,6 +83,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- M-MOBILE-88 (review mobile__gameux Minor 23): the app is all-dark
+	     (#0f0f1a); with no style pin a light-mode iPhone rendered Alert
+	     sheets, share sheets and keyboard chrome light-on-dark. Pinned to
+	     match the Android side (styles.xml windowBackground dark). -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 </dict>

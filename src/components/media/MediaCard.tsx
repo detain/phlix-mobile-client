@@ -6,7 +6,7 @@
  */
 
 // src/components/media/MediaCard.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,9 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
   // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
   const posterUri = firstUsableUri(item.backdrop_url, item.poster_url);
   const handlePress = () => (onPress ? onPress() : onPressItem?.(item));
+  // M-MOBILE-74 (review mobile__casualgamer Minor 3): dead url → local
+  // placeholder instead of the silent grey void (see PosterCard for law).
+  const [failedUri, setFailedUri] = useState<string | null>(null);
 
   return (
     <TouchableOpacity
@@ -50,11 +53,14 @@ const MediaCardInner: React.FC<MediaCardProps> = ({
       onPress={handlePress}
       activeOpacity={0.8}
     >
-      {posterUri !== undefined ? (
+      {posterUri !== undefined && failedUri !== posterUri ? (
         <Image
           source={{ uri: posterUri }}
           style={[styles.backdrop, { width: cardWidth, height: cardHeight }]}
           resizeMode="cover"
+          // M-MOBILE-75 (review mobile__crossfe Minor 15): decode-at-size.
+          resizeMethod="resize"
+          onError={() => setFailedUri(posterUri)}
         />
       ) : (
         <LocalPlaceholder

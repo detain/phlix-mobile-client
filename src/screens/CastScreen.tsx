@@ -31,6 +31,7 @@ import {
   type CastDevice,
 } from '../types/cast';
 import type { RootStackParamList } from '../types/navigation';
+import { formatTime } from '../utils/formatters';
 
 const POLL_INTERVAL_MS = 2500;
 const SEEK_STEP_MS = 15000;
@@ -163,7 +164,9 @@ const CastScreen: React.FC = () => {
         await resume();
       }
     } catch (err) {
-      Alert.alert('Transport failed', errText(err, 'Could not change playback.'));
+      // M-MOBILE-87 (review mobile__writer Minor 33): 'Transport' was internal
+      // vocabulary leaking to users.
+      Alert.alert('Playback control failed', errText(err, 'Could not change playback.'));
     }
   };
 
@@ -248,7 +251,10 @@ const CastScreen: React.FC = () => {
                 <Text style={styles.seekText}>⏪ 15s</Text>
               </TouchableOpacity>
               <Text style={styles.seekPosition}>
-                {Math.floor(positionMs / 1000)}s
+                {/* M-MOBILE-78 (review mobile__gameux Minor 28): "7245s" was a
+                    second clock in the same product — h:mm:ss like everywhere
+                    else now. */}
+                {formatTime(positionMs / 1000)}
               </Text>
               <TouchableOpacity
                 style={styles.seekButton}

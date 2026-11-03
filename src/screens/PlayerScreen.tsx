@@ -50,7 +50,7 @@ import {
 import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
-import type { PlaybackEvent } from '../native/types';
+import type { PlaybackEvent, PhlixPlayerViewProps } from '../native/types';
 import { syncPlayService, type PlaybackCommand } from '../syncplay/SyncPlayService';
 import { clampSeekSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
@@ -62,24 +62,18 @@ import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
  * frame (review mobile__casualgamer m12). Distinct failures are unaffected. */
 const ERROR_ALERT_COALESCE_MS = 5000;
 
-// Define the native player props interface
-interface NativePhlixPlayerProps {
-  src?: string;
-  autoPlay?: boolean;
-  startPosition?: number;
-  volume?: number;
-  muted?: boolean;
-  // E3: selected subtitle VTT URL ('' = off). Native rendering UNTESTED in CI.
-  subtitleUrl?: string;
-  style?: any;
+// M-MOBILE-90 (review mobile__crossfe Minor 17): the local
+// `NativePhlixPlayerProps` shadow — every event typed `any`, duplicating what
+// src/native/types.ts already ships — is deleted; the screen now consumes the
+// canonical PhlixPlayerViewProps (NativeSyntheticEvent-typed handlers, style).
+// The ref seam is the requireNativeComponent typing gap (v0.85 has no ref in
+// the generated component type), kept as an explicit local intersection.
+type PhlixPlayerComponentProps = PhlixPlayerViewProps & {
   ref?: React.RefObject<any>;
-  onPlaybackEvent?: (event: any) => void;
-  onProgress?: (event: any) => void;
-  onError?: (event: any) => void;
-}
+};
 
 // Native player component - only works when native module is properly linked
-let PhlixPlayerView: React.ComponentType<NativePhlixPlayerProps> | null = null;
+let PhlixPlayerView: React.ComponentType<PhlixPlayerComponentProps> | null = null;
 try {
   PhlixPlayerView = requireNativeComponent('PhlixPlayerView');
 } catch {

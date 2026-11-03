@@ -179,8 +179,14 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         transparent
         onRequestClose={onClose}
       >
-        <View style={styles.overlay}>
-          <View style={styles.content}>
+        {/* M-MOBILE-81 (review mobile__gameux Minor 26): tap-outside dismiss —
+            same responder law as QualityMenu/ProfileSelect/hub sign-in sheet. */}
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={onClose}
+        >
+          <View style={styles.content} onStartShouldSetResponder={() => true}>
             <View style={styles.header}>
               <Text style={styles.title}>SyncPlay</Text>
               <TouchableOpacity onPress={onClose}>
@@ -238,7 +244,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Modal>
     );
   }
@@ -250,8 +256,14 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.content}>
+      {/* M-MOBILE-81 (review mobile__gameux Minor 26): tap-outside dismiss —
+          same responder law as the sheet above, QualityMenu and ProfileSelect. */}
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={styles.content} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>SyncPlay</Text>
             <TouchableOpacity onPress={onClose}>
@@ -413,7 +425,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 };

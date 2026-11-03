@@ -24,7 +24,13 @@ interface SettingsState {
 
   // App settings
   theme: 'dark' | 'light' | 'system';
-  showAdultContent: boolean;
+  // M-MOBILE-89 (review mobile__exploiter Minor 5, M-MOBILE-33 theater-switch
+  // doctrine "make it real or remove it"): `showAdultContent` was persisted,
+  // type-validated and read by NOTHING — zero UI, zero consumers, and actual
+  // content restriction already lives server-side via per-profile
+  // content_rating (ParentalControlsScreen). Removed rather than wired to a
+  // client-side filter the server contract does not model; persisted blobs
+  // self-clean via sanitizeSettings' unknown-key drop.
   enableNotifications: boolean;
   enableBiometricAuth: boolean;
 
@@ -42,7 +48,6 @@ interface SettingsState {
   setMaxConcurrentDownloads: (max: number) => void;
   setDownloadPath: (path: string) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
-  setShowAdultContent: (show: boolean) => void;
   setEnableNotifications: (enable: boolean) => void;
   setEnableBiometricAuth: (enable: boolean) => void;
   setServerUrl: (url: string) => void;
@@ -97,7 +102,6 @@ const defaultSettings = {
   maxConcurrentDownloads: 2,
   downloadPath: '',
   theme: 'dark' as const,
-  showAdultContent: false,
   enableNotifications: true,
   enableBiometricAuth: false,
   serverUrl: '',
@@ -141,10 +145,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setTheme: (theme) => {
     set({ theme });
-    get().saveSettings();
-  },
-  setShowAdultContent: (show) => {
-    set({ showAdultContent: show });
     get().saveSettings();
   },
   setEnableNotifications: (enable) => {
@@ -196,7 +196,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         maxConcurrentDownloads: state.maxConcurrentDownloads,
         downloadPath: state.downloadPath,
         theme: state.theme,
-        showAdultContent: state.showAdultContent,
         enableNotifications: state.enableNotifications,
         enableBiometricAuth: state.enableBiometricAuth,
         serverUrl: state.serverUrl,

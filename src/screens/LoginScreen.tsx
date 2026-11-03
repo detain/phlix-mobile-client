@@ -46,7 +46,13 @@ function normalizeServerUrl(rawUrl: string): string {
 }
 
 const LoginScreen: React.FC = () => {
-  const [serverUrl, setServerUrl] = useState('');
+  // M-MOBILE-73 (review mobile__casualgamer Minor 1): "sign out and you
+  // retype the server URL" no more — the last-connected address is a
+  // persisted preference (setServerUrl runs on every login), not a secret.
+  // Seed once; the field stays fully editable.
+  const [serverUrl, setServerUrl] = useState(() =>
+    useSettingsStore.getState().serverUrl
+  );
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -52,8 +52,15 @@ export const QualityMenu: React.FC<QualityMenuProps> = ({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.content}>
+      {/* M-MOBILE-81 (review mobile__gameux Minor 26): the scrim was inert —
+          tap-outside now dismisses, matching the responder law the hub
+          sign-in sheet (SettingsScreen) and ProfileSelect already follow. */}
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <View style={styles.content} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>Quality</Text>
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close quality menu">
@@ -84,7 +91,7 @@ export const QualityMenu: React.FC<QualityMenuProps> = ({
             })}
           </ScrollView>
         </View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 };

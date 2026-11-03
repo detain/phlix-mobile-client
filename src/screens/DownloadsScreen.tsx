@@ -41,14 +41,14 @@ const DownloadItemRow: React.FC<{
   const isQueued = task.status === 'queued';
 
   const handleCancel = useCallback(() => {
-    Alert.alert('Cancel Download', `Cancel downloading "${task.item.name}"?`, [
+    Alert.alert('Cancel download', `Cancel downloading "${task.item.name}"?`, [
       { text: 'No', style: 'cancel' },
       { text: 'Yes', style: 'destructive', onPress: () => onCancel(task.id) },
     ]);
   }, [task.id, task.item.name, onCancel]);
 
   const handleDelete = useCallback(() => {
-    Alert.alert('Delete Download', `Remove "${task.item.name}" from downloads? This will free ${formatFileSize(task.totalBytes)}.`, [
+    Alert.alert('Delete download', `Remove "${task.item.name}" from downloads? This will free ${formatFileSize(task.totalBytes)}.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => onDelete(task.id) },
     ]);

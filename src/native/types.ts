@@ -6,7 +6,7 @@
  */
 
 // src/native/types.ts
-import { NativeModule, NativeSyntheticEvent } from 'react-native';
+import { NativeModule, NativeSyntheticEvent, type ViewStyle } from 'react-native';
 
 export interface PlaybackEvent {
   event: 'ready' | 'play' | 'pause' | 'ended' | 'buffering';
@@ -39,6 +39,11 @@ export interface PhlixPlayerViewProps {
    * + this prop) is fully wired; verify on-device before relying on it.
    */
   subtitleUrl?: string;
+  /** M-MOBILE-90 (review mobile__crossfe Minor 17): the view is laid out
+   *  with a style from JS (`styles.player`) — the shadow interface in
+   *  PlayerScreen carried it; the canonical type must, or every consumer
+   *  re-shadows. */
+  style?: ViewStyle;
   onPlaybackEvent?: (event: NativeSyntheticEvent<PlaybackEvent>) => void;
   onProgress?: (event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => void;
   onError?: (event: NativeSyntheticEvent<{ error: string }>) => void;

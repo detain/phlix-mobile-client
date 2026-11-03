@@ -188,7 +188,7 @@ const ProfileSelectScreen: React.FC = () => {
           onPress={() => handleSelect(item)}
         >
           {item.avatar_url ? (
-            <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+            <Image source={{ uri: item.avatar_url }} style={styles.avatar} resizeMethod="resize" />
           ) : (
             <View style={styles.avatarPlaceholder}>
               <Text style={styles.avatarPlaceholderText}>

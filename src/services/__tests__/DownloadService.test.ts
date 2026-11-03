@@ -101,7 +101,14 @@ function loadService(opts: { withNative: boolean }): {
     // the wiring under test is the CALL SITE firing; NotificationService's own
     // notifee surface is pinned in NotificationService.test.ts.
     jest.doMock('../NotificationService', () => ({
-      notificationService: { showLocalNotification: showNotification },
+      notificationService: {
+        showLocalNotification: showNotification,
+        // M-MOBILE-72 (review mobile__casualgamer Minor 2): the permission
+        // ask moved off app boot to the first download completion — the call
+        // site now confirms before firing. Grant=true keeps every
+        // showLocalNotification assertion below meaningful.
+        requestPermissions: jest.fn().mockResolvedValue(true),
+      },
     }));
     serviceMod = require('../DownloadService');
   });
@@ -282,6 +289,9 @@ describe('DownloadService', () => {
       await flush();
 
       service.handleNativeComplete(taskId, '/Documents/item-1.mp4');
+      // M-MOBILE-72: the notification now rides the permission confirmation
+      // (promise chain) — one flush before asserting the call.
+      await flush();
       expect(showNotification).toHaveBeenCalledWith({
         title: 'Download complete',
         message: 'Test Movie is ready for offline playback.',

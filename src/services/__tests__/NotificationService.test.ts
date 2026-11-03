@@ -167,8 +167,11 @@ describe('NotificationService — M-MOBILE-06 download_complete press routing', 
         expect.stringContaining('Unknown notification type')
       );
       expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Download complete notification pressed'),
-        expect.anything()
+        // M-MOBILE-85 (review mobile__secnet Minor 22): press logging now
+        // carries the EVENT TYPE only — the payload object second arg was
+        // removed from device logs. The routing law this test guards (this
+        // branch fires, the unknown-branch does not) is unchanged.
+        '[notifications] download_complete_pressed'
       );
 
       // Control: an unregistered type still lands in the unknown branch —

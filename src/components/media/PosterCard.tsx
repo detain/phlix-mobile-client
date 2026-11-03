@@ -6,7 +6,7 @@
  */
 
 // src/components/media/PosterCard.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Text,
   Image,
@@ -44,6 +44,11 @@ const PosterCardInner: React.FC<PosterCardProps> = ({
   // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
   const posterUri = firstUsableUri(item.poster_url);
   const handlePress = () => (onPress ? onPress() : onPressItem?.(item));
+  // M-MOBILE-74 (review mobile__casualgamer Minor 3): a DEAD url used to
+  // render a silent grey void — the onError arm swaps to the same local
+  // placeholder that covers absent art. Tracking the failed URI (not a
+  // boolean) resets the fallback when the item's art moves.
+  const [failedUri, setFailedUri] = useState<string | null>(null);
 
   return (
     <TouchableOpacity
@@ -56,11 +61,16 @@ const PosterCardInner: React.FC<PosterCardProps> = ({
       accessibilityRole="button"
       accessibilityLabel={item.name}
     >
-      {posterUri !== undefined ? (
+      {posterUri !== undefined && failedUri !== posterUri ? (
         <Image
           source={{ uri: posterUri }}
           style={[styles.poster, { width, height }]}
           resizeMode="cover"
+          // M-MOBILE-75 (review mobile__crossfe Minor 15): Android used to
+          // fully decode server art and downscale in JS-side memory — resize
+          // decodes at target size.
+          resizeMethod="resize"
+          onError={() => setFailedUri(posterUri ?? null)}
           accessible={false}
         />
       ) : (

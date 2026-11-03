@@ -309,12 +309,22 @@ class DownloadService {
       // one user-visible event this app can emit locally; the settings gate
       // is what makes the enableNotifications toggle real (M-01 theater).
       if (useSettingsStore.getState().enableNotifications) {
-        notificationService.showLocalNotification({
-          title: 'Download complete',
-          message: `${updated.item.name} is ready for offline playback.`,
-          type: 'download_complete',
-          data: { itemId: updated.itemId },
-        });
+        // M-MOBILE-72 (review mobile__casualgamer Minor 2): the ask now
+        // happens HERE — the first moment a notification would matter —
+        // instead of a cold-boot popup. After an earlier denial the OS does
+        // not re-show a dialog; requestPermissions just re-reads status, so
+        // this is never a nag.
+        notificationService.requestPermissions().then((granted) => {
+          if (!granted) {
+            return;
+          }
+          notificationService.showLocalNotification({
+            title: 'Download complete',
+            message: `${updated.item.name} is ready for offline playback.`,
+            type: 'download_complete',
+            data: { itemId: updated.itemId },
+          });
+        }).catch(() => undefined);
       }
     }
     this.processQueue();

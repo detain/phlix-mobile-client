@@ -65,7 +65,9 @@ export const RatingBadge: React.FC<RatingBadgeProps> = ({
 
   const starCharacters = {
     full: '★',
-    half: '⯨',
+    // M-MOBILE-79 (review mobile__gameux Minor 27): '⯨' (U+2BE8) tofus on
+    // ROMs without the glyph — half now rides the same full star, dimmed.
+    half: '★',
     empty: '☆',
   };
 
@@ -147,6 +149,7 @@ const styles = StyleSheet.create({
   },
   starHalf: {
     color: '#ffc107',
+    opacity: 0.55,
   },
   score: {
     color: '#888',

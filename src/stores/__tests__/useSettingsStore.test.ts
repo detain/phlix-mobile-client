@@ -29,7 +29,6 @@ describe('useSettingsStore', () => {
       maxConcurrentDownloads: 2,
       downloadPath: '',
       theme: 'dark',
-      showAdultContent: false,
       enableNotifications: true,
       enableBiometricAuth: false,
       serverUrl: '',
@@ -49,7 +48,6 @@ describe('useSettingsStore', () => {
       expect(state.maxConcurrentDownloads).toBe(2);
       expect(state.downloadPath).toBe('');
       expect(state.theme).toBe('dark');
-      expect(state.showAdultContent).toBe(false);
       expect(state.enableNotifications).toBe(true);
       expect(state.enableBiometricAuth).toBe(false);
       expect(state.serverUrl).toBe('');
@@ -117,12 +115,6 @@ describe('useSettingsStore', () => {
     it('setTheme triggers saveSettings', async () => {
       const saveSpy = jest.spyOn(useSettingsStore.getState(), 'saveSettings');
       useSettingsStore.getState().setTheme('light');
-      expect(saveSpy).toHaveBeenCalled();
-    });
-
-    it('setShowAdultContent triggers saveSettings', async () => {
-      const saveSpy = jest.spyOn(useSettingsStore.getState(), 'saveSettings');
-      useSettingsStore.getState().setShowAdultContent(true);
       expect(saveSpy).toHaveBeenCalled();
     });
 

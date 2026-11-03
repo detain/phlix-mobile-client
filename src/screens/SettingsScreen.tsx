@@ -24,15 +24,19 @@ import { SafeContainer } from '../components/layout';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useHubStore } from '../store/hubStore';
+import { useShallow } from 'zustand/react/shallow';
 import { apiErrorMessage } from '../api/client';
 import ServerSwitcher from '../components/ServerSwitcher';
 import { secureStorage } from '../services/SecureStorage';
+import { notificationService } from '../services/NotificationService';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
+  // M-MOBILE-76 (review mobile__crossfe Minor 16): shallow slices instead of
+  // whole-store subscriptions — see ServerSwitcher for the law.
   const {
     autoplay,
     setAutoplay,
@@ -44,7 +48,20 @@ const SettingsScreen: React.FC = () => {
     setEnableBiometricAuth,
     serverUrl,
     serverName,
-  } = useSettingsStore();
+  } = useSettingsStore(
+    useShallow((state) => ({
+      autoplay: state.autoplay,
+      setAutoplay: state.setAutoplay,
+      autoPlayNextEpisode: state.autoPlayNextEpisode,
+      setAutoPlayNextEpisode: state.setAutoPlayNextEpisode,
+      enableNotifications: state.enableNotifications,
+      setEnableNotifications: state.setEnableNotifications,
+      enableBiometricAuth: state.enableBiometricAuth,
+      setEnableBiometricAuth: state.setEnableBiometricAuth,
+      serverUrl: state.serverUrl,
+      serverName: state.serverName,
+    }))
+  );
 
   // Hub state
   const {
@@ -59,7 +76,21 @@ const SettingsScreen: React.FC = () => {
     signOutOfHub,
     setConnectionMode,
     clearError,
-  } = useHubStore();
+  } = useHubStore(
+    useShallow((state) => ({
+      hubUrl: state.hubUrl,
+      session: state.session,
+      servers: state.servers,
+      activeServerId: state.activeServerId,
+      connectionMode: state.connectionMode,
+      isLoading: state.isLoading,
+      error: state.error,
+      signInToHub: state.signInToHub,
+      signOutOfHub: state.signOutOfHub,
+      setConnectionMode: state.setConnectionMode,
+      clearError: state.clearError,
+    }))
+  );
 
   const [showHubSignIn, setShowHubSignIn] = useState(false);
   const [hubSignInUrl, setHubSignInUrl] = useState('');
@@ -526,7 +557,17 @@ const SettingsScreen: React.FC = () => {
               'Notifications',
               <Switch
                 value={enableNotifications}
-                onValueChange={setEnableNotifications}
+                onValueChange={(next) => {
+                  setEnableNotifications(next);
+                  // M-MOBILE-72 (review mobile__casualgamer Minor 2): the OS
+                  // prompt used to fire at cold-boot from the service
+                  // constructor. Flipping this switch ON is the moment the
+                  // intent is real — ask here (post-denial, the OS does not
+                  // re-show; this just re-reads status).
+                  if (next) {
+                    notificationService.requestPermissions().catch(() => undefined);
+                  }
+                }}
                 trackColor={{ false: '#3d3d3d', true: '#0066cc' }}
               />
             )}
@@ -541,7 +582,7 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Server Section — connection target (an input, persisted in settings) */}
+        {/* Server Section — connection target (read-only here — the editable field is on the login screen) */}
         {serverUrl ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Server</Text>
@@ -564,6 +605,7 @@ const SettingsScreen: React.FC = () => {
         {/* App Info */}
         <View style={styles.appInfo}>
           <Text style={styles.appName}>Phlix Mobile</Text>
+          {/* M-MOBILE-86: literal kept honest by src/__tests__/versionSync.test.ts (single-source version law) */}
           <Text style={styles.appVersion}>Version 1.0.0</Text>
         </View>
       </ScrollView>

@@ -392,6 +392,7 @@ const MediaDetailScreen: React.FC = () => {
           {backdropUri !== undefined ? (
             <Image
               source={{ uri: backdropUri }}
+              resizeMethod="resize"
               style={styles.backdrop}
               resizeMode="cover"
             />
@@ -492,9 +493,14 @@ const MediaDetailScreen: React.FC = () => {
                         style={[
                           styles.star,
                           fill !== 'empty' && styles.starActive,
+                          // M-MOBILE-79 (review mobile__gameux Minor 27): the
+                          // half glyph was U+2BE8 '⯨' — not in the common
+                          // Noto fallback set, so several OEM ROMs rendered a
+                          // tofu box. A dimmed full star is universal.
+                          fill === 'half' && styles.starHalf,
                         ]}
                       >
-                        {fill === 'full' ? '★' : fill === 'half' ? '⯨' : '☆'}
+                        {fill === 'empty' ? '☆' : '★'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -790,6 +796,10 @@ const styles = StyleSheet.create({
   },
   starActive: {
     color: '#ffc107',
+  },
+  // M-MOBILE-79: half = full glyph, dimmed — see the star row.
+  starHalf: {
+    opacity: 0.55,
   },
   ratingValue: {
     color: '#ffc107',

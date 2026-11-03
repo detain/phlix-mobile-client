@@ -26,6 +26,7 @@ import {
   FlatList,
 } from 'react-native';
 import { useHubStore } from '../store/hubStore';
+import { useShallow } from 'zustand/react/shallow';
 
 interface ServerSwitcherProps {
   visible: boolean;
@@ -33,13 +34,24 @@ interface ServerSwitcherProps {
 }
 
 const ServerSwitcher: React.FC<ServerSwitcherProps> = ({ visible, onClose }) => {
+  // M-MOBILE-76 (review mobile__crossfe Minor 16): per-field selection via a
+  // shallow-compared slice — a bare useHubStore() re-renders this component on
+  // ANY hub-store churn (every relay beat elsewhere in the app).
   const {
     servers,
     activeServerId,
     setActiveServer,
     connectionMode,
     setConnectionMode,
-  } = useHubStore();
+  } = useHubStore(
+    useShallow((state) => ({
+      servers: state.servers,
+      activeServerId: state.activeServerId,
+      setActiveServer: state.setActiveServer,
+      connectionMode: state.connectionMode,
+      setConnectionMode: state.setConnectionMode,
+    }))
+  );
 
   const renderServerItem = ({
     item,

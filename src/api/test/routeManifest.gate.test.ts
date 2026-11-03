@@ -180,7 +180,13 @@ const PER_MODULE_COVERAGE: Record<string, number> = {
   // site (watch finalize / history feed); manifest tuple check passes on it.
   'src/api/PlaybackManager.ts': 4,
   'src/api/ProfileManager.ts': 7,
-  'src/api/SyncPlayManager.ts': 4,
+  // m11 (review mobile__asphp Minor 11): 4→3 — the dead REST leaveRoom was
+  // deleted (the WS lane's leaveGroup is the live path; both shared one
+  // server-side member map per S289, so the REST twin was pure drift-trap).
+  // Wire lore kept for a future adopter: the server registers leave as
+  // POST /syncplay/groups/{id}/leave, NOT DELETE (an old mobile revision
+  // called DELETE and failed).
+  'src/api/SyncPlayManager.ts': 3,
   'src/api/TranscodeManager.ts': 2,
   'src/api/UserManager.ts': 6,
   'src/api/WebAuthnManager.ts': 6,

@@ -15,6 +15,8 @@ interface SearchBarProps {
   placeholder?: string;
   onSubmit?: () => void;
   onClear?: () => void;
+  /** M-MOBILE-80 (review mobile__gameux Minor 25): focus on mount. */
+  autoFocus?: boolean;
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
@@ -23,6 +25,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   placeholder = 'Search…',
   onSubmit,
   onClear,
+  autoFocus,
 }) => {
   return (
     <View style={styles.container}>
@@ -38,6 +41,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           onSubmitEditing={onSubmit}
           autoCorrect={false}
           autoCapitalize="none"
+          autoFocus={autoFocus}
         />
         {value.length > 0 && (
           <TouchableOpacity

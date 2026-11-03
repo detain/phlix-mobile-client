@@ -89,7 +89,7 @@ const PhotoAlbumScreen: React.FC = () => {
         onPress={() => handlePhotoPress(index)}
       >
         {thumbUri !== undefined ? (
-          <Image source={{ uri: thumbUri }} style={styles.thumb} />
+          <Image source={{ uri: thumbUri }} style={styles.thumb} resizeMethod="resize" />
         ) : (
           <LocalPlaceholder kind="photo" style={styles.thumb} />
         )}

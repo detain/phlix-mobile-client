@@ -19,6 +19,7 @@
 import React, { useEffect } from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCastStore } from '../../stores/useCastStore';
 import type { RootStackParamList } from '../../types/navigation';
@@ -30,6 +31,8 @@ const PILL_POLL_MS = 10000;
 type CastNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Cast'>;
 
 export const CastSessionPill: React.FC = () => {
+  // M-MOBILE-77 (review mobile__gameux Minor 24)
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<CastNavigationProp>();
   const activeDevice = useCastStore((s) => s.activeDevice);
   const activeMedia = useCastStore((s) => s.activeMedia);
@@ -67,7 +70,10 @@ export const CastSessionPill: React.FC = () => {
   const stateSuffix = transport?.state ? ` · ${transport.state}` : '';
   return (
     <TouchableOpacity
-      style={styles.pill}
+      // M-MOBILE-77: dynamic offset — mirrors the tab-bar height law
+      // (60 + max(0, insets.bottom - 8)) plus 14pt clearance, so the pill
+      // never overlaps the grown bar on gesture-bar phones.
+      style={[styles.pill, { bottom: 60 + Math.max(0, insets.bottom - 8) + 14 }]}
       onPress={() => navigation.navigate('Cast', params)}
       accessibilityRole="button"
       accessibilityLabel={`Open cast controller, playing on ${activeDevice.name}`}
@@ -84,6 +90,10 @@ export const CastSessionPill: React.FC = () => {
 const styles = StyleSheet.create({
   pill: {
     position: 'absolute',
+    // M-MOBILE-77 (review mobile__gameux Minor 24): fixed 74 collided with the
+    // DYNAMIC tab-bar height (60 + max(0, insets.bottom - 8), RootNavigator's
+    // own law) — on 34-pt-inset iPhones the pill's lower 12pt sat inside the
+    // bar. Now it rides the same inset math: bottom = 60 + inset term + 14.
     bottom: 74,
     alignSelf: 'center',
     flexDirection: 'row',

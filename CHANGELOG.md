@@ -32,6 +32,92 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign UX/hygiene minors batch (Minor 1–5, 11, 15–28, 30–33, 35, 37, 39) — 2026-11-03
+
+- **Minor 1 (M-MOBILE-73):** LoginScreen now pre-fills the server field from
+  the persisted `serverUrl` — sign-out no longer forces retyping the address.
+- **Minor 2 (M-MOBILE-72):** the notifee permission prompt moved off app boot
+  to the first download completion and the Settings notifications toggle;
+  `configure()` no longer requests at cold launch (channels/handlers stay
+  boot-safe). A denial is no longer permanently baked in at launch.
+- **Minor 3 / Minor 15 (M-MOBILE-74 / 75):** `MediaCard`/`PosterCard` art now
+  swaps to the local placeholder `onError` (dead/expired image URLs stop
+  rotting into grey voids), and every remote `<Image>` site on the hot rails
+  got `resizeMethod="resize"` (Android downscales instead of full-decode).
+- **Minor 5 (M-MOBILE-89):** `showAdultContent` — persisted, typed, read by
+  nothing — was removed per the M-MOBILE-33 theater-switch doctrine ("make
+  it real or remove it"); real restriction lives server-side via profile
+  `content_rating`. Old blobs self-clean through `sanitizeSettings`.
+- **Minor 11 (asphp m3):** dead REST `SyncPlayManager.leaveRoom` deleted (the
+  WS `leaveGroup` is the live path; one shared server-side member map made
+  the twin a drift trap). S280 per-file census rotated 4→3 with the
+  POST-not-DELETE wire lore kept in the rotation comment.
+- **Minor 16 (M-MOBILE-76):** `ServerSwitcher` and `SettingsScreen` dropped
+  whole-store hook subscriptions for `useShallow` selector blocks — no more
+  re-render on unrelated state churn.
+- **Minor 17 (M-MOBILE-90, JS side):** PlayerScreen's `any`-typed shadow of
+  the native contract deleted; the screen consumes the canonical
+  `PhlixPlayerViewProps` (`NativeSyntheticEvent` handlers, `style` moved into
+  the canonical type). The three-way native COMMAND surface (Android
+  `setVolume` vs iOS `updateVolume` vs the never-called
+  `PhlixPlayerInterface`) stays a deferred native-code item.
+- **Minor 18 (crossfe m4, M-MOBILE-82):** LiveTvRecordingsScreen's fake
+  `<FlatList data={[]}>` (all rows crammed in a ListHeaderComponent) became a
+  real `SectionList` — Upcoming/All-recordings sections window properly, the
+  series-rules footer is static, and the pasted-empty props lie is gone.
+- **Minor 19 (crossfe m5, M-MOBILE-83):** MusicScreen keyExtractors — albums
+  key on `artist::name`, artists stay on name (the wire aggregates by name;
+  no ids exist to key on — law comment records that per list).
+- **Minor 20 (crossfe m6):** the false-stub `src/stubs/reanimated.js` (zero
+  references, comment claims a role it never played — jest uses the official
+  mock) deleted. The twin `src/store/` vs `src/stores/` merge is deferred as
+  structural, not hygiene.
+- **Minor 21 (M-MOBILE-84):** the LogBox non-serializable ignore is now gated
+  under `__DEV__` — release builds no longer silence real warnings.
+- **Minor 22 (M-MOBILE-85):** notification handlers stopped printing payload
+  `data` objects to device logs — event type only. The full 45-site
+  `console.*` → gated-logger sweep stays deferred; the worst instances are
+  cured.
+- **Minor 23 (M-MOBILE-88):** `UIUserInterfaceStyle=Dark` pinned in
+  Info.plist — Alert/share/keyboard chrome on a light-mode iPhone no longer
+  clashes with the all-dark app; matches the Android dark commitment.
+- **Minor 24 (M-MOBILE-77):** `CastSessionPill` computes its bottom offset
+  from `useSafeAreaInsets()` with the tab-bar height law — no more overlap
+  on gesture-bar phones.
+- **Minor 25 (M-MOBILE-80):** SearchScreen debounces (350 ms) while typing —
+  the dead zone between "typed" and "ran" is gone — and the field auto-focuses
+  via a new explicit `autoFocus` prop on SearchBar.
+- **Minor 26 (M-MOBILE-81):** SyncPlayModal's two sheets and QualityMenu
+  became scrim-tap-dismissible, matching the ProfileSelect/Settings law.
+- **Minor 27 (M-MOBILE-79):** the U+2BE8 half-star (tofu on many Android
+  fonts) replaced by a dimmed full star (`starHalf` opacity) in both the
+  detail row and `RatingBadge`.
+- **Minor 28 (M-MOBILE-78):** CastScreen shows `formatTime` instead of raw
+  seconds — one clock across the product again.
+- **Minor 30:** `.env.example` no longer claims a Settings-screen server-URL
+  input exists; both it and the SettingsScreen comment now say the editable
+  field is on the login screen (README truth).
+- **Minor 31 (M-MOBILE-86):** the Settings "Version 1.0.0" literal is now
+  pinned by `versionSync.test.ts` (positive containment of
+  `Version ${pkgVersion}`) — the first `npm version` bump can no longer make
+  the About screen lie silently.
+- **Minor 32:** ParentalControlsScreen's five raw `e.message` surfaces route
+  through `apiErrorMessage` like every other screen (code-first catalog →
+  quarantine → fallback); the two Alerts got the house titles.
+- **Minor 33 (M-MOBILE-87):** Alert titles normalized to the dominant
+  sentence case ("Cancel download", "Delete download", "Delete schedule");
+  "Transport failed" — internal vocabulary — became "Playback control failed".
+- **Minor 35:** `docs/signing.md` coords re-anchored (`build-ios.yml :56,:121`
+  for the `CODE_SIGNING_ALLOWED=NO` legs) and the phantom
+  `app-release-unsigned.apk` claim corrected — the release job's uploaded
+  artifact is the DEBUG-SIGNED `app-release.apk`; no unsigned file exists.
+- **Minor 37:** README §CI/CD now states the simulator-only gate's blind
+  spot: the arm64 device slice never compiles in CI; device-only breaks
+  surface at the manual archive.
+- **Minor 39:** README §Deployment gained the iOS personal-device story:
+  manual Xcode + free Apple ID only, with the 7-day free-provisioning
+  expiry trap stated plainly (and what a paid account changes).
+
 ### Fixed — review-campaign UX-major batch: card memoization + hoisted render fns, couch-facing a11y labels, audio-picker honesty, ErrorBoundary — 2026-11-02
 
 - **Major 15 (crossfe):** `PosterCard`/`MediaCard`/`RecommendationCard` are
