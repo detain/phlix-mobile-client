@@ -179,13 +179,18 @@ describe('config ↔ container wiring', () => {
     expect(PHLIX_LINKING.config).toBe(PHLIX_LINKING_CONFIG);
   });
 
-  it('RootNavigator passes the linking config to NavigationContainer', () => {
+  it('RootNavigator passes a GATED linking config to NavigationContainer', () => {
+    // M-MOBILE-67 (review mobile__gameux Major 9) rotated this pin: the
+    // container used to take the bare PHLIX_LINKING, which dropped any URL
+    // that arrived while signed out. The gate keeps the SAME prefixes/config
+    // (pinned above via PHLIX_LINKING itself) and adds park-and-replay.
     const src = readFileSync(
       join(__dirname, '../../navigation/RootNavigator.tsx'),
       'utf8'
     );
-    expect(src).toContain('linking={PHLIX_LINKING}');
-    expect(src).toContain("import { PHLIX_LINKING } from './linking'");
+    expect(src).toContain('linking={gatedLinking}');
+    expect(src).toContain('createGatedLinking(RN_DEEP_LINK_SOURCE');
+    expect(src).toContain('replayPendingDeepLink()');
   });
 });
 

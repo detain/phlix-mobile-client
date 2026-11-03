@@ -6,7 +6,7 @@
  */
 
 // src/navigation/RootNavigator.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -49,7 +49,25 @@ import {
   WatchHistoryScreen,
 } from '../screens';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
-import { PHLIX_LINKING } from './linking';
+// M-MOBILE-67 (review mobile__gameux Major 9): the container no longer takes
+// the bare PHLIX_LINKING — deepLinkGate wraps the SAME prefixes/config with a
+// park-and-replay gate so a link that arrives signed-out survives sign-in.
+import {
+  createGatedLinking,
+  RN_DEEP_LINK_SOURCE,
+  replayDeepLinkUrl,
+  takePendingDeepLink,
+} from './deepLinkGate';
+
+/** Drain the park slot against this module's container. False = nothing was
+ *  replayed (empty slot, or ref not ready — an honest drop, never a hang). */
+function replayPendingDeepLink(): boolean {
+  const url = takePendingDeepLink();
+  if (url === null || !navigationRef.isReady()) {
+    return false;
+  }
+  return replayDeepLinkUrl(url, (action) => navigationRef.dispatch(action));
+}
 import { CastSessionPill } from '../components/cast';
 import { InsecureConnectionBanner } from '../components/ui/InsecureConnectionBanner';
 import { createExitGuardHandler, EXIT_CONFIRM } from '../utils/exitGuard';
@@ -226,6 +244,28 @@ const RootNavigator = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
 
+  // M-MOBILE-67: the gate reads auth state through a ref so the one built
+  // `gatedLinking` object never needs rebuilding across login/logout — the
+  // react-navigation subscribe callback consults it at event time.
+  const authedRef = useRef(false);
+  authedRef.current = isAuthenticated;
+  const gatedLinking = useMemo(
+    () => createGatedLinking(RN_DEEP_LINK_SOURCE, () => authedRef.current),
+    []
+  );
+
+  // Drain the park slot the moment the tree can host routes. Deferred one tick
+  // so the authenticated screens are committed before the reset lands.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      replayPendingDeepLink();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -235,7 +275,7 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} linking={PHLIX_LINKING}>
+    <NavigationContainer ref={navigationRef} linking={gatedLinking}>
       <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <Stack.Screen name="Login" component={LoginScreen} />

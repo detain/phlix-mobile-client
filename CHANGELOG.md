@@ -32,6 +32,20 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign Major 9: signed-out deep links now survive sign-in (M-MOBILE-67) — 2026-11-02
+
+- **Major 9 (gameux):** a `phlix://…` link arriving while the session was
+  unauthenticated resolved against the Login-only tree and was silently
+  dropped — for a media-sharing app, the acquisition moment died. The
+  disclosed gap in `linking.ts` is now cured: `deepLinkGate.ts` wraps the
+  SAME prefixes/config with a park-and-replay gate (latest-wins, one slot);
+  RootNavigator's gate reads auth state per-event and drains the slot the
+  tick the authenticated tree can host routes, replaying through the
+  identical resolve → `CommonActions.reset` pipeline react-navigation uses.
+  THE LAW is untouched: unmapped paths still drop honestly, the gate parks
+  requests, it invents no routes. 13 new gate tests + a rotated
+  container-wiring pin (the review's own verdict changed that law).
+
 ### Fixed — review-campaign docs/truth batch: Direct-mode example contradicted the https-default law, no user-facing connect checklist, profile PIN gate disclosed as verification it never performs — 2026-11-02
 
 - **Major 17 (writer):** the Hub-Mode table advertised

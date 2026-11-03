@@ -29,12 +29,13 @@
 // estate today has none: windows emits only media/play/accept-invite/
 // server/internal).
 //
-// DISCLOSED GAP (auth cold-start, M-MOBILE-17 r2): a link arriving while
-// the session is unauthenticated resolves against a tree that renders only
-// `Login`, so react-navigation drops it — there is no pending-URL replay
-// after sign-in. Curing it needs an auth-gated linking callback (upstream
-// `linking.subscribe`/`getInitialURL` overrides) and is filed as a
-// follow-up, not silently pretended-works here.
+// AUTH COLD-START (M-MOBILE-67, review mobile__gameux Major 9 — CURED): a link
+// that arrives while the session is unauthenticated used to resolve against
+// the Login-only tree and be dropped by react-navigation, silently. It is now
+// PARKED by the gate in src/navigation/deepLinkGate.ts (latest-wins, one slot)
+// and replayed through this same config the moment the tree can host its
+// routes. Resolution law is unchanged: unmapped paths are still dropped,
+// honestly — the gate parks requests, it does not invent routes.
 //
 // SCHEME PARITY with the windows client (`deepLinkValidator.ts`, W3
 // unification): `phlix://media/{id}` and `phlix://play/{id}` mean the same
