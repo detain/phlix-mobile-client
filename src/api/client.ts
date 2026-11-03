@@ -75,6 +75,17 @@ export const absolutizeApiPath = (pathOrUrl: string): string => {
   if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
     return pathOrUrl;
   }
+  // Review mobile__secnet m4 (player-seam tightening): a server-supplied
+  // string that LOOKS scheme-bearing but is not http(s) (`file://…`,
+  // `content://…`, …) must never reach the native player as a URL. It is
+  // demoted to a same-root path (loudly) — the join still resolves to a
+  // harmless 404 instead of an arbitrary-scheme fetch primitive.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(pathOrUrl)) {
+    console.warn(
+      `absolutizeApiPath: refusing foreign scheme from server payload: '${pathOrUrl.slice(0, 80)}'`,
+    );
+    return `${getServerRoot()}/${pathOrUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')}`;
+  }
   return `${getServerRoot()}${pathOrUrl}`;
 };
 
@@ -389,10 +400,21 @@ class ApiClient {
       // between them, making `dialedBase` exactly the base being dialled: the
       // host that serves this issuance is what re-pins the rotated pair
       // (review mobile__exploiter M2).
+      //
+      // Review mobile__asphp M13: this leg is the ONE place that must not
+      // ride the bare global axios — it runs while HOLDING the single-flight
+      // `refreshPromise`, and every concurrent 401 awaits that promise. RN's
+      // global axios has no default timeout, so one stalled refresh pinned
+      // the promise forever: the entire REST surface froze with no path to
+      // clearTokens(). The per-call timeout makes a stalled refresh REJECT,
+      // `finally` releases the promise, and the failure routes to the honest
+      // signed-out leg.
       const dialedBase = getBaseUrl();
-      const response = await axios.post(`${getBaseUrl()}/auth/refresh`, {
-        refresh_token: refreshToken,
-      });
+      const response = await axios.post(
+        `${getBaseUrl()}/auth/refresh`,
+        { refresh_token: refreshToken },
+        { timeout: 30_000 },
+      );
 
       const { access_token, refresh_token: newRefreshToken } = response.data;
 

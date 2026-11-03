@@ -64,7 +64,19 @@ async function readSlot(service: string): Promise<string | null> {
 }
 
 async function writeSlot(service: string, secret: string): Promise<void> {
-  await Keychain.setGenericPassword(TOKEN_USERNAME, secret, { service });
+  // Review mobile__secnet m13: the biometric marker deliberately pins a
+  // THIS_DEVICE_ONLY access class while the token slots used the keychain
+  // default — backup-eligible. A device-backup extraction could therefore
+  // carry live JWTs that the marker's own policy would refuse, and Android
+  // was mitigated only by `allowBackup="false"`. Every vault secret now
+  // writes non-migratable. AFTER_FIRST_UNLOCK (not WHEN_PASSCODE_SET) is the
+  // chosen class: same no-backup, no-device-migration guarantee, but a
+  // legitimate passcode CHANGE (or removal) does not silently vaporize the
+  // session the user just earned.
+  await Keychain.setGenericPassword(TOKEN_USERNAME, secret, {
+    service,
+    accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+  });
 }
 
 /**

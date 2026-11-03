@@ -41,6 +41,9 @@ import type {
 
 /** A raw `{ success, location }` shape is NOT used — stream resolve is manual fetch. */
 
+/** How long the manual-redirect stream probe may take before falling back. */
+const STREAM_PROBE_TIMEOUT_MS = 15_000;
+
 /**
  * True when an error from a Live TV route means "Live TV is not configured on
  * this server" (no tuner / the route group silently no-ops) rather than a real
@@ -103,11 +106,24 @@ class LiveTvManager {
     const endpointUrl = `${getApiBaseUrl()}/admin/livetv/channels/${encodeURIComponent(id)}/stream`;
     try {
       const headers = await buildRequestHeaders();
-      const response = await fetch(endpointUrl, {
-        method: 'GET',
-        redirect: 'manual',
-        headers,
-      });
+      // Review mobile__asphp M12: RN's fetch has NO default timeout — a
+      // captive portal or dead LAN server left this await hanging forever
+      // (no error, no resolution), so the documented fallback never fired
+      // and the channel tap was frozen. Bound the probe; a stall takes the
+      // same path as any other failure: hand the player the endpoint itself.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), STREAM_PROBE_TIMEOUT_MS);
+      let response: Awaited<ReturnType<typeof fetch>>;
+      try {
+        response = await fetch(endpointUrl, {
+          method: 'GET',
+          redirect: 'manual',
+          headers,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       const location =
         response.headers.get('location') ?? response.headers.get('Location');
       if (location && location.trim() !== '') {

@@ -16,9 +16,13 @@
 // listens.
 //
 // Law notes:
-//  * Writers are the three URL-resolving seams ONLY (api/client.ts,
-//    syncplay/wsEndpoint.ts, syncplay/hubRelay.ts). They call mark() with
-//    the resolved URL; the predicate lives in ONE place here (isCleartextUrl).
+//  * Writers are the URL-resolving seams ONLY (review mobile__exploiter M6
+//    grew the trio to four): api/client.ts ('rest'), syncplay/wsEndpoint.ts
+//    ('syncplayWs'), syncplay/hubRelay.ts ('hubRelay'), and the hub HTTP
+//    lanes ('hubApi'): HubAuthService.normalizeHubUrl (sign-in carries the
+//    password), the relay-token mint, and hubAwareClient's URL builder.
+//    They call mark() with the resolved URL; the predicate lives in ONE
+//    place here (isCleartextUrl).
 //  * Marking is level-triggered per lane and write-gated: re-marking a lane
 //    with the same security state does not notify (interceptors run per
 //    request — a chatty store would repaint the banner endlessly).
@@ -27,7 +31,7 @@
 
 import { create } from 'zustand';
 
-export type ConnectionLane = 'rest' | 'syncplayWs' | 'hubRelay';
+export type ConnectionLane = 'rest' | 'syncplayWs' | 'hubRelay' | 'hubApi';
 
 /** `http://` and `ws://` are cleartext; everything else is treated secure. */
 export function isCleartextUrl(url: string): boolean {

@@ -11,8 +11,9 @@
 // silent. The store is the single predicate + per-lane ledger; the seams
 // REPORT and one banner listens. These tests pin the predicate, the write
 // gating (interceptors mark per request — no-verify-change must not notify),
-// the selector, the logout reset, and — fs pins per repo doctrine — that all
-// three dial seams and the banner mount actually exist.
+// the selector, the logout reset, and — fs pins per repo doctrine — that every
+// dial seam (three original lanes + the M6 'hubApi' fourth) and the banner
+// mount actually exist.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -119,6 +120,41 @@ describe('dial seams + mount (fs pins — removing any reddens this law)', () =>
     expect(nav).toMatch(/<InsecureConnectionBanner \/>/);
     expect(read('src/components/ui/InsecureConnectionBanner.tsx')).toMatch(
       /if \(!anyCleartext\) \{\s*return null;/
+    );
+  });
+});
+
+// ── Review mobile__exploiter M6 — the fourth lane ───────────────────────────
+// Hub HTTP traffic (username/password sign-in, refresh, /me/servers,
+// relay-token mints) accepted explicit http:// and never touched the ledger:
+// the banner could not see the lane most plausibly talking to a WAN hub.
+// These pins hold the four hub-HTTP writers to the same reporting law the
+// original three seams obey.
+describe("M6 — the 'hubApi' fourth lane", () => {
+  const read = (rel: string) =>
+    fs.readFileSync(path.resolve(__dirname, '../../..', rel), 'utf8');
+
+  test('the lane exists in the type and an http hub origin raises the verdict', () => {
+    useConnectionSecurityStore.getState().mark('hubApi', 'http://hub.example.com');
+    expect(selectAnyCleartext(useConnectionSecurityStore.getState())).toBe(true);
+    useConnectionSecurityStore.setState({ cleartext: {} });
+    useConnectionSecurityStore.getState().mark('hubApi', 'https://hub.example.com');
+    expect(selectAnyCleartext(useConnectionSecurityStore.getState())).toBe(false);
+  });
+
+  test('every hub credential path resolves through the marking seam', () => {
+    // HubAuthService: ALL FOUR endpoints call normalizeHubUrl, which marks.
+    const auth = read('src/hub/HubAuthService.ts');
+    expect(auth.match(/this\.normalizeHubUrl\(/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(auth).toMatch(/\.mark\('hubApi', url\)/);
+  });
+
+  test('the raw-fetch mint provider and the hub-aware builder report too', () => {
+    expect(read('src/hub/RelayTokenProvider.ts')).toMatch(
+      /\.mark\('hubApi', hubUrl\)/
+    );
+    expect(read('src/api/hubAwareClient.ts')).toMatch(
+      /\.mark\('hubApi', url\)/
     );
   });
 });

@@ -23,10 +23,22 @@
  * presented as a credential; `null` is the safe side of that line.
  */
 
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
+
 interface MintResponse {
   token: string;
   expires_at: number;
 }
+
+/**
+ * Review mobile__asphp M12: RN's fetch has NO default timeout and the mint is
+ * awaited BEFORE any relay socket exists — a stalled hub (captive portal,
+ * dead LAN box) left the token promise hanging forever: no socket, no
+ * reconnect ladder, no status change; total silent limbo of the relay lane.
+ * An unanswered mint is now aborted inside this window and treated exactly
+ * like any other mint failure (`null` → ladder re-reads later).
+ */
+const MINT_TIMEOUT_MS = 15_000;
 
 interface RelayTokenProviderOptions {
   /** Hub base origin, e.g. `https://hub.example.com` (no trailing slash). */
@@ -62,6 +74,11 @@ export function createHubRelayTokenProvider(
   let cachedToken: string | null = null;
   let cachedExpiresAt = 0;
 
+  // Review mobile__exploiter M6: the mint is a raw fetch BEYOND the three
+  // bannered seams and carries `Authorization: Bearer <hub JWT>`. Report the
+  // hub origin once at provider construction — the fourth ('hubApi') lane.
+  useConnectionSecurityStore.getState().mark('hubApi', hubUrl);
+
   return async (): Promise<string | null> => {
     const nowSec = now();
 
@@ -80,13 +97,22 @@ export function createHubRelayTokenProvider(
     }
 
     try {
-      const response = await fetchImpl(`${hubUrl}/api/v1/me/servers/${encodeURIComponent(serverId)}/relay-token`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Review mobile__asphp M12: bound the mint — see MINT_TIMEOUT_MS.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), MINT_TIMEOUT_MS);
+      let response: Awaited<ReturnType<typeof fetchImpl>>;
+      try {
+        response = await fetchImpl(`${hubUrl}/api/v1/me/servers/${encodeURIComponent(serverId)}/relay-token`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!response.ok) {
         cachedToken = null;
         cachedExpiresAt = 0;

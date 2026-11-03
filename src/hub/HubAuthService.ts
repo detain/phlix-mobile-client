@@ -7,6 +7,7 @@
 
 // src/hub/HubAuthService.ts
 import axios, { AxiosInstance } from 'axios';
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 
 export interface HubSession {
   accessToken: string;
@@ -193,12 +194,22 @@ export class HubAuthService {
 
   /**
    * Normalize hub URL - strip trailing slashes, ensure https.
+   *
+   * Review mobile__exploiter M6: scheme-less input defaults to https, but an
+   * EXPLICIT `http://hub…` passed the gate and carried username/password
+   * sign-in, refresh, /me/servers and relay-token mints in cleartext with
+   * zero UI signal — the M-MOBILE-51 banner only listened to three lanes.
+   * This resolver is the FOURTH seam ('hubApi'): every hub HTTP leg in the
+   * repo passes through it, so it reports the resolved URL to the shared
+   * cleartext ledger and the banner now fires for a WAN hub on http too.
+   * (Posture unchanged — LAN http stays accepted-but-VISIBLE.)
    */
   private normalizeHubUrl(hubUrl: string): string {
     let url = hubUrl.replace(/\/+$/, '');
     if (!url.startsWith('https://') && !url.startsWith('http://')) {
       url = `https://${url}`;
     }
+    useConnectionSecurityStore.getState().mark('hubApi', url);
     return url;
   }
 }

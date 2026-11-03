@@ -32,6 +32,52 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign security/network batch: hub-HTTP cleartext lane, boot-order token loss, unbounded fetches, stalled refresh, path-bending ids, backup-migratable vault, foreign-scheme player URLs — 2026-11-02
+
+- **M6 (exploiter):** the cleartext banner listened to three lanes and the
+  hub HTTP traffic was a fourth, invisible one — an explicit `http://hub…`
+  carried username/password sign-in, refresh, `/me/servers` and
+  relay-token mints in plaintext with zero UI signal. `hubApi` joins the
+  lane union in `useConnectionSecurityStore`; the three hub-HTTP seams
+  (`HubAuthService.normalizeHubUrl`, the raw-fetch mint provider,
+  `hubAwareClient.buildUrl`) now report their resolved origin.
+  Posture unchanged (LAN http stays accepted-but-visible).
+- **M8 (exploiter):** `checkAuth()` used to boot CONCURRENT with
+  `loadSettings()`, so on a cold settings hydrate it could dial `/auth/me`
+  against the build-time fallback host; the per-origin vault pin refused
+  the token and a foreign-host 401 routed to `clearTokens()` — a
+  legitimate session destroyed by load ORDER. Settings hydrate first now;
+  the device-id leg (which never rejects) stays parallel.
+- **M12 (asphp):** RN's `fetch` has NO default timeout. The Live TV
+  stream probe (`LiveTvManager.getStreamUrl`) and the relay-token mint
+  (`RelayTokenProvider`) awaited captive-portal stalls forever — the probe
+  froze the channel tap (documented fallback never fired); the stall froze
+  the relay lane pre-socket (no ladder, no status). Both now abort inside
+  15 s and take their existing failure paths.
+- **M13 (asphp):** the refresh single-flight rode the bare global axios
+  with no timeout — one stalled `/auth/refresh` held `refreshPromise`
+  forever and every concurrent 401 (and the whole REST surface) froze
+  with no path to `clearTokens()`. A 30 s per-call timeout makes a stalled
+  refresh reject, `finally` releases the promise, failure routes to the
+  honest signed-out leg.
+- **m8 (secnet):** two path seams interpolated HUB-SUPPLIED server ids
+  raw — the `relay.phlix.app` fallback in `hubStore.resolveEffectiveUrl`
+  and the relay prefix in `hubAwareClient.getBaseUrl`. Both now
+  `encodeURIComponent` exactly like the live WS lane (`hubRelay.ts`) and
+  the mint already did, so no id can bend the request path.
+- **m13 (secnet):** the token vault wrote with the keychain DEFAULT
+  (backup-eligible) while the biometric marker deliberately pinned a
+  THIS_DEVICE_ONLY class — a device-backup extraction could carry live
+  JWTs the marker's own policy would refuse, mitigated on Android only by
+  `allowBackup="false"`. Vault secret writes now pin
+  `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY` (no backup, no device migration;
+  unlike WHEN_PASSCODE_SET, a legitimate passcode change does not
+  silently vaporize the session).
+- **m4 (secnet):** `absolutizeApiPath` demotes server-supplied strings
+  that LOOK scheme-bearing but are not http(s) (`file://…`, `content://…`)
+  to a same-root path, loudly, instead of handing the native player an
+  arbitrary-scheme fetch primitive.
+
 ### Fixed — review-campaign sync cluster: watch-party reconnect, host liveness, position reporting, socket lifecycle, gate-digest replay, reconnect park, WS-error quarantine — 2026-11-02
 
 - **C1 (asphp):** the auto-rejoin sent a BARE `group_join` into gated rooms

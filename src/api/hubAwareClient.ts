@@ -20,6 +20,7 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { useHubStore } from '../store/hubStore';
+import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 
 class HubAwareClient {
   private directClient: AxiosInstance;
@@ -57,7 +58,9 @@ class HubAwareClient {
 
     if (connectionMode === 'relay' && hubUrl && activeServerId) {
       // Route through hub relay: https://hub.example.com/api/v1/relay/<server-id>/<path>
-      return `${hubUrl.replace(/\/+$/, '')}/api/v1/relay/${activeServerId}`;
+      // Review mobile__secnet m8: the id is hub-supplied — encode it the way
+      // the WS lane already does (hubRelay.ts), so no id can bend the path.
+      return `${hubUrl.replace(/\/+$/, '')}/api/v1/relay/${encodeURIComponent(activeServerId)}`;
     }
 
     // Direct mode - use the server's hostname
@@ -89,11 +92,20 @@ class HubAwareClient {
 
   /**
    * Build the full URL for a request.
+   *
+   * Review mobile__exploiter M6: every hub-mode dial (relay AND the
+   * effective-server direct leg) resolves through here — report it on the
+   * 'hubApi' lane so cleartext to a WAN hub raises the banner like the
+   * other three lanes do.
    */
   private buildUrl(path: string): string {
     const baseUrl = this.getBaseUrl();
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `${baseUrl}${normalizedPath}`;
+    const url = `${baseUrl}${normalizedPath}`;
+    if (baseUrl !== '') {
+      useConnectionSecurityStore.getState().mark('hubApi', url);
+    }
+    return url;
   }
 
   /**

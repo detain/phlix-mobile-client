@@ -411,7 +411,12 @@ function resolveEffectiveUrl(
 
   const candidate =
     mode === 'relay'
-      ? server.relayHostname ?? `https://relay.phlix.app/relay/${server.serverId}`
+      ? // Review mobile__secnet m8: the fallback interpolates a HUB-SUPPLIED
+        // id into the path — encode it exactly like the live WS lane
+        // (hubRelay.ts) and the mint (RelayTokenProvider) already do. The
+        // relay.phlix.app domain itself is an estate supply-chain pin: its
+        // ownership must be re-verified at each release (see FIXLOG note).
+        server.relayHostname ?? `https://relay.phlix.app/relay/${encodeURIComponent(server.serverId)}`
       : server.hostname;
 
   if (candidate.startsWith('https://') || candidate.startsWith('http://')) {

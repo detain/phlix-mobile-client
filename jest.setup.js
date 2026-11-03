@@ -95,7 +95,12 @@ jest.mock('react-native-keychain', () => {
     }),
     resetGenericPassword: jest.fn(async (options) => store.delete(serviceOf(options))),
     ACCESS_CONTROL: { BIOMETRY_ANY: 'BiometryAny' },
-    ACCESSIBLE: { WHEN_PASSCODE_SET_THIS_DEVICE_ONLY: 'WhenPasscodeSetThisDeviceOnly' },
+    ACCESSIBLE: {
+      WHEN_PASSCODE_SET_THIS_DEVICE_ONLY: 'WhenPasscodeSetThisDeviceOnly',
+      // Vault token slots (review mobile__secnet m13) — same enum shape as
+      // the real module so tests can observe which class a write pinned.
+      AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AfterFirstUnlockThisDeviceOnly',
+    },
     __resetKeychainMock: () => store.clear(),
   };
 });

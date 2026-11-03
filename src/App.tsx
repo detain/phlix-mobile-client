@@ -33,7 +33,17 @@ const App: React.FC = () => {
       try {
         // Resolve the stable device id early so the per-request header builder
         // (sync) reads the real persisted value.
-        await Promise.all([initDeviceIdentity(), checkAuth(), loadSettings()]);
+        //
+        // Review mobile__exploiter M8 boot-race cure: `checkAuth` used to run
+        // CONCURRENT with `loadSettings`, so on a cold vault it could dial
+        // /auth/me against the BUILD-TIME fallback host (settings serverUrl
+        // still ''). The per-origin pin then refused the token, and a 401
+        // from the foreign host routed to clearTokens() — a legitimate
+        // session destroyed by LOAD ORDER. Settings hydrate FIRST; the
+        // device-id leg has no ordering stake and stays parallel.
+        const identity = initDeviceIdentity();
+        await loadSettings();
+        await Promise.all([identity, checkAuth()]);
       } catch (error) {
         console.error('Failed to initialize app:', error);
       }
