@@ -23,10 +23,13 @@
 // stable in-memory temporary id so requests are never sent with an empty value.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { nativeRandomHex } from '../native/PhlixRandom';
 
 const DEVICE_ID_KEY = 'phlix_device_id';
 
-/** Generate an RFC-4122 v4 UUID using Math.random (no native crypto needed). */
+/** Generate an RFC-4122 v4 UUID using Math.random (no native crypto needed).
+ * Kept as the DOCUMENTED fallback for Jest / a missing native module; the
+ * primary path is generateUuidV4Async over the OS CSPRNG (M7 below). */
 /* eslint-disable no-bitwise -- canonical v4 UUID bit-twiddling */
 const generateUuid = (): string =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -34,7 +37,42 @@ const generateUuid = (): string =>
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+
+/**
+ * M7 (deferred lane): map 16 CSPRNG bytes (32 lowercase hex chars, already
+ * shape-checked by the wrapper) onto an RFC-4122 v4 UUID — the version nibble
+ * becomes 4 and the clock-seq variant bits 10xx, exactly like the classic
+ * template but with OS-random entropy behind every other nibble.
+ * Returns null on a malformed input (parse-don't-validate at the boundary).
+ */
+export const uuidFromCsprngHex = (hex: string): string | null => {
+  if (hex.length !== 32 || !/^[0-9a-f]{32}$/.test(hex)) {
+    return null;
+  }
+  const variantNibble = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `4${hex.slice(13, 16)}`,
+    `${variantNibble}${hex.slice(17, 20)}`,
+    hex.slice(20, 32),
+  ].join('-');
+};
 /* eslint-enable no-bitwise */
+
+/**
+ * v4 UUID from the OS CSPRNG when present (PhlixRandom: SecureRandom /
+ * SecRandomCopyBytes), falling back to the Math.random template otherwise.
+ * The fallback keeps Jest, the pre-native-build window, and a bridged reject
+ * functional — the SAME documented posture as TEMP_DEVICE_ID below.
+ */
+export const generateUuidV4Async = async (): Promise<string> => {
+  const hex = await nativeRandomHex(16);
+  if (hex === null) {
+    return generateUuid();
+  }
+  return uuidFromCsprngHex(hex) ?? generateUuid();
+};
 
 // In-memory fallback used before the persisted id resolves at boot. Generated
 // once per process so every fallback request in a session shares one value.
@@ -62,7 +100,7 @@ export const getDeviceId = async (): Promise<string> => {
         cachedDeviceId = stored;
         return stored;
       }
-      const fresh = generateUuid();
+      const fresh = await generateUuidV4Async();
       await AsyncStorage.setItem(DEVICE_ID_KEY, fresh);
       cachedDeviceId = fresh;
       return fresh;

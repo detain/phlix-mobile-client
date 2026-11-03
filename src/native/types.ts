@@ -181,3 +181,18 @@ export interface PhlixWebAuthnInterface extends NativeModule {
    */
   authenticate(optionsJson: string): Promise<string>;
 }
+
+/**
+ * M7 (deferred lane): CSPRNG byte source for stable device identity.
+ *
+ * Android: java.security.SecureRandom (PhlixRandomModule.kt).
+ * iOS: SecRandomCopyBytes / kSecRandomDefault (PhlixRandom.swift + .m bridge).
+ *
+ * The wrapper (src/native/PhlixRandom.ts) treats module-absent and native
+ * reject identically (null) so deviceIdentity.ts can fall back to its
+ * documented Math.random path (Jest, bridge-down) without crashing.
+ */
+export interface PhlixRandomInterface extends NativeModule {
+  /** Resolves `byteCount` CSPRNG bytes as a lowercase hex string. */
+  randomHex(byteCount: number): Promise<string>;
+}
