@@ -12,6 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { RootNavigator, navigationRef } from './navigation';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuthStore } from './stores/useAuthStore';
 import { useSettingsStore } from './stores/useSettingsStore';
 import { initDeviceIdentity } from './api/deviceIdentity';
@@ -98,7 +99,12 @@ const App: React.FC = () => {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
-        <RootNavigator />
+        {/* M-MOBILE-71 (review mobile__devops Major 19): render-phase crashes
+            report to the device log and show a recoverable card instead of
+            the white screen / silent exit the release build used to have. */}
+        <ErrorBoundary>
+          <RootNavigator />
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

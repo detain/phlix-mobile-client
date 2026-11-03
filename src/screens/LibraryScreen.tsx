@@ -6,7 +6,7 @@
  */
 
 // src/screens/LibraryScreen.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   FlatList,
@@ -132,9 +132,13 @@ const LibraryScreen: React.FC = () => {
     }
   };
 
-  const handleMediaPress = (item: MediaItem) => {
-    navigation.navigate('MediaDetail', { itemId: item.id });
-  };
+  // M-MOBILE-69: stable handler so the memoized MediaCard can bail out.
+  const handleMediaPress = useCallback(
+    (item: MediaItem) => {
+      navigation.navigate('MediaDetail', { itemId: item.id });
+    },
+    [navigation]
+  );
 
   /**
    * Library tab tap. Music and photo libraries are NOT browsed as the items
@@ -162,6 +166,11 @@ const LibraryScreen: React.FC = () => {
         selectedLibrary?.id === item.id && styles.libraryTabActive,
       ]}
       onPress={() => handleLibraryTabPress(item)}
+      // M-MOBILE-68 (review mobile__crossfe Major 16): the name was speakable
+      // but the ACTIVE state was color-only — tab semantics + selection state
+      // so the screen reader can tell which library is on.
+      accessibilityRole="tab"
+      accessibilityState={{ selected: selectedLibrary?.id === item.id }}
     >
       <Text
         style={[
@@ -174,8 +183,13 @@ const LibraryScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  const renderItem = ({ item }: { item: MediaItem }) => (
-    <MediaCard item={item} onPress={() => handleMediaPress(item)} />
+  // M-MOBILE-69 (review mobile__crossfe Major 15): hoisted + unbound seam —
+  // the 2-up grid rebuilds cells only when their own item/dimensions change.
+  const renderItem = useCallback(
+    ({ item }: { item: MediaItem }) => (
+      <MediaCard item={item} onPressItem={handleMediaPress} />
+    ),
+    [handleMediaPress]
   );
 
   if (isLoading) {
@@ -227,6 +241,11 @@ const LibraryScreen: React.FC = () => {
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         numColumns={2}
+        // M-MOBILE-69 note: the review also asked for getItemType on this
+        // 2-up grid; RN 0.85's Lists layer (FlatList.d.ts/VirtualizedList)
+        // has no such prop any more (grep across Libraries/Lists: zero
+        // hits) — passing it would be theater, so the memoized stable-prop
+        // cards carry the re-render defense here instead.
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.columnWrapper}
         refreshControl={

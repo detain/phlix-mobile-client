@@ -6,7 +6,7 @@
  */
 
 // src/components/media/MediaList.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,14 +43,20 @@ export const MediaList: React.FC<MediaListProps> = ({
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = cardWidthProp ?? (screenWidth - 60) / 3;
   const cardHeight = cardHeightProp ?? cardWidth * 1.5;
-  const renderItem = ({ item }: { item: MediaItem }) => (
-    <PosterCard
-      item={item}
-      width={cardWidth}
-      height={cardHeight}
-      onPress={() => onItemPress(item)}
-      showTitle={true}
-    />
+  // M-MOBILE-69 (review mobile__crossfe Major 15): hoisted with the UNBOUND
+  // onPressItem seam — a per-cell `() => onItemPress(item)` arrow would change
+  // identity every render and defeat the memoized card entirely.
+  const renderItem = useCallback(
+    ({ item }: { item: MediaItem }) => (
+      <PosterCard
+        item={item}
+        width={cardWidth}
+        height={cardHeight}
+        onPressItem={onItemPress}
+        showTitle={true}
+      />
+    ),
+    [cardWidth, cardHeight, onItemPress]
   );
 
   return (
@@ -58,7 +64,13 @@ export const MediaList: React.FC<MediaListProps> = ({
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         {showViewAll && (
-          <TouchableOpacity onPress={onViewAllPress}>
+          <TouchableOpacity
+            onPress={onViewAllPress}
+            // M-MOBILE-68 (review mobile__crossfe Major 16): "View All" alone
+            // answers "view all of WHAT?" to a screen reader.
+            accessibilityRole="link"
+            accessibilityLabel={`View all ${title}`}
+          >
             <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
         )}

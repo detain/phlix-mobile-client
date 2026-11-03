@@ -6,7 +6,7 @@
  */
 
 // src/components/media/ContinueWatching.tsx
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -38,7 +38,8 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - 40;
   const cardHeight = cardWidth * 0.56;
-  const renderItem = ({ item }: { item: MediaItem }) => {
+  // M-MOBILE-69: hoisted render fn — stable while the handlers stay stable.
+  const renderItem = useCallback(({ item }: { item: MediaItem }) => {
     // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
     const backdropUri = firstUsableUri(item.backdrop_url, item.poster_url);
     // C17 (review mobile__gameux): the rail row carries `position_ticks` /
@@ -75,6 +76,11 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
           <TouchableOpacity
             style={styles.playButton}
             onPress={() => onItemPlay(item)}
+            // M-MOBILE-68 (review mobile__crossfe Major 16): the raw "▶"
+            // glyph is the only content — TalkBack/VoiceOver would read
+            // "black right-pointing triangle" on the couch's main action.
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${item.name}`}
           >
             <Text style={styles.playButtonText} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>▶</Text>
           </TouchableOpacity>
@@ -84,7 +90,7 @@ export const ContinueWatching: React.FC<ContinueWatchingProps> = ({
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [onItemPress, onItemPlay, cardWidth, cardHeight]);
 
   return (
     <View style={styles.container}>

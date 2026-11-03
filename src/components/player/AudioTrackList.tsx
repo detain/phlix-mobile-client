@@ -101,6 +101,11 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
                   }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isSelected }}
+                  // M-MOBILE-70 (review mobile__casualgamer Major 2): the row
+                  // really does record a preference; what it cannot do is
+                  // touch the live stream. Say which, where screen readers
+                  // announce it.
+                  accessibilityHint="Remembers this track as your preference; switching the audio you hear now is not supported by the player yet."
                   accessibilityLabel={`${track.title || track.language} ${formatChannels(track.channels)} ${bitrateStr}`}
                 >
                   <View style={styles.rowContent}>

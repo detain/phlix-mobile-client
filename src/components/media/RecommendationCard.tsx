@@ -19,10 +19,17 @@ const RecommendationCard: React.FC<Props> = ({ item, onPress }) => {
   const scorePercent = Math.round(item.score * 100);
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(item.id)}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress(item.id)}
+      // M-MOBILE-68 (review mobile__crossfe Major 16): label the whole card;
+      // the raw poster Image contributed nothing speakable.
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}, ${scorePercent} percent match`}
+    >
       <View style={styles.posterContainer}>
         {item.posterUrl ? (
-          <Image source={{ uri: item.posterUrl }} style={styles.poster} />
+          <Image source={{ uri: item.posterUrl }} style={styles.poster} accessible={false} />
         ) : (
           <View style={[styles.poster, styles.placeholder]} />
         )}
@@ -91,4 +98,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RecommendationCard;
+export default React.memo(RecommendationCard);

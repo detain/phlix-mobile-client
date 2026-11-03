@@ -6,7 +6,7 @@
  */
 
 // src/screens/HomeScreen.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -141,23 +141,35 @@ const HomeScreen: React.FC = () => {
   // tab-hopping cannot stampede the server). Pull-to-refresh stays manual.
   useFocusRefetch(loadHomeData);
 
-  const handleMediaPress = (item: MediaItem) => {
-    navigation.navigate('MediaDetail', { itemId: item.id });
-  };
+  // M-MOBILE-69 (review mobile__crossfe Major 15): stable handlers — the rails
+  // below feed memoized cards, whose bail-out dies with per-render arrows.
+  const handleMediaPress = useCallback(
+    (item: MediaItem) => {
+      navigation.navigate('MediaDetail', { itemId: item.id });
+    },
+    [navigation]
+  );
 
-  const handlePlayPress = (item: MediaItem) => {
-    navigation.navigate('Player', { itemId: item.id });
-  };
+  const handlePlayPress = useCallback(
+    (item: MediaItem) => {
+      navigation.navigate('Player', { itemId: item.id });
+    },
+    [navigation]
+  );
 
-  const handleContinueWatchingPress = (item: MediaItem) => {
-    // C17: `position_ticks` (100ns) is the ONLY resume field the server's
-    // continue-watching rail emits — the `user_data.resume_position_ticks`
-    // fallback this used to carry is a phantom the wire never sends.
-    navigation.navigate('Player', {
-      itemId: item.id,
-      startPosition: ticksToSeconds(item.position_ticks ?? 0),
-    });
-  };
+  const handleContinueWatchingPress = useCallback(
+    (item: MediaItem) => {
+      // C17: `position_ticks` (100ns) is the ONLY resume field the server's
+      // continue-watching rail emits — the
+      // `user_data.resume_position_ticks` fallback this used to carry is a
+      // phantom the wire never sends.
+      navigation.navigate('Player', {
+        itemId: item.id,
+        startPosition: ticksToSeconds(item.position_ticks ?? 0),
+      });
+    },
+    [navigation]
+  );
 
   if (isLoading) {
     // M-MOBILE-43 (review mobile__gameux m9): layout-shaped skeleton on the

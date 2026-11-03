@@ -32,6 +32,32 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-campaign UX-major batch: card memoization + hoisted render fns, couch-facing a11y labels, audio-picker honesty, ErrorBoundary — 2026-11-02
+
+- **Major 15 (crossfe):** `PosterCard`/`MediaCard`/`RecommendationCard` are
+  now `React.memo` at BOTH export names, and the cards gained an unbound
+  `onPressItem(item)` seam — per-cell `() => onItemPress(item)` arrows change
+  identity every render and defeat memoization entirely. `MediaList`,
+  `ContinueWatching`, `LibraryScreen` and `HomeScreen` hoisted their
+  render fns/handlers through `useCallback`. The review's `getItemType`
+  ask: verified absent from RN 0.85's Lists layer (zero prop across
+  `Libraries/Lists`) — passing it would be theater, recorded in-place.
+- **Major 16 (crossfe):** labeled the surfaces the review ranked first —
+  the raw "▶" resume target (`Play {title}`), "View All" (`View all
+  {title}`), both card kinds (whole-card label; decorative art opted out),
+  and the library grid tabs (tab role + selected state — the active tab was
+  color-only before). M-MOBILE-68.
+- **Major 2 (casualgamer):** the audio rows read as live controls while the
+  saved choice reaches nothing (verified: no native command, no wire param).
+  Copy now states remembered-vs-heard plainly, and every row carries an
+  `accessibilityHint` saying the same to screen readers. M-MOBILE-70.
+- **Major 19 (devops):** new `ErrorBoundary` wraps the app tree —
+  render-phase crashes report to the device log through `console.error`
+  (the sanctioned release sink; a future crash-upload hooks in beside it)
+  and show a recoverable "Try again" card instead of the white screen.
+  No new dependency; async/timer errors deliberately NOT claimed.
+  M-MOBILE-71, +6 seam tests (the repo keeps its no-renderer doctrine).
+
 ### Fixed — review-campaign Major 9: signed-out deep links now survive sign-in (M-MOBILE-67) — 2026-11-02
 
 - **Major 9 (gameux):** a `phlix://…` link arriving while the session was

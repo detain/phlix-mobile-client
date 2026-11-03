@@ -119,7 +119,7 @@ const toSyncPlayPositionMs = (seconds: number): number => seconds * 1000;
  * goes RED and this constant must be retired with it.
  */
 export const AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE =
-  'Audio track choice is saved, but the native player has no audio-track switching API yet — it will apply once supported.';
+  'Choosing a track here remembers it as your preference — it does NOT change the audio you are hearing. The native player exposes no track-switching command yet, so the choice cannot reach the live stream; it will apply once the player supports switching.';
 
 // P5-S5: Detect AccessSchedule (403) / StreamLimitExceeded (429) errors from API calls.
 // Returns { isAccessError: boolean, message: string } when detected, otherwise null.

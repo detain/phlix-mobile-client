@@ -21,13 +21,17 @@ import { LocalPlaceholder } from '../ui/LocalPlaceholder';
 
 interface MediaCardProps {
   item: MediaItem;
-  onPress: () => void;
+  /** Bound per-cell (legacy call sites). */
+  onPress?: () => void;
+  /** M-MOBILE-69: stable unbound handler — see PosterCard's docblock. */
+  onPressItem?: (item: MediaItem) => void;
   cardWidth?: number;
 }
 
-export const MediaCard: React.FC<MediaCardProps> = ({
+const MediaCardInner: React.FC<MediaCardProps> = ({
   item,
   onPress,
+  onPressItem,
   cardWidth: cardWidthProp,
 }) => {
   // M-MOBILE-39 (review mobile__gameux m5): the 2-up default width follows
@@ -38,11 +42,12 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   const cardHeight = cardWidth * 0.7;
   // M-MOBILE-42: missing art is a LOCAL tile now — no third-party uri.
   const posterUri = firstUsableUri(item.backdrop_url, item.poster_url);
+  const handlePress = () => (onPress ? onPress() : onPressItem?.(item));
 
   return (
     <TouchableOpacity
       style={[styles.container, { width: cardWidth, height: cardHeight + 50 }]}
-      onPress={onPress}
+      onPress={handlePress}
       activeOpacity={0.8}
     >
       {posterUri !== undefined ? (
@@ -90,4 +95,8 @@ const styles = StyleSheet.create({
   },
 });
 
+// M-MOBILE-69: memo on the NAMED export too — every screen that imports
+// { MediaCard } gets the bail-out without changing its import.
+export const MediaCard = React.memo(MediaCardInner);
+// M-MOBILE-69: see PosterCard — memo with the stable onPressItem seam.
 export default MediaCard;
