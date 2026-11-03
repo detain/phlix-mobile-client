@@ -49,6 +49,21 @@ jobs:
         with:
           packages: 'platform-tools'
 
+      # M36 (deferred lane): every push recompiled Gradle from scratch — this
+      # workflow's dominant wall-clock cost. Key on everything that can move
+      # the build graph (gradle scripts, wrapper, properties, the npm lock that
+      # feeds codegen/assets); restore-keys reuse the newest partial prefix so
+      # a dependency bump degrades gracefully instead of cold-starting.
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/**/*.gradle.kts', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties', 'package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Build Android (Debug)
         run: cd android && ./gradlew assembleDebug
 
@@ -91,6 +106,18 @@ jobs:
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699
         with:
           packages: 'platform-tools'
+
+      # M36: shared with the debug job (identical key inputs) — whichever
+      # master push runs first seeds the cache for the other.
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle', 'android/**/*.gradle.kts', 'android/gradle/wrapper/gradle-wrapper.properties', 'android/gradle.properties', 'package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
 
       - name: Build Android (Release)
         run: cd android && ./gradlew assembleRelease

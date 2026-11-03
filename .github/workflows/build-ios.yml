@@ -43,6 +43,17 @@ jobs:
         # newest release on each CI run. Build dirs only from now on.
         run: rm -rf ios/build ios/Pods
 
+      # M36 (deferred lane): the `ios/Pods` tree stays purged (M-MOBILE-09 law)
+      # but the CocoaPods DOWNLOAD cache is pure input — priming it makes the
+      # rebuild download-free without ever skipping resolution.
+      - name: Cache CocoaPods downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
       - name: Install iOS dependencies
         run: cd ios && pod install && cd ..
 
@@ -102,6 +113,15 @@ jobs:
       - name: Clean iOS build directories
         # Lock survives — see the Debug job's note (M-MOBILE-09).
         run: rm -rf ios/build ios/Pods
+
+      # M36: shared key with the Debug job (same Podfile.lock input).
+      - name: Cache CocoaPods downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
 
       - name: Install iOS dependencies
         run: cd ios && pod install && cd ..
