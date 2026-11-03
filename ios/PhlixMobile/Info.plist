@@ -71,6 +71,13 @@
 	     app backgrounds / the phone locks. It only works paired with the
 	     .playback AVAudioSession category set in PhlixPlayerView.swift —
 	     the mode alone silences on background. -->
+	<!-- M29 (deferred lane): the tab bar moved from emoji Text to real vector
+	     icons (@react-native-vector-icons/material-icons). The pod delivers
+	     the TTF as a resource; iOS only loads fonts listed here. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>MaterialIcons.ttf</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

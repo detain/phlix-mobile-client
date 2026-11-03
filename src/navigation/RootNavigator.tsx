@@ -86,22 +86,36 @@ const LibraryStack = createNativeStackNavigator<LibraryStackParamList>();
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // Tab Bar Icon Component
-const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
-  const icons: Record<string, string> = {
-    Home: '🏠',
-    Library: '📚',
-    Search: '🔍',
-    Downloads: '⬇️',
-    Settings: '⚙️',
-  };
+//
+// M29 (deferred lane): the tab icons were raw EMOJI rendered as Text —
+// OS-dependent glyphs that cannot be tinted by focus state and break down
+// where color fonts are disabled. @react-native-vector-icons/material-icons
+// (the maintained successor of the deprecated react-native-vector-icons)
+// ships real vector glyphs; the family gradle plugin copies the TTF into
+// Android assets automatically, iOS delivers it via the pod's font resource
+// plus the Info.plist UIAppFonts entry. The '/static' subpath is deliberate:
+// the package default export's dynamic variant picker reaches for
+// expo-modules-core, which this bare-RN app does not have.
+import MaterialIcons from '@react-native-vector-icons/material-icons/static';
 
+const TAB_ICONS = {
+  Home: 'home',
+  Library: 'library-books',
+  Search: 'search',
+  Downloads: 'file-download',
+  Settings: 'settings',
+} as const;
+
+const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
+  const glyph = TAB_ICONS[name as keyof typeof TAB_ICONS] ?? 'help-outline';
   return (
     <View style={[styles.tabIcon, focused && styles.tabIconFocused]}>
-      {/* M-MOBILE-45: fixed 60pt bar — bounded scaling so large-text users
-          get a boost, the bar keeps its shape. */}
-      <Text style={styles.tabIconText} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>
-        {icons[name]}
-      </Text>
+      <MaterialIcons
+        name={glyph}
+        size={20}
+        color={focused ? '#0066cc' : '#888'}
+        maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}
+      />
     </View>
   );
 };
@@ -549,9 +563,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.1 }],
     backgroundColor: 'rgba(0,102,204,0.22)',
     borderRadius: 15,
-  },
-  tabIconText: {
-    fontSize: 20,
   },
   loadingContainer: {
     flex: 1,
