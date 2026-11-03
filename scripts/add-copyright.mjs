@@ -92,6 +92,22 @@ function processTsFile(filepath) {
 
 const srcFiles = walk('src');
 
+// M38 (deferred lane): --check mode makes the header a CI gate, not a
+// one-off migration. Exit 1 with the missing list; zero drift means exit 0.
+// (A gate that only prints is theater — this one blocks.)
+if (process.argv.includes('--check')) {
+  const missing = srcFiles.filter(
+    (file) => !readFileSync(file, 'utf8').includes('detain@interserver.net'),
+  );
+  for (const file of missing) {
+    console.log('MISSING: ' + file);
+  }
+  console.log(
+    `\nCheck: ${srcFiles.length - missing.length}/${srcFiles.length} file(s) carry the header, ${missing.length} missing.`,
+  );
+  process.exit(missing.length > 0 ? 1 : 0);
+}
+
 let changed = 0;
 let skipped = 0;
 const touched = [];

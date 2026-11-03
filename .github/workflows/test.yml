@@ -45,6 +45,11 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      # M38 (deferred lane): the copyright header was a one-off migration with
+      # no teeth — new files could drift in unheadered. --check makes it a gate.
+      - name: Copyright headers
+        run: npm run copyright -- --check
+
       - name: Run tests
         # --coverage is REQUIRED for the uploads below to have anything to send.
         # jest.config.js sets collectCoverageFrom but NOT collectCoverage, so
