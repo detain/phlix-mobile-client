@@ -32,6 +32,68 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Added — deferred-items lane (M3, M7, M14, M29, M36, M38 landed; M1 wave-2; M20/M21/M34 owner-only) — 2026-11-03
+
+- **M3 (data-plan guard):** `@react-native-community/netinfo` 12.0.1 added
+  (dep-add now permitted by owner). `src/utils/networkState.ts` classifies the
+  connection (fail-OPEN by law: a broken probe never strands downloads);
+  `DownloadService.processQueue()` became a coalesced async pump that HOLDS
+  queued tasks (status stays `queued`) while `downloadOverWifiOnly` + cellular
+  are both true, auto-starting them via a live NetInfo subscription when the
+  connection leaves cellular — the switch is back in Settings as a Downloads
+  section, wired and consumer-pinned (the M-MOBILE-01 theater-cure pins were
+  inverted in the same commit: a real toggle must stay IN). The player shows an
+  amber "⚠ Mobile data" badge in the top bar instead of blocking an in-progress
+  watch. Cellular video-quality capping deliberately NOT in this slice —
+  follow-up.
+- **M7 (CSPRNG device id):** no third-party crypto package — new in-repo
+  native module `PhlixRandom` (Android `java.security.SecureRandom`, iOS
+  `SecRandomCopyBytes` + `Security` framework on the podspec) exposed as
+  `randomHex(byteCount)`. `deviceIdentity.generateUuidV4Async()` maps OS-random
+  bytes onto the RFC-4122 v4 template (version/variant nibbles forced); the
+  documented Math.random path remains the Jest/bridge-absent fallback, and the
+  pre-boot `TEMP_DEVICE_ID` is unchanged. **device-test-pending** (CI compiles
+  both arms; no device venue here).
+- **M14 (Android audio focus + playback notification):** `PhlixPlayerView.kt`
+  builder gains `setAudioAttributes(AudioAttributes.DEFAULT,
+  handleAudioFocus=true)` + `setWakeMode(C.WAKE_MODE_NETWORK)`, and a
+  ReactContext `LifecycleEventListener` pauses playback on host-pause
+  (manual-resume posture; listener removed on detach). The DEAD
+  `showPlaybackNotification`/`cancelPlaybackNotification` API is now driven by
+  the `play`/`pause`/`ended` events + screen teardown, gated on
+  `enableNotifications`, with the M-MOBILE-72 ask-on-first-use doctrine.
+  Full media3 MediaSession/lock-screen controls and iOS
+  MPNowPlayingInfoCenter are named companion follow-ups.
+  **device-test-pending.**
+- **M29 (tab-bar icons):** emoji-as-Text replaced by
+  `@react-native-vector-icons/material-icons` v14 (the maintained family
+  successor; `react-native-vector-icons` itself is DEPRECATED) via the
+  expo-modules-free `/static` export — Android font copy is the family gradle
+  plugin's own step; iOS gets `UIAppFonts=[MaterialIcons.ttf]` in Info.plist;
+  node10-tsc bridged by `src/types/rnvi-static-bridge.d.ts`; icons tint on
+  focus. Metro android bundle probe resolves the graph.
+- **M36 (CI caching):** `actions/cache@v6` Gradle caches (`~/.gradle/caches`,
+  `~/.gradle/wrapper`; key over gradle scripts + wrapper props + npm lock) in
+  both Android jobs; CocoaPods DOWNLOADS cache keyed on `ios/Podfile.lock` in
+  both iOS jobs — the `ios/Pods` purge (M-MOBILE-09 law) is untouched.
+- **M38 (copyright gate):** `scripts/add-copyright.mjs --check` mode + a
+  blocking `Copyright headers` step in test.yml (planted-file probe: exit 1 on
+  drift, 0 clean). All 172 walked src files already carry the header.
+- **Gates:** tsc 0; eslint 0 errors / 2 baseline warnings; jest --runInBand
+  120 suites / 1711 tests (baseline 117/1689 + 3 suites / +22 tests, exact
+  additions: networkState 10, wifiGate 5, csprng 7), 1 pre-existing skip held;
+  mutation probe: neutering the gate reddens exactly the 3 gate laws.
+  **Dep adds:** netinfo 12.0.1 + @react-native-vector-icons/{common,material-icons}
+  14.0.0 — lock +187/−0 lines (12 packages; npm 12 under
+  `NPM_CONFIG_USERCONFIG=/dev/null --allow-git=all`), `npm audit` shows none of
+  the added packages in the vulnerability map (pre-existing dev-chain entries
+  only).
+- **Dispositions NOT landing here:** M1 (QR/LAN pairing discovery) = WAVE-2
+  feature build — needs server pairing endpoints (none exist) + camera/mDNS
+  native modules; design note in the owner reel. M20 (rolling-release
+  permanence), M21 (store signing/pipeline), M34 (store copy/privacy policy) =
+  OWNER-ONLY decisions.
+
 ### Fixed — review-campaign UX/hygiene minors batch (Minor 1–5, 11, 15–28, 30–33, 35, 37, 39) — 2026-11-03
 
 - **Minor 1 (M-MOBILE-73):** LoginScreen now pre-fills the server field from
