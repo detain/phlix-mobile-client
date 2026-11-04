@@ -32,6 +32,71 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — review-cures lane: Major 1–2, Minor 1–3, Info 6 (adversarial review of `fdc82f4..201a39d`) — 2026-11-03
+
+- **Major 1 (ios/Podfile.lock drift — M-MOBILE-09 lock law):** the range's
+  two new native pods (`react-native-netinfo` 12.0.1,
+  `react-native-vector-icons-material-icons` 14.0.0) had ZERO entries in the
+  committed lock while build-ios.yml's BARE `pod install` (non-deployment)
+  silently re-resolved them every run — the caret float the lock exists to
+  pin. CURED by regeneration against this range's node_modules, +34/−3
+  lines: the two pods enter PODS/DEPENDENCIES/CHECKOUT/SPEC CHECKSUMS, and
+  three spec-checksum lines (`PhlixPlayer`, `React-Core-prebuilt`,
+  `ReactNativeDependencies`) move — the committed lock was STALE against
+  today's podspecs even before the drift, now disclosed, not hidden.
+  `PODFILE CHECKSUM` and the `COCOAPODS: 1.17.0` stamp are UNCHANGED.
+  VENUE DISCLOSURE: generated on a Linux host (CocoaPods 1.17.0, the same
+  version the lock stamps). React Native's Podfile pipeline shells out to
+  exactly two macOS-flavored commands; both were inert probes for
+  lock-metadata purposes and were shimmed in scratch only:
+  `xcodebuild -version` (feeds a minimum-Xcode warning gate) and
+  `` `command -v ccache` `` (a shell builtin Ruby backticks exec'd as a
+  binary — ENOENT on Linux; ccache is not installed here). Podfile.lock
+  content is resolver metadata (spec graph + checksums) — neither probe can
+  alter it; the podspec inputs are this repo's own node_modules files. The
+  canonical macOS re-verification stays paste-ready for the owner:
+  `cd ios && pod install && git diff ios/Podfile.lock` (expect zero diff).
+  PERMANENT TOOTH: `scripts/check-podfile-lock.mjs` (+ `npm run
+  check:podfile-lock`, + a blocking test.yml step per the M38 copyright-gate
+  posture) asserts every pod `react-native config` auto-links is named in
+  the lock — host-agnostic (node only), so the Linux test job catches
+  iOS-lock drift the macOS build leg structurally cannot see. Teeth proven:
+  against the pre-cure lock it reddens on EXACTLY the two convicted pods;
+  against the regenerated lock it greens on all 13.
+- **Major 2 (+ Minor 2, iOS notification storm):** the M14 playback lane is
+  now ENFORCED Android-only (`Platform.OS !== 'android'` early-return in
+  `PlayerScreen.updatePlaybackNotification`) — its own docblock always said
+  iOS MPNowPlayingInfoCenter is a companion follow-up, but the bare
+  notifee display posted a REAL UNUserNotificationCenter banner on every
+  play/pause and the first-play `requestPermissions()` prompted the OS
+  (both fields `ongoing`/`channelId` are Android-only; presentation is
+  not). Minor 2 rides the same path: a permission-grant resolve landing
+  AFTER a pause taken during the OS prompt used to resurrect a "Now
+  Playing" banner for paused media — a generation counter now voids the
+  in-flight ask. Five jest pins in `PlayerScreen.test.tsx` (iOS no-display
+  ×2, Android full lifecycle, delayed-grant race, toggle-OFF): the iOS and
+  race pins measured RED (3 convictions) against the pre-cure source;
+  Android behavior is held identical by the same suite.
+- **Minor 1 (Kotlin listener leak):** `PhlixPlayerView.onDropViewInstance`
+  now mirrors the detach-side `removeLifecycleEventListener` — a view
+  dropped WITHOUT ever attaching (closed mid-mount) skipped detach and
+  leaked the whole view via the ReactContext-held listener; on the normal
+  detach-then-drop order the reference-based removal is a safe no-op.
+  Source-shape pins ×3 in the new `androidPlayerLifecycle.gate.test.ts`.
+- **Minor 3 (stale pinned notification):** the SettingsScreen Notifications
+  OFF arm now calls `notificationService.cancelPlaybackNotification()` —
+  flipping OFF mid-play used to leave the ongoing "Now Playing" up (the
+  player's update path early-returns on the setting, so its dismiss arms
+  never ran). Source-shape pin added to the store's settings gate describe.
+- **Info 6:** `deviceIdentity.csprng.test.ts` layout comment corrected
+  (hex[16] is byte 8's high nibble; byte 7 is hex[14..15]) — comment-only,
+  arithmetic was already right.
+- Gates: `tsc --noEmit` clean; eslint 0 errors / 2 PRE-EXISTING warnings
+  (SleepTimer/PlayerScreen unused `exhaustive-deps` disables — not this
+  lane); copyright check 176/176; `jest --runInBand` 121 suites / 1720
+  tests (1719 pass + the sanctioned skip) — baseline 1711+1 skip, +9 new
+  pins exact, +1 suite exact.
+
 ### Added — deferred-items lane (M3, M7, M14, M29, M36, M38 landed; M1 wave-2; M20/M21/M34 owner-only) — 2026-11-03
 
 - **M3 (data-plan guard):** `@react-native-community/netinfo` 12.0.1 added
