@@ -27,13 +27,17 @@ describe('syncplayErrors — registry coverage', () => {
     // Census anchors at contracts v0.5.3: 12 legacy SCREAMING (incl.
     // PROTOCOL_VERSION_MISMATCH) + 8 dotted twins — the 7th twin era grew to
     // 8 when v0.5.3 minted the then-RESERVED `syncplay.queue_limit_exceeded`
-    // (registry 202→204). The v0.5.4 re-pin held the trio byte-ident. At THIS
-    // pin (#v0.5.5, 2026-11-03 cascade) the registry MOVED — 204→205, md5
+    // (registry 202→204). The v0.5.4 re-pin held the trio byte-ident. The
+    // v0.5.5 wave (2026-11-03) moved the registry — 204→205, md5
     // 5d1783a71a3c4e128b2021327cad3717 (the old `40c1da48` stamp is history:
-    // the contracts wave itself minted `common.not_found`) — but the mint
-    // lives in the `common` domain, so the SyncPlayErrorCode union is UNMOVED
-    // at 20: zero catalog rows rotated, zero TS2741 — both MEASURED green at
-    // this pin, not assumed. A union bump moves these counts — and the loop
+    // that wave itself minted `common.not_found`) — but the mint lives in the
+    // `common` domain, so the union stood UNMOVED at 20. At THIS pin
+    // (#v0.5.6, 2026-11-04 wave-5 cascade) the registry is BYTE-HELD at that
+    // same md5 — this wave's contracts delta is route-manifest regen #36
+    // only, and the errors.ts/errors.d.ts churn was measured comment-only
+    // (zero non-comment diff lines) — so `SyncPlayErrorCode` is UNMOVED at 20
+    // again: zero catalog rows rotated, zero TS2741, MEASURED green at this
+    // pin, not assumed. A union bump moves these counts — and the loop
     // below only goes green once syncplayErrors.ts grows the missing sentence
     // (Record<SyncPlayErrorCode, string> makes omission a compile error too;
     // the v0.5.3 pin arrived exactly that way, TS2741 measured).

@@ -32,6 +32,45 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — wave-5 contracts re-pin: @phlix/contracts #v0.5.5→#v0.5.6 + S280 route-manifest re-vendor (regen #36) — 2026-11-04
+
+- Tag-form pin bumped to `github:detain/phlix-contracts#v0.5.6` (tag object
+  `9f04fc50…`, peel `c89c8420…`, ls-remote-verified). `@phlix/syncplay`
+  `#v0.1.7` HELD — its tag still peels to the lock's `1a80b1d…` (drift
+  checked, none). `package-lock.json` moved EXACTLY 3 lines (+3/−3: root
+  echo + the contracts node's version/resolved pair, resolved SHA = the tag
+  peel) — no `npm install` churn; `npm ci` (npm 11, `--userconfig=/dev/null`)
+  exits 0 against the hand-edited lock, the idempotency proof (CI re-runs
+  the same command with its npm 12 `--allow-git=all` form).
+- S280 fixture re-vendor (this wave's real work):
+  `src/api/test/server-route-manifest.json` replaced byte-for-byte with the
+  v0.5.6 payload's `dist/server-route-manifest.json` — regen #36: 415 tuples
+  @ serverSha `58530ec2…`, md5 `90b79e35…`; cmp-proven tag blob → codeload
+  tarball → installed package → vendored file. The 412-era bytes it replaces
+  had held since the v0.5.3 re-vendor. Gate pins rotated IN THE SAME COMMIT:
+  provenance serverSha/total/length, test title, scan-log prose (412→415).
+  Parent-red measured: with the new fixture over the OLD pins the integrity
+  test failed exactly on the serverSha assert and the other six legs stayed
+  green — the +3 tuples (`GET /api/v1/me/history`, `GET /api/v1/servers/{id}`,
+  `GET /api/v1/users/me/history`) are strictly manifest-growth; no mobile
+  call-site moved, no tripwire (S279-class, ws/relay-out) perturbed.
+  The CS46 currency-ritual survival token stays in place (no external
+  referent rotates it; presence is the assertion).
+- Trio law measured, not assumed: the v0.5.5→v0.5.6 payload delta is the
+  route-manifest regen ONLY — error-codes registry byte-held (`5d1783a7…`,
+  205 codes) and mcp-scopes byte-held (`8c92c070…`); the `errors.ts`/
+  `errors.d.ts` churn (cite re-anchors) classified comment-only via the diff
+  (zero non-comment lines), so `SyncPlayErrorCode` stands at 20 — zero TS2741,
+  zero catalog-row/count-pin rotations (jest census anchors re-attested,
+  docblock pin references moved to v0.5.6 truth).
+- Docs currency carried by the bump: stale `#v0.5.4`/`#v0.1.6` Wire-contracts
+  line in `AGENTS.md` corrected (pre-existing staleness from the v0.5.5 wave,
+  now doubly stale — made honest at this pin).
+- Gates: `tsc --noEmit` clean (0); eslint 0 errors / the 2 pre-existing
+  warnings held; `jest --runInBand` 121 suites / 1721 tests (1720 pass +
+  1 sanctioned skip) — EXACT vs the measured-at-parent baseline, zero
+  suite/test drift from the wave.
+
 ### Fixed — contracts/syncplay re-pin cascade (`#v0.5.4→#v0.5.5`, `#v0.1.6→#v0.1.7`) — 2026-11-03
 
 - Tag-form pins bumped to `github:detain/phlix-contracts#v0.5.5` (peel

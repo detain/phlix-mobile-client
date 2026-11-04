@@ -202,17 +202,21 @@ const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0
 export const CS46_CURRENCY_TOKEN = 'CS46CURRENCYPINX9X1';
 
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server 758f9149', () => {
-    // Byte-for-byte copy of @phlix/contracts v0.5.3 dist/server-route-manifest.json
-    // (md5 915796837d38a77733c169996d97640c), re-vendored at the v0.5.3 pin bump
-    // (2026-10-01); the artifact is byte-identical at contracts v0.5.4 (frozen-trio
-    // wave, 2026-11-02) and AGAIN at v0.5.5 (2026-11-03 cascade: cmp-verified tag →
-    // installed package → this file, no byte move — the wave moved only
-    // error-codes.json), so the v0.5.5 re-pin re-vendor-verified WITHOUT a byte move.
+  it('is the contracts artifact derived from phlix-server 58530ec2', () => {
+    // Byte-for-byte copy of @phlix/contracts v0.5.6 dist/server-route-manifest.json
+    // (md5 90b79e355055307d5ba2cc0ef98e2300 — regen #36: 415 tuples @ serverSha
+    // 58530ec2), re-vendored at the v0.5.6 pin bump (2026-11-04), cmp-verified
+    // tag blob → codeload payload → installed package → this file. The prior
+    // era's bytes (412 tuples @ 758f9149, md5 915796837d38a77733c169996d97640c,
+    // v0.5.3 re-vendor 2026-10-01) had held byte-identical through v0.5.4 and
+    // v0.5.5; v0.5.6's delta over v0.5.5 is this manifest regen ONLY — the
+    // error-codes registry (md5 5d1783a71a3c4e128b2021327cad3717, 205 codes)
+    // and mcp-scopes (md5 8c92c0703eae8a429c509ff16e0d185d) stayed byte-held,
+    // so the trio did NOT move together and no catalog count pin rotated.
     // Provenance below is the artifact's own, never re-derived here.
-    expect(manifest.provenance.serverSha).toBe('758f91496c068551b310f1078093335f79c20e04');
-    expect(manifest.provenance.total).toBe(412);
-    expect(manifest.routes).toHaveLength(412);
+    expect(manifest.provenance.serverSha).toBe('58530ec207b0d40c3386ed10215d5bda3eaf54af');
+    expect(manifest.provenance.total).toBe(415);
+    expect(manifest.routes).toHaveLength(415);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
   });
 });
@@ -233,7 +237,7 @@ describe('S280 route gate — every URL mobile issues is tuple-exact served', ()
     const uniqueTuples = new Set(sites.map((s) => `${s.method} ${s.path}`));
     console.log(
       `[S280 route gate] mobile: ${sites.length} request sites / ${uniqueTuples.size} distinct [method, pathTemplate] tuples ` +
-        `across ${perFile.size} modules — all tuple-exact against the vendored 412-route manifest @ ${manifest.provenance.serverSha}`,
+        `across ${perFile.size} modules — all tuple-exact against the vendored 415-route manifest @ ${manifest.provenance.serverSha}`,
     );
     for (const [file, count] of [...perFile.entries()].sort()) {
       console.log(`  ${file}: ${count}`);
