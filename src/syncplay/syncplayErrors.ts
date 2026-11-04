@@ -24,8 +24,10 @@
 // COVERAGE: every member of the contracts `SyncPlayErrorCode` union —
 // the 12 legacy SCREAMING_SNAKE codes of the server's `error_code` wire
 // history (verified at phlix-server 8dc17418: SyncPlayManager::sendError +
-// MessageHandler via Messages::error) and the 8 dotted `syncplay.*` twins
-// at contracts v0.5.4 — all 8 LIVE on the current server (srv #798 flipped the
+// MessageHandler via Messages::error) and the 8 dotted `syncplay.*` twins —
+// re-verified at this file's pin (#v0.5.5: the registry's 204→205 mint is
+// `common.not_found`, outside the syncplay domain, so the twin set stands at
+// 8) — all 8 LIVE on the current server (srv #798 flipped the
 // `_failed` trio; `syncplay.queue_limit_exceeded` went LIVE at srv 7baa398a,
 // closing the RESERVED state it had at the v0.5.3 pin, where this file's queue
 // copy was already shipping so the server's emit-switch needed no client

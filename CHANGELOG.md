@@ -32,6 +32,42 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — contracts/syncplay re-pin cascade (`#v0.5.4→#v0.5.5`, `#v0.1.6→#v0.1.7`) — 2026-11-03
+
+- Tag-form pins bumped to `github:detain/phlix-contracts#v0.5.5` (peel
+  `e215981…`, ls-remote-verified) + `github:detain/phlix-syncplay#v0.1.7`
+  (peel `1a80b1d…`, verified). `package-lock.json` moved EXACTLY 6 lines
+  (root-echo pair + each node entry's version/resolved pair, resolved SHAs =
+  the tag peels) — no `npm install` churn; `npm ci` (npm 12.0.2, scoped
+  `allow-git=all` userconfig) exits 0 against the hand-edited lock, which is
+  the idempotency proof (CI re-runs the same command).
+- S280 re-vendor: `src/api/test/server-route-manifest.json` verified
+  BYTE-IDENTICAL tag → installed package → vendored file (md5
+  `915796837d38a77733c169996d97640c`, 412 tuples @ serverSha `758f9149`) —
+  the v0.5.5 wave moved only error-codes.json, so the manifest gate keeps its
+  provenance pins untouched (zero rotation, re-vendor-verified).
+- Registry 204→205 (`common.not_found` minted, md5 now
+  `5d1783a71a3c4e128b2021327cad3717`): the syncplay domain is UNMOVED, so
+  `SyncPlayErrorCode` stays 20 codes — MEASURED zero TS2741 (`tsc` clean at
+  the new pin, contrast the v0.5.3 era where the union growth forced the
+  playback-cap row), zero count-pin rotations (`jest --runInBand` re-attested
+  121 suites/1720 green on the new pins before any prose edit). The
+  era-honest mirror law was taken ahead of the emitters: `REST_ERROR_USER_MESSAGES`
+  gains the bare `not_found` row + a catalog-beats-prose pin (the hub C1 flip
+  onto the code is owed by the hub lane; this client is ready day-one), and
+  the stale "frozen at `40c1da48`" prose in `syncplayErrors.test.ts` /
+  `syncplayErrors.ts` / `routeManifest.gate.test.ts` was re-worded per the
+  estate-wide truth law (CHANGELOG history entries stay verbatim).
+- `wireUnits.ts` / `SyncPlayService` mirror notes updated to v0.1.7-era truth:
+  `SyncPlayClient.serverTimeToMs` is importable at the live pin, but the wave
+  stayed pin-scoped (contracts RESULT: consumers "Pin bump only") — the
+  mirror retirement is recorded as an open follow-up, behavior-identical and
+  unit-pinned meanwhile. No runtime code changed.
+- Gates: `tsc --noEmit` clean; eslint 0 errors / 2 pre-existing warnings;
+  copyright 176/176 (no new files this leg), `--check` green;
+  `jest --runInBand` 121 suites / 1721 tests (1720 pass + the sanctioned skip)
+  — +1 test exact vs the review-cures baseline (the `not_found` pin).
+
 ### Fixed — review-cures lane: Major 1–2, Minor 1–3, Info 6 (adversarial review of `fdc82f4..201a39d`) — 2026-11-03
 
 - **Major 1 (ios/Podfile.lock drift — M-MOBILE-09 lock law):** the range's

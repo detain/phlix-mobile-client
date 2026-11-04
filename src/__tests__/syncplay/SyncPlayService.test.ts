@@ -1227,8 +1227,10 @@ describe('SyncPlayService - server_time unit normalization (R-MOBILE-01)', () =>
   // fallbacks), milliseconds from the hub relay (`nowMs()`). The library
   // normalizes at decode in `SyncPlayClient.serverTimeToMs` (threshold 1e12);
   // that export postdates the frozen `#v0.1.5` pin, so the service's local
-  // `wireServerTimeMs` mirror carries the law here until the v0.1.6 re-pin
-  // cascade retires it (helper docblock owns the swap note). Pre-fix mobile
+  // `wireServerTimeMs` mirror carries the law here — the #v0.1.7 cascade made
+  // the export live at the pin but the wave stayed pin-scoped (RESULT: "Pin
+  // bump only"), so the retirement remains an open follow-up (helper docblock
+  // owns the swap note). Pre-fix mobile
   // delivered the raw mixed value on `onPlaybackCommand.serverTime` — the
   // event signature declares ms, so the :8097 carrier leaked a 1000x-small
   // stamp past the boundary.

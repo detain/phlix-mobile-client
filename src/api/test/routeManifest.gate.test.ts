@@ -206,7 +206,9 @@ describe('S280 route gate — vendored manifest integrity', () => {
     // Byte-for-byte copy of @phlix/contracts v0.5.3 dist/server-route-manifest.json
     // (md5 915796837d38a77733c169996d97640c), re-vendored at the v0.5.3 pin bump
     // (2026-10-01); the artifact is byte-identical at contracts v0.5.4 (frozen-trio
-    // wave, 2026-11-02) so the v0.5.4 re-pin re-vendor-verified WITHOUT a byte move.
+    // wave, 2026-11-02) and AGAIN at v0.5.5 (2026-11-03 cascade: cmp-verified tag →
+    // installed package → this file, no byte move — the wave moved only
+    // error-codes.json), so the v0.5.5 re-pin re-vendor-verified WITHOUT a byte move.
     // Provenance below is the artifact's own, never re-derived here.
     expect(manifest.provenance.serverSha).toBe('758f91496c068551b310f1078093335f79c20e04');
     expect(manifest.provenance.total).toBe(412);

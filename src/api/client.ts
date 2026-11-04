@@ -147,6 +147,12 @@ const REST_ERROR_USER_MESSAGES: Readonly<Record<string, string>> = {
   'auth.server_mismatch': 'This sign-in belongs to a different server.',
   'auth.enrollment_expired': 'That enrollment has expired. Sign in again.',
   'unauthorized': 'Sign in to continue.',
+  // contracts v0.5.5 minted `common.not_found` (wire string `not_found`,
+  // RESERVED until the hub's two prose-only 404 fallbacks flip onto it — the
+  // hub C1 leg). Mirroring the copy now means the code-first lane is live the
+  // day the emitters land, the same posture the queue-limit row took in the
+  // v0.5.3 era (catalog shipped before srv 7baa398a switched the emit).
+  'not_found': 'That item could not be found on this server.',
   'hub.jwt_invalid': 'The hub rejected your session. Sign in to the hub again.',
   'hub.token_required': 'Sign in to the hub first.',
   'hub.not_enrolled': 'This hub account is not enrolled for that operation.',

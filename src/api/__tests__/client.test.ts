@@ -176,6 +176,22 @@ describe('apiErrorMessage (contract error parsing, code-first)', () => {
     ).toBe('This account is waiting for an administrator to approve it.');
   });
 
+  it('renders app copy for the v0.5.5 `common.not_found` mint (mirrored ahead of the hub C1 emitters)', () => {
+    // The wire string is bare `not_found` (common domain, contracts 205-era).
+    // Server prose here is the exact sentence RESULT records Router.php ships
+    // today — catalog copy must still win (code-first law).
+    expect(
+      apiErrorMessage(
+        {
+          response: {
+            data: { error: 'The requested resource was not found', error_code: 'not_found' },
+          },
+        },
+        'f'
+      )
+    ).toBe('That item could not be found on this server.');
+  });
+
   it('attributes unknown-code server prose and masks URLs inside it', () => {
     expect(
       apiErrorMessage(

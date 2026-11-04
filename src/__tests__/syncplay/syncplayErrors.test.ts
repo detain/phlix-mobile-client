@@ -27,12 +27,14 @@ describe('syncplayErrors — registry coverage', () => {
     // Census anchors at contracts v0.5.3: 12 legacy SCREAMING (incl.
     // PROTOCOL_VERSION_MISMATCH) + 8 dotted twins — the 7th twin era grew to
     // 8 when v0.5.3 minted the then-RESERVED `syncplay.queue_limit_exceeded`
-    // (registry 202→204). HELD UNMOVED at the v0.5.4 re-pin (2026-11-02): the
-    // frozen-trio wave left error-codes.json md5 40c1da48 byte-ident and
-    // errors.ts code-identical (comment-only cite sweep), so the union gained
-    // nothing — zero catalog rows rotated, zero TS2741 (contrast the v0.5.3
-    // precedent below). A registry bump moves these — and the loop below
-    // only goes green once syncplayErrors.ts grows the missing sentence
+    // (registry 202→204). The v0.5.4 re-pin held the trio byte-ident. At THIS
+    // pin (#v0.5.5, 2026-11-03 cascade) the registry MOVED — 204→205, md5
+    // 5d1783a71a3c4e128b2021327cad3717 (the old `40c1da48` stamp is history:
+    // the contracts wave itself minted `common.not_found`) — but the mint
+    // lives in the `common` domain, so the SyncPlayErrorCode union is UNMOVED
+    // at 20: zero catalog rows rotated, zero TS2741 — both MEASURED green at
+    // this pin, not assumed. A union bump moves these counts — and the loop
+    // below only goes green once syncplayErrors.ts grows the missing sentence
     // (Record<SyncPlayErrorCode, string> makes omission a compile error too;
     // the v0.5.3 pin arrived exactly that way, TS2741 measured).
     expect(LEGACY_SYNCPLAY_ERROR_CODES).toHaveLength(12);

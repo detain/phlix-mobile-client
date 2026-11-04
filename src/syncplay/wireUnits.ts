@@ -46,9 +46,12 @@ export function wireMsToSeconds(positionMs: number | undefined): number | undefi
  *
  * Pure and total on finite numbers, exactly like `wireMsToSeconds` — the
  * parse (finite-check) stays at the service's `wireNumber` boundary. RETIRE
- * this mirror and import the library export in the v0.1.6 re-pin cascade
- * (this repo does not bump tag-pins in rider lanes; the wave is
- * owner-scheduled).
+ * this mirror and import the library export: the v0.1.7 re-pin cascade
+ * (2026-11-03) made `SyncPlayClient.serverTimeToMs` live at this pin, but the
+ * wave itself is scoped to pin bumps (its RESULT: syncplay consumers = "Pin
+ * bump only"), so the swap stays an open follow-up — behavior-identical and
+ * unit-pinned meanwhile (this repo does not bump tag-pins in rider lanes; the
+ * wave is owner-scheduled).
  *
  * Scope law (same as the library): `time_pong`'s `t2` and the `time_sync`
  * advisory are NOT consumers of this function — the pong is ms on BOTH

@@ -317,7 +317,7 @@ function wireNumber(value: unknown): number | undefined {
  * Boundary composition for the decode sites: parse a wire `server_time` with
  * `wireNumber` (non-numeric stays undefined so the consumer's `?? fallback`
  * keeps deciding — the M-SYNCPLAY-19 law), then normalize the unit via
- * `serverTimeToMs`. The unit law itself (mixed carriers, 1e12 threshold, v0.1.6
+ * `serverTimeToMs`. The unit law itself (mixed carriers, 1e12 threshold, v0.1.7
  * retirement, pong/advisory scope) lives in ./wireUnits next to its siblings.
  * handleTimePong deliberately does NOT use this — it reads `wireNumber` raw.
  */
