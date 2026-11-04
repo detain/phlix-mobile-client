@@ -369,5 +369,22 @@ describe('useSettingsStore', () => {
       expect(screen).toContain("'Notifications',");
       expect(screen).toContain('value={enableNotifications}');
     });
+
+    it('the OFF arm cancels the ongoing playback notification (review Minor 3)', () => {
+      const screen = fs.readFileSync(
+        path.resolve(__dirname, '../../screens/SettingsScreen.tsx'),
+        'utf8'
+      );
+      // Pre-cure, flipping Notifications OFF mid-play left the pinned
+      // "Now Playing" banner up: the player's update path early-returns on
+      // the setting, so its dismiss arms never ran. The OFF intent itself
+      // must cancel it. Window = the switch's onValueChange body.
+      const arm = screen.slice(
+        screen.indexOf('setEnableNotifications(next);'),
+        screen.indexOf('trackColor', screen.indexOf('setEnableNotifications(next);')),
+      );
+      expect(arm).toContain('} else {');
+      expect(arm).toContain('notificationService.cancelPlaybackNotification()');
+    });
   });
 });

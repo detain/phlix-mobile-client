@@ -298,6 +298,14 @@ class PhlixPlayerView(context: Context) : FrameLayout(context) {
     }
 
     fun onDropViewInstance() {
+        // Review Minor 1: mirror the detach-side removal. A view dropped
+        // WITHOUT ever attaching (screen closed mid-mount) skips
+        // onDetachedFromWindow, so without this the lifecycle listener —
+        // which holds this view — stayed registered in the ReactContext for
+        // the app lifetime (the file's own law at onDetachedFromWindow).
+        // RN removes by reference, so calling it after detach already ran is
+        // a safe no-op on the normal detach-then-drop order.
+        (context as? ReactContext)?.removeLifecycleEventListener(lifecycleListener)
         releasePlayer()
         playerView?.player = null
     }

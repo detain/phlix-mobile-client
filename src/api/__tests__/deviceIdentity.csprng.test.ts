@@ -23,9 +23,10 @@ describe('uuidFromCsprngHex (pure RFC-4122 mapping)', () => {
     // Layout, spelled out (input '0123456789abcdef' x2 — index 13..15 = 'def'):
     //  bytes 0-3  -> time_low          '01234567'
     //  bytes 4-5  -> time_mid          '89ab'
-    //  byte  6    -> '4' + hex[13..16) -> '4def' (hex[12] 'c' is replaced)
-    //  byte  7    -> variant ((0x0 & 3) | 8) = '8' + hex[17..20) '123'
-    //  bytes 8-15 -> node              hex[20..32) = '456789abcdef'
+    //  byte  6    -> version nibble: '4' + hex[13] (hex[12], byte 6's high nibble, is replaced)
+    //  bytes 6-7  -> '4def' = hex[12..16)
+    //  bytes 8-9  -> variant ((0x0 & 3) | 8) = '8' at hex[16] (byte 8's high nibble) + hex[17..20) = '8123'
+    //  bytes 10-15 -> node             hex[20..32) = '456789abcdef'
     expect(uuid).toBe('01234567-89ab-4def-8123-456789abcdef');
     expect(uuid).toMatch(UUID_V4);
   });

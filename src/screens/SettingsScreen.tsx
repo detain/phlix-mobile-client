@@ -583,6 +583,13 @@ const SettingsScreen: React.FC = () => {
                   // re-show; this just re-reads status).
                   if (next) {
                     notificationService.requestPermissions().catch(() => undefined);
+                  } else {
+                    // Review Minor 3: flipping OFF mid-play used to leave the
+                    // ongoing "Now Playing" notification pinned — the player's
+                    // update path early-returns on the setting, so its own
+                    // dismiss arms never run. Cancel at the moment the OFF
+                    // intent is expressed (idempotent when nothing is showing).
+                    notificationService.cancelPlaybackNotification();
                   }
                 }}
                 trackColor={{ false: '#3d3d3d', true: '#0066cc' }}
