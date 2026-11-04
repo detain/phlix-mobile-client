@@ -50,6 +50,15 @@ jobs:
       - name: Copyright headers
         run: npm run copyright -- --check
 
+      # Review Major 1 (2026-11-03): Podfile.lock drift. The range's two new
+      # native pods were absent from the committed lock and the bare
+      # `pod install` in build-ios.yml re-resolved them silently every run.
+      # This leg is host-agnostic (node-only, reads `react-native config` —
+      # the same source use_native_modules! consumes), so the Linux test job
+      # catches iOS-lock drift that the macOS build leg structurally cannot.
+      - name: Podfile.lock sync (native pod auto-link)
+        run: npm run check:podfile-lock
+
       - name: Run tests
         # --coverage is REQUIRED for the uploads below to have anything to send.
         # jest.config.js sets collectCoverageFrom but NOT collectCoverage, so
