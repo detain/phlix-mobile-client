@@ -168,6 +168,10 @@ jest.mock('../../stores/useSettingsStore', () => {
     // Honest default here is OFF so the pre-existing suites keep asserting
     // the stop-behavior; the autoplay describe flips it deliberately.
     autoPlayNextEpisode: false,
+    // Review Major 2 pins: honest mirror of the real store default (ON,
+    // useSettingsStore.ts:115) — the playback-notification lane reads it via
+    // getState() at event time; the notification describe flips it per case.
+    enableNotifications: true,
     setDefaultQuality: jest.fn(),
   };
   // Real zustand hooks carry .getState too (the screen's ended-arm reads the
@@ -308,6 +312,7 @@ const mockSettings = (jest.requireMock('../../stores/useSettingsStore') as any).
   defaultQuality: string;
   autoplay: boolean;
   autoPlayNextEpisode: boolean;
+  enableNotifications: boolean;
   setDefaultQuality: jest.Mock;
 };
 const mockPlayerStore = (jest.requireMock('../../stores/usePlayerStore') as any).__state as {
@@ -1944,5 +1949,146 @@ describe('PlayerScreen — syncplay handler liveness (C2), unmount law (C4), Ale
       nativeEvent: { currentTime: 42.5, duration: 600 },
     });
     expect(svcMock().noteLocalPosition).toHaveBeenCalledWith(42_500);
+  });
+});
+
+// ── Review Major 2 (2026-11-03 adversarial review): the M14 playback lane
+// is Android-ONLY until iOS MPNowPlayingInfoCenter ships ──────────────────
+// The defect: NotificationService.showPlaybackNotification is a bare
+// notifee.displayNotification — on iOS that posts a REAL
+// UNUserNotificationCenter banner (ongoing/channelId are Android-only
+// fields; presentation is not), and the first-play arm calls
+// requestPermissions(), so out-of-the-box iOS users got an OS permission
+// alert at first play plus a "Now Playing"/"Paused" banner on every
+// transition. The lane's own docblock always said iOS was a companion
+// follow-up — the cure enforces that intent with a Platform gate. The
+// Major-2 iOS no-display pin measures RED against the pre-cure source.
+// Minor 2 rides the same path: a late permission-grant resolve used to
+// resurrect "Now Playing" after a pause taken during the OS prompt (the
+// .then only re-read visibleRef, which the pause arm never clears) — the
+// generation counter voids it.
+describe('PlayerScreen — M14 playback notification is Android-only (review Major 2)', () => {
+  const notifeePlayback = () =>
+    (jest.requireMock('@notifee/react-native') as any).default as {
+      displayNotification: jest.Mock;
+      requestPermission: jest.Mock;
+      cancelNotification: jest.Mock;
+    };
+  const setOS = (os: 'ios' | 'android') => {
+    (RNPlatform as unknown as { OS: 'ios' | 'android' }).OS = os;
+  };
+  const fire = (h: { host: HookHost }, event: 'play' | 'pause' | 'ended') => {
+    const player = findPlayer(h.host.tree);
+    (player!.props.onPlaybackEvent as (e: unknown) => void)({
+      nativeEvent: { event, currentTime: 10, duration: 600 },
+    });
+  };
+
+  beforeEach(() => {
+    // The notifee stub is module-global — clear so counts are per-case
+    // regardless of what earlier describes fired on the same singleton.
+    notifeePlayback().displayNotification.mockClear();
+    notifeePlayback().requestPermission.mockClear();
+    notifeePlayback().cancelNotification.mockClear();
+  });
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    setOS('ios'); // restore the repo-normal default (see M-MOBILE-02 suite)
+    mockSettings.enableNotifications = true;
+    notifeePlayback().requestPermission.mockResolvedValue({});
+  });
+
+  it('iOS: play/pause display NOTHING and never open the permission prompt', async () => {
+    setOS('ios');
+    // A granted stub would make the storm fully observable — the pin proves
+    // the LANE stays shut even with permission available.
+    notifeePlayback().requestPermission.mockResolvedValue({ authorizationStatus: 1 });
+    const h = await bootDirectPlay();
+    fire(h, 'play');
+    await flush();
+    expect(notifeePlayback().requestPermission).not.toHaveBeenCalled();
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
+    fire(h, 'pause');
+    await flush();
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
+  });
+
+  it('iOS: even with Notifications ON and a play→pause→ended walk, zero notifee calls', async () => {
+    setOS('ios');
+    mockSettings.enableNotifications = true;
+    const h = await bootDirectPlay();
+    fire(h, 'play');
+    await flush();
+    fire(h, 'pause');
+    fire(h, 'ended');
+    h.host.unmount();
+    expect(notifeePlayback().requestPermission).not.toHaveBeenCalled();
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
+    expect(notifeePlayback().cancelNotification).not.toHaveBeenCalled();
+    mountedHost = null; // already unmounted above
+  });
+
+  it('Android: first play asks once, shows the ongoing notification; pause updates it; ended dismisses', async () => {
+    setOS('android');
+    notifeePlayback().requestPermission.mockResolvedValue({ authorizationStatus: 1 });
+    const h = await bootDirectPlay();
+    fire(h, 'play');
+    await flush();
+    expect(notifeePlayback().requestPermission).toHaveBeenCalledTimes(1);
+    expect(notifeePlayback().displayNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'phlix-playback',
+        body: 'Now Playing',
+        android: expect.objectContaining({
+          channelId: 'phlix-playback',
+          ongoing: true,
+          autoCancel: false,
+        }),
+      }),
+    );
+    notifeePlayback().displayNotification.mockClear();
+    fire(h, 'pause');
+    await flush();
+    expect(notifeePlayback().displayNotification).toHaveBeenCalledTimes(1);
+    expect(notifeePlayback().displayNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'phlix-playback', body: 'Paused' }),
+    );
+    // Permission asked ONCE per mount (playbackNotifAskedRef law):
+    expect(notifeePlayback().requestPermission).toHaveBeenCalledTimes(1);
+    notifeePlayback().displayNotification.mockClear();
+    fire(h, 'ended');
+    expect(notifeePlayback().cancelNotification).toHaveBeenCalledWith('phlix-playback');
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
+  });
+
+  it('Android: a pause taken WHILE the permission prompt is open is not resurrected by the late grant (Minor 2)', async () => {
+    setOS('android');
+    let resolveGrant: (v: { authorizationStatus: number }) => void = () => undefined;
+    notifeePlayback().requestPermission.mockImplementation(
+      () => new Promise((r) => { resolveGrant = r; }),
+    );
+    const h = await bootDirectPlay();
+    fire(h, 'play'); // first play: prompt opens, display deferred on the grant
+    fire(h, 'pause'); // pause DURING the prompt — shows 'Paused' straight away
+    expect(notifeePlayback().displayNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ body: 'Paused' }),
+    );
+    notifeePlayback().displayNotification.mockClear();
+    resolveGrant({ authorizationStatus: 1 }); // grant lands after the pause
+    await flush();
+    // The stale 'Now Playing' display is the Minor-2 defect: the generation
+    // counter voids it. (Pre-cure this assertion is red.)
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
+  });
+
+  it('Android: Notifications toggle OFF still silences the lane (settings gate untouched by the cure)', async () => {
+    setOS('android');
+    mockSettings.enableNotifications = false;
+    const h = await bootDirectPlay();
+    fire(h, 'play');
+    await flush();
+    expect(notifeePlayback().requestPermission).not.toHaveBeenCalled();
+    expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
   });
 });

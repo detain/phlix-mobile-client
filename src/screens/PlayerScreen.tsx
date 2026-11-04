@@ -217,9 +217,29 @@ const PlayerScreen: React.FC = () => {
   // LOW-importance notification; media3 AudioFocus + wake mode are set on the
   // native side (PhlixPlayerView.kt). Full media3 MediaSession / lock-screen
   // controls and iOS MPNowPlayingInfoCenter remain companion follow-ups.
+  //
+  // Review Major 2 cure: that Android-only intent is now ENFORCED, not just
+  // commented. A bare notifee displayNotification on iOS posts a REAL
+  // UNUserNotificationCenter banner (the ongoing/channelId fields are
+  // Android-only; presentation is not), and requestPermissions() prompts the
+  // OS at first play — so out-of-the-box iOS got a permission alert plus a
+  // "Now Playing"/"Paused" banner on every transition. The whole playback
+  // lane gates on Platform below until MPNowPlayingInfoCenter ships.
+  // Jest pins BOTH platforms (PlayerScreen.test.tsx): the iOS no-display
+  // pin measured red pre-cure.
   const playbackNotifAskedRef = useRef(false);
   const playbackNotifVisibleRef = useRef(false);
+  // Review Minor 2 cure: generation counter for the in-flight first-ask.
+  // Every transition after the requestPermissions() prompt opened bumps it,
+  // so a late grant resolve may only display while its generation is still
+  // current — pausing during the OS prompt used to resurrect a "Now Playing"
+  // banner for paused media (the pending .then only re-read visibleRef, which
+  // the pause arm never clears).
+  const playbackNotifGenRef = useRef(0);
   const updatePlaybackNotification = useCallback((playing: boolean) => {
+    if (Platform.OS !== 'android') {
+      return; // M14 is an Android-only lane until NowPlaying lands (see above)
+    }
     if (!useSettingsStore.getState().enableNotifications) {
       return; // toggle OFF == no playback notification, same doctrine as downloads
     }
@@ -232,16 +252,22 @@ const PlayerScreen: React.FC = () => {
       }
       // M-MOBILE-72 doctrine: ask at the first moment the notification matters.
       playbackNotifAskedRef.current = true;
+      const generation = ++playbackNotifGenRef.current;
       notificationService
         .requestPermissions()
         .then((granted) => {
-          if (granted && playbackNotifVisibleRef.current) {
+          if (
+            granted &&
+            playbackNotifVisibleRef.current &&
+            playbackNotifGenRef.current === generation
+          ) {
             notificationService.showPlaybackNotification(title, true);
           }
         })
         .catch(() => undefined);
       return;
     }
+    playbackNotifGenRef.current += 1; // void any in-flight first-ask resolve
     if (playbackNotifVisibleRef.current) {
       notificationService.showPlaybackNotification(title, false);
     }
