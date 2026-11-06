@@ -230,6 +230,18 @@ class TimeSync {
 
     const latency = rtt / 2;
     // offset = server_time - client_time + latency
+    //
+    // LW-099-d (review syncplay__crossfe #10, ruling 2026-11-06): the PLUS
+    // one-way term is the ESTATE WIRE LAW, not a porting slip — this line
+    // byte-matches the server's own compute (phlix-server
+    // src/Session/SyncPlay/TimeSync.php:153
+    // `$offset = $serverTime - $clientSendTime + (int)$oneWayLatency;`) and
+    // phlix-syncplay SPEC §5. Textbook NTP's local-lead convention
+    // (t2 − t1 − rtt/2) would DISAGREE with the server on the sign of the
+    // latency correction; every estate port (this class, @phlix/syncplay's
+    // TimeSync, the web client) copies the + law. If the estate ever flips
+    // the convention, it flips as one lockstep wire change — never here
+    // alone. Correct-to-law; recorded, behavior untouched.
     const offset = Math.round(t2 - t1 + latency);
 
     this.samples.push({
@@ -292,6 +304,15 @@ export type PlaybackCommand = {
   /** Playhead in SECONDS — the app-internal unit (S441: wire ms decoded once at the handlers). */
   position: number;
   serverTime: number;
+  /**
+   * MW-118: this frame is the server's DIRECTED out-of-sync nudge
+   * (`syncplay_playback_sync` + the additive `nudge` object — phlix-server
+   * SyncPlayManager::sendOutOfSyncNudge :1593-1630). It tells the consumer
+   * to apply `position` unconditionally, bypassing the group-echo tolerance
+   * window (`syncReanchorTargetSeconds`). Absent on every other frame,
+   * including all hub-relay traffic (the relay lane never carries a nudge).
+   */
+  forceReanchor?: boolean;
 };
 
 type WsMessage = {
@@ -307,10 +328,24 @@ function wireString(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
-/** Parse a wire field into a finite number at the boundary (undefined for
- * strings, objects, NaN/Infinity — the same parse-not-cast doctrine). */
+/** Parse a wire field into a finite number at the boundary (strings, objects,
+ * NaN/Infinity become undefined — the same parse-not-cast doctrine). */
 function wireNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+/**
+ * MW-118: is this frame marked as a directed S446 nudge? The server stamps
+ * `nudge` as a non-null OBJECT (drift_ms/direction/suggested_rate/... —
+ * SyncPlayManager::sendOutOfSyncNudge :1615-1622); anything else (string,
+ * number, null, array) is costume data on a plain group echo and degrades to
+ * absent. Parse-not-cast, mirroring the library's `normalizeNudge`
+ * (@phlix/syncplay src/client.ts:1259-1280) — mobile keeps only the BOOLEAN
+ * verdict because the native bridge exposes no rate command (S407 refusal);
+ * the authoritative position the same frame carries IS the mobile answer.
+ */
+function wireNudgePresent(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -1304,6 +1339,17 @@ class SyncPlayService {
    * request — with the host's current media, position (WIRE ms) and playing
    * flag (S291). Followers treat it as a re-anchor command; it is the frame
    * that keeps drifted members honest, and it used to fall through unrouted.
+   *
+   * MW-118: the same family also carries the server's DIRECTED out-of-sync
+   * nudge (SyncPlayManager::sendOutOfSyncNudge, phlix-server
+   * src/Session/SyncPlay/SyncPlayManager.php:1593-1630) — an additive
+   * `nudge` object aimed at exactly this member. The web client answers it
+   * with `suggested_rate`; the mobile native bridge exposes no rate command
+   * (the S407 refusal), so the mobile answer is the authoritative position
+   * this same frame already carries: mark the command `forceReanchor` and
+   * let the consumer apply it past the group-echo tolerance window. A
+   * `nudge` that is not a non-null object degrades to absent (plain echo
+   * shape) — see wireNudgePresent.
    */
   private handlePlaybackSync(msg: WsMessage): void {
     // M-MOBILE-27: floored at the decode (see handlePlaybackPlay).
@@ -1315,11 +1361,15 @@ class SyncPlayService {
       isPlaying ? 'playing' : 'paused',
       position
     );
-    this.events.onPlaybackCommand?.({
+    const command: PlaybackCommand = {
       type: isPlaying ? 'play' : 'pause',
       position,
       serverTime,
-    });
+    };
+    if (wireNudgePresent(msg.nudge)) {
+      command.forceReanchor = true;
+    }
+    this.events.onPlaybackCommand?.(command);
   }
 
   private handleHostElect(msg: WsMessage): void {

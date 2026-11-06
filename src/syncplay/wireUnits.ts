@@ -93,3 +93,50 @@ export function clampSeekSeconds(
       : SEEK_UNKNOWN_DURATION_CEILING_SECONDS;
   return Math.min(positionSeconds, ceiling);
 }
+
+/**
+ * The mobile re-anchor tolerance, in SECONDS (MW-118).
+ *
+ * A `playback_sync` / group play-pause command carries the room's
+ * authoritative position. Correcting a local delta SMALLER than the server's
+ * own in-sync tolerance is audible seek churn, not correction — the member is
+ * already where the room agrees they are. The value mirrors the server
+ * constant by NUMBER, not by import: phlix-server
+ * `src/Session/SyncPlay/GroupState.php:136` defines
+ * `POSITION_TOLERANCE = 2000` (ms), the drift law's only authoritative
+ * statement. `wireUnits.test.ts` pins both the 2 and this file:line proof
+ * prose (source-read precedent).
+ */
+export const SYNC_REANCHOR_TOLERANCE_SECONDS = 2;
+
+/**
+ * Decide the re-anchor seek for an inbound play/pause command (MW-118).
+ * Pure: (command position, local position, force flag) → the seconds target
+ * to seek to, or `null` meaning "leave the player alone".
+ *
+ * Unforced group echoes honor the tolerance window above. A FORCED command —
+ * the S446 nudge marker parsed at the service boundary — re-anchors even
+ * inside the window: the nudge is a drift verdict the server MEASURED at
+ * check time (SyncPlayManager::sendOutOfSyncNudge, phlix-server
+ * src/Session/SyncPlay/SyncPlayManager.php:1593-1630), and by the time the
+ * frame lands the local clock may have drifted back in-window without the
+ * room having moved. The server's cooldown (GroupState.php:157
+ * `NUDGE_COOLDOWN_MS`) already rate-bounds these frames, so unconditional
+ * apply cannot churn.
+ */
+export function syncReanchorTargetSeconds(
+  cmdPositionSeconds: number,
+  localPositionSeconds: number,
+  forceReanchor: boolean
+): number | null {
+  if (!forceReanchor) {
+    const drift = Math.abs(cmdPositionSeconds - localPositionSeconds);
+    // NaN-safe by design: an unknown local position makes `drift` NaN, the
+    // comparison false — the command position wins as the target, which is
+    // the fail-toward-the-room direction.
+    if (drift <= SYNC_REANCHOR_TOLERANCE_SECONDS) {
+      return null;
+    }
+  }
+  return cmdPositionSeconds;
+}

@@ -54,7 +54,7 @@ import { downloadService } from '../services/DownloadService';
 import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
 import type { PlaybackEvent, PhlixPlayerViewProps } from '../native/types';
 import { syncPlayService, type PlaybackCommand } from '../syncplay/SyncPlayService';
-import { clampSeekSeconds } from '../syncplay/wireUnits';
+import { clampSeekSeconds, syncReanchorTargetSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { resolveNextEpisodeId } from '../utils/autoplayNextEpisode';
@@ -390,6 +390,34 @@ const PlayerScreen: React.FC = () => {
     const handleSyncPlayCommand = (cmd: PlaybackCommand) => {
       if (!useSyncplayStore.getState().isHost) {
         // Non-host members follow playback commands from host
+        //
+        // MW-118 (review mobile__crossfe Critical): every room command
+        // carries the authoritative position — play/pause included, not just
+        // explicit seeks. The old play/pause arms dropped it, so the
+        // playback_sync echo and the directed S446 nudge never moved the
+        // native player (the noteLocalPosition loop that feeds
+        // reportPosition — the drift source — was meanwhile keeping the
+        // LOCAL clock looking healthy). Re-anchor first, then apply the
+        // state change: resume happens AT the room position, in that order.
+        // Group echoes seek only past the tolerance window (small local
+        // deltas are in-sync by the server's own law — no audible churn);
+        // a forceReanchor (nudge) command seeks unconditionally. The target
+        // passes the SAME M-MOBILE-27 clamp the seek arm uses — this is the
+        // last stop before the native module.
+        const reanchorSeconds =
+          cmd.type === 'seek'
+            ? null
+            : syncReanchorTargetSeconds(
+                cmd.position,
+                currentPositionRef.current,
+                cmd.forceReanchor === true
+              );
+        if (reanchorSeconds !== null) {
+          const anchorTarget = clampSeekSeconds(reanchorSeconds, durationRef.current);
+          dispatchPlayerCommand(playerRef, 'seekTo', [anchorTarget]);
+          setCurrentTime(anchorTarget);
+          playerSetCurrentTime(anchorTarget);
+        }
         switch (cmd.type) {
           case 'play':
             dispatchPlayerCommand(playerRef, 'play');

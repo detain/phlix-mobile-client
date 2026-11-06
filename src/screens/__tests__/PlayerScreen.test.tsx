@@ -787,6 +787,107 @@ describe('PlayerScreen — S441 inbound seek lands as seconds', () => {
   });
 });
 
+// ── MW-118 (review mobile__crossfe Critical): play/pause commands ANCHOR ───
+// Before this cure the position carried by `syncplay_playback_sync` (and the
+// host-stamped play/pause family) reached the command object but PlayerScreen
+// applied it ONLY on the explicit `seek` arm — a member whose playhead sat
+// minutes away from the room was "re-anchored" by a bare resume, and the
+// server's directed S446 nudge frame did literally nothing on mobile.
+// The play/pause arms now consult syncReanchorTargetSeconds (tolerance vs the
+// local clock; forceReanchor bypasses it) and, when told, seek THROUGH the
+// same M-MOBILE-27 clamp the seek arm uses — before applying the state change.
+describe('PlayerScreen — MW-118 member play/pause re-anchor', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    mockSyncplayStore.isHost = false; // the S293 describe's beforeEach flips it
+  });
+
+  type CommandHandler = (cmd: unknown) => void;
+
+  function commandHandler(): CommandHandler {
+    const svcOn = (jest.requireMock('../../syncplay/SyncPlayService') as any)
+      .syncPlayService.on as jest.Mock;
+    const handler = svcOn.mock.calls
+      .filter(([event]) => event === 'onPlaybackCommand')
+      .map(([, h]) => h)
+      .pop() as CommandHandler;
+    expect(handler).toBeDefined();
+    return handler;
+  }
+
+  // Drive the internal seconds clock to a known local position (same lever
+  // the S293 harness uses: the native onProgress event).
+  async function bootLocalAt(seconds: number, duration = 600) {
+    const h = await bootDirectPlay();
+    const player = findPlayer(h.host.tree);
+    (player!.props.onProgress as (e: unknown) => void)({
+      nativeEvent: { currentTime: seconds, duration },
+    });
+    h.rerender();
+    return h;
+  }
+
+  const seekNow = (h: Awaited<ReturnType<typeof bootLocalAt>>) =>
+    findSeekBar(h.host.tree)!.props.currentTime;
+
+  it('a member PLAY more than the window away moves the playhead (MW-118)', async () => {
+    const h = await bootLocalAt(10);
+    commandHandler()({ type: 'play', position: 95, serverTime: Date.now() });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(95);
+  });
+
+  it('a member PAUSE more than the window away moves the playhead (MW-118)', async () => {
+    const h = await bootLocalAt(10);
+    commandHandler()({ type: 'pause', position: 13, serverTime: Date.now() });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(13);
+  });
+
+  it('within-window drift is TOLERATED — no seek churn', async () => {
+    const h = await bootLocalAt(20);
+    commandHandler()({ type: 'pause', position: 21, serverTime: Date.now() });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(20);
+  });
+
+  it('a forced (S446 nudge) command re-anchors inside the window', async () => {
+    const h = await bootLocalAt(20);
+    commandHandler()({
+      type: 'play',
+      position: 21,
+      serverTime: Date.now(),
+      forceReanchor: true,
+    });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(21);
+  });
+
+  it('the re-anchor leg passes the M-MOBILE-27 clamp', async () => {
+    const h = await bootLocalAt(10);
+    // The review's own absurd-host vector, aimed at the play arm: with the
+    // cure, an unbounded apply would hand 1e303 to the native seek.
+    commandHandler()({ type: 'play', position: 1e303, serverTime: Date.now() });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(600); // capped AT the known duration
+  });
+
+  it('a host ignores follow commands — the gate stands', async () => {
+    const h = await bootLocalAt(10);
+    mockSyncplayStore.isHost = true;
+    commandHandler()({ type: 'play', position: 95, serverTime: Date.now() });
+    h.rerender();
+
+    expect(seekNow(h)).toBe(10);
+  });
+});
+
 // ── S407: the track pickers are fed by the REAL playback-info payload ──────
 // The mocked `markerManager.getPlaybackInfo` is the fake wire; every assertion
 // below runs through the real PlayerScreen wiring. The subtitle picker ships

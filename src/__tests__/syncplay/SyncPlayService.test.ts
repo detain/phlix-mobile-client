@@ -936,6 +936,80 @@ describe('SyncPlayService - playback_sync', () => {
 
     syncPlayService.off('onPlaybackCommand');
   });
+
+  // ── MW-118 (review mobile__crossfe Critical): the S446 nudge marker ──────
+  // The server's out-of-sync verdict aimed at THIS member rides the SAME
+  // playback_sync family with an additive `nudge` object
+  // (phlix-server SyncPlayManager::sendOutOfSyncNudge :1593-1630, marker
+  // stamped at :1615-1622). The web client answers it with `suggested_rate`;
+  // the mobile native bridge exposes no rate command at all (S407 refusal),
+  // so the mobile answer is a FORCED re-anchor to the position this same
+  // frame already carries — the parser's job is to mark the command; the
+  // consumer (PlayerScreen) decides the seek.
+  const echoFrame = (extra: Record<string, unknown>) => ({
+    type: 'syncplay_playback_sync',
+    member_id: 'host-1',
+    group_id: 'sp_abc123',
+    current_media_id: 'media-9',
+    position: 21_500,
+    is_playing: false,
+    server_time: 1_700_000_000,
+    ...extra,
+  });
+
+  async function emitPlaybackSync(frame: Record<string, unknown>) {
+    syncPlayService.disconnect();
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+    const command = jest.fn();
+    syncPlayService.on('onPlaybackCommand', command as any);
+    MockWebSocket.simulateMessage(frame);
+    syncPlayService.off('onPlaybackCommand');
+    return command;
+  }
+
+  it('a nudge frame marks the command forceReanchor (MW-118)', async () => {
+    const command = await emitPlaybackSync(
+      echoFrame({
+        nudge: {
+          drift_ms: 2600,
+          direction: 'behind',
+          suggested_rate: 1.1,
+          tolerance_ms: 2000,
+          cooldown_ms: 1000,
+        },
+      })
+    );
+
+    // Whole-shape on purpose (body-shape law): the nudge must NOT distort
+    // the position decode or the state machine — pause, 21.5 s, ms serverTime.
+    expect(command).toHaveBeenCalledTimes(1);
+    expect(command.mock.calls[0][0]).toEqual({
+      type: 'pause',
+      position: 21.5,
+      serverTime: 1_700_000_000_000,
+      forceReanchor: true,
+    });
+  });
+
+  it('the plain group echo carries no marker (forceReanchor absent)', async () => {
+    const command = await emitPlaybackSync(echoFrame({}));
+
+    expect(command).toHaveBeenCalledTimes(1);
+    expect(command.mock.calls[0][0].forceReanchor).toBeUndefined();
+  });
+
+  it('a malformed nudge degrades to absent — parse-not-cast (MW-118)', async () => {
+    // Mirrors the library's normalizeNudge law (client.ts:1259-1280): only a
+    // non-null, non-array OBJECT is a nudge. Everything else is the group
+    // echo wearing a costume, and the echo must stay inert on the marker.
+    for (const junk of ['nudge', 1, null, [{ drift_ms: 9999 }]]) {
+      const command = await emitPlaybackSync(echoFrame({ nudge: junk }));
+      expect(command).toHaveBeenCalledTimes(1);
+      expect(command.mock.calls[0][0].forceReanchor).toBeUndefined();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
