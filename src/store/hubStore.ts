@@ -215,7 +215,11 @@ export const useHubStore = create<HubState>((set, get) => {
       set({ servers, isLoading: false });
     } catch (err) {
       set({
-        error: err instanceof Error ? err.message : 'Failed to fetch servers',
+        // MW-022 (review mobile__exploiter #5): hub failures ride the same
+        // `{ error, code }` contract as every other lane — route through the
+        // code-first `apiErrorMessage` choke point (what signInToHub already
+        // does) instead of surfacing raw axios protocol prose.
+        error: apiErrorMessage(err, 'Failed to fetch servers'),
         isLoading: false,
       });
       throw err;
@@ -411,12 +415,16 @@ function resolveEffectiveUrl(
 
   const candidate =
     mode === 'relay'
-      ? // Review mobile__secnet m8: the fallback interpolates a HUB-SUPPLIED
+      ? // Review mobile__secnet m8: the relay lane interpolates a HUB-SUPPLIED
         // id into the path — encode it exactly like the live WS lane
         // (hubRelay.ts) and the mint (RelayTokenProvider) already do. The
         // relay.phlix.app domain itself is an estate supply-chain pin: its
         // ownership must be re-verified at each release (see FIXLOG note).
-        server.relayHostname ?? `https://relay.phlix.app/relay/${encodeURIComponent(server.serverId)}`
+        // MW-022: this URL is BUILT, never roster-supplied — the hub's
+        // /me/servers payload carries no relay hostname, so the retired
+        // `relayHostname` field (always `undefined` against a real hub)
+        // could only ever fall through to exactly this line.
+        `https://relay.phlix.app/relay/${encodeURIComponent(server.serverId)}`
       : server.hostname;
 
   if (candidate.startsWith('https://') || candidate.startsWith('http://')) {

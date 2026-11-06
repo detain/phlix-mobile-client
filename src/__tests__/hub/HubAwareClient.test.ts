@@ -28,8 +28,6 @@ describe('HubAwareClient', () => {
       version: '1.0.0',
       status: 'online' as const,
       hostname: 'https://192.168.1.100:32400',
-      relayHostname: 'https://relay.phlix.app/server-1',
-      capabilities: ['direct-play'],
     },
   ];
 
@@ -104,7 +102,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.get('/api/v1/libraries');
@@ -124,7 +122,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.get('/api/v1/libraries');
@@ -146,7 +144,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.get('/api/v1/libraries');
@@ -188,7 +186,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.post('/api/v1/playback', { itemId: '123' });
@@ -216,7 +214,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.put('/api/v1/user/settings', { theme: 'dark' });
@@ -239,7 +237,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.delete('/api/v1/session/current');
@@ -300,7 +298,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       expect(hubAwareClient.getConnectionMode()).toBe('relay');
@@ -337,7 +335,7 @@ describe('HubAwareClient', () => {
         servers: mockServers,
         activeServerId: 'server-1',
         connectionMode: 'relay',
-        effectiveServerUrl: 'https://relay.phlix.app/server-1',
+        effectiveServerUrl: 'https://relay.phlix.app/relay/server-1',
       });
 
       await hubAwareClient.get('/api/v1/libraries');

@@ -422,13 +422,29 @@ class ApiClient {
         { timeout: 30_000 },
       );
 
-      const { access_token, refresh_token: newRefreshToken } = response.data;
+      // MW-022 (review mobile__exploiter #6 names this path): phlix-server's
+      // `buildAuthResponse()` @return docblock (src/Auth/AuthManager.php)
+      // guarantees a string `access_token` and a string `refresh_token` on a
+      // 200 — so a body without them is a broken/impersonating responder.
+      // Fail loud into the SAME refresh-failure route (vault wipe +
+      // signed-out store) rather than persisting `Bearer undefined`. The
+      // rotated-pair law holds: a present string refresh_token rotates,
+      // anything else re-presents the current one (the belt stays).
+      const { access_token, refresh_token: newRefreshToken } = (response.data ?? {}) as {
+        access_token?: unknown;
+        refresh_token?: unknown;
+      };
+      if (typeof access_token !== 'string' || access_token === '') {
+        throw new Error('Server refresh response carried no usable `access_token`');
+      }
 
       // The vault holds the pair atomically; a rotation that omits a new
       // refresh token re-presents the current one rather than dropping it.
       await secureStorage.storeTokens(
         access_token,
-        newRefreshToken || refreshToken,
+        typeof newRefreshToken === 'string' && newRefreshToken !== ''
+          ? newRefreshToken
+          : refreshToken,
         dialedBase
       );
 

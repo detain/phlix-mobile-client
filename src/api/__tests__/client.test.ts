@@ -306,6 +306,39 @@ describe('401 refresh-failure flow', () => {
     expect(await secureStorage.getAccessToken()).toBeNull();
   });
 
+  // MW-022 (review mobile__exploiter #6 names this path explicitly): a 200
+  // whose body is not the documented `{access_token, refresh_token, ...}`
+  // envelope used to destructure into `storeTokens(undefined, ...)`.
+  // phlix-server's buildAuthResponse @return docblock (src/Auth/AuthManager
+  // .php, read at tip) guarantees a string access_token on success, so a
+  // missing one is a broken/impersonating responder — fail loud into the
+  // SAME refresh-failure route (vault wiped, store signed out), never
+  // persist `Bearer undefined`.
+  it('fails loud on a refresh envelope with no usable access_token (no garbage stored)', async () => {
+    const { useAuthStore } = require('../../stores/useAuthStore');
+    await useSettingsStore.getState().setServerUrl('https://login.example');
+    useAuthStore.setState({
+      user: { id: 'u1', username: 'bob' },
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+
+    await secureStorage.storeTokens('acc', 'ref-old', 'https://login.example');
+    mockedAxios.post.mockResolvedValueOnce({ data: {} });
+
+    await expect(
+      responseErrorInterceptor({
+        config: { headers: {} },
+        response: { status: 401 },
+      })
+    ).rejects.toThrow(/access_token/);
+
+    // The garbage token must never have reached the vault.
+    expect(await secureStorage.getAccessToken()).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
   // Core of review mobile__exploiter M1: on a 401 from host B, the refresh
   // leg must NOT POST host A's refresh token to B. The refusal happens
   // BEFORE any network write; the failure route then wipes the vault and

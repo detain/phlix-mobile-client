@@ -121,9 +121,15 @@ The iOS player is implemented as a local CocoaPod using AVPlayer:
 
 ```
 ios/LocalPods/PhlixPlayer/
-├── PhlixPlayer.podspec       # Pod specification
-├── PhlixPlayerView.swift     # Swift UIView implementation
-└── PhlixPlayerViewManager.m # React Native bridge (Obj-C)
+├── PhlixPlayer.podspec       # Pod specification (source glob covers all classes below)
+├── PhlixPlayerView.swift     # Swift UIView implementation (AVPlayer)
+├── PhlixPlayerViewManager.m  # React Native bridge (Obj-C)
+├── PhlixDownloader.swift     # RCTEventEmitter + URLSessionDownloadDelegate
+├── PhlixDownloader.m         # RCT_EXTERN_MODULE bridge
+├── PhlixRandom.swift         # CSPRNG (SecRandomCopyBytes / kSecRandomDefault)
+├── PhlixRandom.m             # RCT_EXTERN_MODULE bridge
+├── PhlixWebAuthn.swift       # ASAuthorization passkeys (iOS 15+)
+└── PhlixWebAuthn.m           # RCT_EXTERN_MODULE bridge
 ```
 
 **Key Features**:
@@ -215,6 +221,27 @@ Requires the `androidx.credentials:credentials` and `:credentials-play-services-
 
 > **Device-only at runtime.** The passkey ceremony shows the system biometric/PIN sheet, which only runs on a real device — CI compiles the native code but cannot run a ceremony, and the JS layer is fully covered by Jest with the native module mocked. Cross-device portability additionally requires the **server** to publish relying-party association files (`apple-app-site-association` `webcredentials` for iOS, `assetlinks.json` for Android) for the `rpId` it returns.
 
+### Downloads - PhlixDownloader (iOS)
+
+**iOS** — `ios/LocalPods/PhlixPlayer/PhlixDownloader.swift` + `PhlixDownloader.m`:
+
+```
+ios/LocalPods/PhlixPlayer/
+├── PhlixDownloader.swift   # @objc(PhlixDownloader) : RCTEventEmitter, URLSessionDownloadDelegate
+└── PhlixDownloader.m       # RCT_EXTERN_MODULE bridge (startDownload/pause/resume/cancel/deleteFile)
+```
+
+Method signatures, event names and payload keys are kept **IDENTICAL** to the Android module (`android/.../download/PhlixDownloaderModule.kt`) and the TS interface (`src/native/types.ts`: `PhlixDownloaderInterface` + `DOWNLOAD_EVENTS`) — the Swift header records this law, and the event-name strings must stay byte-ident with `DOWNLOAD_EVENTS`. The JS layer is `src/services/DownloadService.ts`, which **falls back to a simulated downloader when the native module is absent**, so Jest and non-native runs stay functional (the file header carries an honest UNTESTED-in-CI note: no device/simulator build runs in this environment).
+
+### Random - PhlixRandom (both platforms, M7)
+
+CSPRNG-backed random bytes for device identity — the device id used to be `Math.random()`-shaped (predictable under a known PRNG state) until this module replaced it.
+
+- **iOS** — `ios/LocalPods/PhlixPlayer/PhlixRandom.swift` + `PhlixRandom.m`: `SecRandomCopyBytes` / `kSecRandomDefault`.
+- **Android** — `android/.../random/PhlixRandomModule.kt` + `PhlixRandomPackage.kt` (registered in `MainApplication.kt`): `java.security.SecureRandom`.
+
+**JS surface** — `src/native/types.ts` (`PhlixRandomInterface`: `randomHex(byteCount)`) wrapped by `src/native/PhlixRandom.ts` (`nativeRandomHex`), which treats module-absent and native failure as one honest fallback path; the sole consumer is `src/api/deviceIdentity.ts` (v4 UUID minting). Method name, arg order and the hex-string out shape MUST match across both platforms and the TS interface.
+
 ### TypeScript Interfaces
 
 **Location**: `src/native/types.ts`
@@ -269,6 +296,7 @@ Phlix Mobile uses **Zustand** for state management - a lightweight alternative t
 | `useAdminStore` | Admin dashboards/lists |
 | `useCastStore` | Cast devices/session state |
 | `useCollectionStore` | Collections + smart playlists |
+| `useConnectionSecurityStore` | Cleartext-connection ledger: dial seams `mark()` their resolved URL per lane (`rest`/`syncplayWs`/`hubRelay`/`hubApi`); one banner listens (M-MOBILE-51) |
 | `useFavoritesStore` | Favorite items |
 | `useLiveTvStore` | Live TV guide/recordings |
 | `useMusicStore` | Music library/albums |
@@ -514,14 +542,15 @@ npm run lint -- --fix
 
 #### iOS Native Module Updates
 
-1. Modify files in `ios/LocalPods/PhlixPlayer/` (this pod holds both `PhlixPlayer*` and `PhlixWebAuthn*` — the source glob auto-includes new files)
+1. Modify files in `ios/LocalPods/PhlixPlayer/` (this pod holds all four iOS native families — `PhlixPlayer*`, `PhlixDownloader*`, `PhlixRandom*`, `PhlixWebAuthn*` — the source glob auto-includes new files)
 2. Run `pod install` in `ios/` directory
 3. Clean and rebuild: `xcodebuild clean`
 4. Verify in Xcode that changes compile
+5. If the change added/removed a native pod (a new dependency with an iOS podspec, not just an edit to existing pod sources), commit the regenerated `ios/Podfile.lock` — CI's `npm run check:podfile-lock` leg (`scripts/check-podfile-lock.mjs`, M-MOBILE-09) fails loud when the committed lock no longer names every auto-linked pod; the gate needs no macOS, so run it locally before pushing
 
 #### Android Native Module Updates
 
-1. Modify files in `android/app/src/main/java/com/phlixmobile/` (`player/` for the video player, `webauthn/` for passkeys); register new packages in `MainApplication.kt`
+1. Modify files in `android/app/src/main/java/com/phlixmobile/` (`player/` for the video player, `download/` for the downloader, `random/` for the CSPRNG, `webauthn/` for passkeys); register new packages in `MainApplication.kt`
 2. Clean Gradle: `./gradlew clean`
 3. Rebuild: `./gradlew assembleDebug`
 
@@ -582,7 +611,7 @@ phlix-mobile/
 │   │   ├── usePlayerStore.ts# Playback state
 │   │   ├── useLibraryStore.ts
 │   │   ├── useSettingsStore.ts
-│   │   └── … (15 use*Store.ts modules total)
+│   │   └── … (16 use*Store.ts modules total)
 │   ├── stubs/               # Jest-safe native module stubs
 │   ├── syncplay/            # Wire client: SyncPlayService, hubRelay,
 │   │                        # wsEndpoint, sha256, syncplayErrors catalog
@@ -603,7 +632,8 @@ phlix-mobile/
 ├── android/
 │   └── app/src/main/java/com/phlixmobile/
 │       ├── player/          # PhlixPlayerView.kt + view manager
-│       ├── download/        # Native download support
+│       ├── download/        # PhlixDownloaderModule.kt + package
+│       ├── random/          # PhlixRandomModule.kt + package (SecureRandom CSPRNG)
 │       └── webauthn/        # Passkey ceremony module
 └── .github/
     └── workflows/           # CI/CD pipelines (test, build-android, build-ios)

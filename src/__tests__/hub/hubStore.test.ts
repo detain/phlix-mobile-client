@@ -49,8 +49,6 @@ describe('hubStore', () => {
       version: '1.0.0',
       status: 'online' as const,
       hostname: 'https://192.168.1.100:32400',
-      relayHostname: 'https://relay.phlix.app/server-1',
-      capabilities: ['direct-play'],
     },
     {
       serverId: 'server-2',
@@ -58,8 +56,6 @@ describe('hubStore', () => {
       version: '0.9.0',
       status: 'offline' as const,
       hostname: 'https://192.168.1.101:32400',
-      relayHostname: 'https://relay.phlix.app/server-2',
-      capabilities: [],
     },
   ];
 
@@ -192,7 +188,7 @@ describe('hubStore', () => {
 
       const state = useHubStore.getState();
       expect(state.connectionMode).toBe('relay');
-      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/server-1');
+      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/relay/server-1');
     });
 
     it('should not update if serverId not found', async () => {
@@ -222,7 +218,6 @@ describe('hubStore', () => {
           version: '1.0.0',
           status: 'online' as const,
           hostname: 'http://192.168.1.50:8096',
-          capabilities: [],
         },
       ]);
       await useHubStore.getState().signInToHub(
@@ -237,7 +232,7 @@ describe('hubStore', () => {
       );
     });
 
-    it('refuses a foreign-scheme hostname from the hub roster', async () => {
+    it('refuses a foreign-scheme hostname from the hub roster (direct lane)', async () => {
       const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       try {
         mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
@@ -248,8 +243,6 @@ describe('hubStore', () => {
             version: '1.0.0',
             status: 'online' as const,
             hostname: 'ftp://evil.example.com',
-            relayHostname: 'file:///etc/passwd',
-            capabilities: [],
           },
         ]);
         await useHubStore.getState().signInToHub(
@@ -261,10 +254,15 @@ describe('hubStore', () => {
         useHubStore.getState().setActiveServer('server-evil');
         expect(useHubStore.getState().effectiveServerUrl).toBe('');
 
+        // MW-022 era note: the roster no longer carries any relay string to
+        // be poisoned (there was never a `relay_hostname` on the hub wire —
+        // the old fixture arm was fiction). The relay lane is BUILT from the
+        // parsed serverId with the secnet-m8 encode law, so switching modes
+        // on the same row lands on the estate-pinned, id-encoded URL.
         useHubStore.getState().setConnectionMode('relay');
-        // No relayHostname fallback either — the file:// string is refused
-        // (the default relay URL only applies when relayHostname is absent).
-        expect(useHubStore.getState().effectiveServerUrl).toBe('');
+        expect(useHubStore.getState().effectiveServerUrl).toBe(
+          'https://relay.phlix.app/relay/server-evil'
+        );
       } finally {
         warnSpy.mockRestore();
       }
@@ -290,7 +288,7 @@ describe('hubStore', () => {
 
       expect(useHubStore.getState().connectionMode).toBe('relay');
       expect(useHubStore.getState().effectiveServerUrl).toBe(
-        'https://relay.phlix.app/server-1'
+        'https://relay.phlix.app/relay/server-1'
       );
     });
 
@@ -331,7 +329,6 @@ describe('hubStore', () => {
           version: '1.1.0',
           status: 'online' as const,
           hostname: 'https://192.168.1.102:32400',
-          capabilities: ['direct-play'],
         },
       ];
       mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(newServers);
@@ -419,7 +416,7 @@ describe('hubStore', () => {
       expect(state.session).toEqual(mockSession);
       expect(state.activeServerId).toBe('server-2');
       expect(state.connectionMode).toBe('relay');
-      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/server-2');
+      expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/relay/server-2');
     });
 
     it('should handle missing persisted data gracefully', async () => {
@@ -499,6 +496,39 @@ describe('hubStore', () => {
       const state = useHubStore.getState();
       expect(state.error).toBe('Network error');
       expect(state.isLoading).toBe(false);
+    });
+
+    // MW-022 (review mobile__exploiter #5): fetchServers used to surface the
+    // RAW error message — for an axios failure that is protocol prose
+    // ("Request failed with status code 500"), bypassing the code-first
+    // `apiErrorMessage` choke point signInToHub already rides. Same contract,
+    // same lane: hub failures {error, code} render as catalog copy or
+    // quarantined "Server says:" text.
+    it('routes hub failures through apiErrorMessage, not raw axios prose', async () => {
+      mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(mockSession);
+      mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      await useHubStore.getState().signInToHub(
+        'https://hub.example.com',
+        'testuser',
+        'testpass'
+      );
+
+      const axiosShaped = Object.assign(
+        new Error('Request failed with status code 404'),
+        {
+          isAxiosError: true,
+          response: { status: 404, data: { error: 'List unavailable', code: 'brand.new_code' } },
+        }
+      );
+      mockedHubAuthService.hubAuthService.listServers.mockRejectedValue(axiosShaped);
+
+      await expect(useHubStore.getState().fetchServers()).rejects.toThrow(
+        'Request failed with status code 404'
+      );
+
+      expect(useHubStore.getState().error).toBe(
+        'Server says: List unavailable (brand.new_code)'
+      );
     });
   });
 
@@ -657,7 +687,7 @@ describe('hubStore', () => {
       expect(useHubStore.getState().connectionMode).toBe('relay');
       // signIn auto-selects the first server — server-1, relayed.
       expect(useHubStore.getState().effectiveServerUrl).toBe(
-        'https://relay.phlix.app/server-1'
+        'https://relay.phlix.app/relay/server-1'
       );
     });
 

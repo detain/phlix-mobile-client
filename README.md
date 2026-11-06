@@ -56,9 +56,10 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
   timelines follow the host and manual member seeks defer to the room
   clock. Failures arrive as stable server error codes and are shown as
   readable sentences from a client-side catalog instead of raw protocol
-  text. The feature runs over BOTH connection shapes: a direct server
-  WebSocket and the hub-relay lane (bearer subprotocol) when the session
-  came through a hub.
+  text. The feature runs over BOTH connection shapes — the direct server
+  WebSocket (`:8097`) and the hub-relay lane (`:8804/syncplay/{server_id}`)
+  when the session came through a hub — and BOTH carry the credential in the
+  `Sec-WebSocket-Protocol: bearer, <jwt>` subprotocol, never in the URL.
 - **Downloads**: Download media for offline playback
 - **Multi-user Profiles**: Manage per-user profiles (name, max content rating, optional PIN gate) and switch the active profile from Settings → Profiles
 - **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section).
@@ -131,7 +132,15 @@ Hub sessions survive app restarts. The hub JWT pair is persisted in the OS keych
 
 Maintenance scripts: `npm run copyright` (`scripts/add-copyright.mjs`) idempotently
 inserts the `@copyright` header into non-test TS/JS sources — re-running it
-produces a zero diff once every file is stamped.
+produces a zero diff once every file is stamped. `npm run check:podfile-lock`
+(`scripts/check-podfile-lock.mjs`, also a CI leg of `test.yml`) enforces the
+M-MOBILE-09 lock law: the committed `ios/Podfile.lock` must carry a top-level
+PODS entry for every native pod the current dependency set auto-links (source
+of truth: `react-native config` — the same command the Podfile's
+`use_native_modules!` shells out to). It is host-agnostic (node only — no
+CocoaPods/Xcode/macOS needed) and fails loud with the regeneration command
+when an entry is missing; run `cd ios && pod install` and commit the
+refreshed `Podfile.lock` after adding or removing a native dependency.
 
 ## Prerequisites
 

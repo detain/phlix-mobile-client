@@ -17,19 +17,34 @@ export interface HubSession {
 }
 
 export interface HubServer {
+  /**
+   * MW-022 (review mobile__exploiter #5): the hub answers
+   * `GET /api/v1/me/servers` with `{servers: ServerInfoDto::toPayload()[]}` —
+   * camelCase identity keys (phlix-hub ServerListController.php:46-61 at
+   * 30012378; the payload body is vendor/detain/phlix-shared
+   * src/Hub/ServerInfoDto.php:139-153). The address field on that wire is
+   * `hostnameCandidates`: a list of FULL `scheme://host:port` URLs the media
+   * server itself mints (phlix-server HubClient::getHostnameCandidates); the
+   * hub's own best-direct law picks the FIRST non-empty one
+   * (ServerManageController::bestDirectUrl), and {@link parseHubServer}
+   * mirrors it here into `hostname`. There is no `relay_hostname` and no
+   * `capabilities` on this wire — the fields the old snake_case mapping read
+   * were fiction (against a real hub every one resolved `undefined`); the
+   * relay lane's URL is built client-side from `serverId` by
+   * `hubStore.resolveEffectiveUrl` (estate pin), never supplied by roster.
+   */
   serverId: string;
   serverName: string;
   version: string;
   status: 'online' | 'offline';
+  /** First usable hostnameCandidate URL; '' when the row carries none. */
   hostname: string;
-  relayHostname?: string;
-  capabilities: string[];
 }
 
 interface SignInResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
+  access_token?: unknown;
+  refresh_token?: unknown;
+  expires_in?: unknown;
   /**
    * The hub's `createAuthResponse()` returns the identity as a nested
    * `user: { id, username, email, ... }` object — NOT a top-level `user_id`.
@@ -45,16 +60,57 @@ interface SignInResponse {
   user_id?: string;
 }
 
-interface ListServersResponse {
-  servers: Array<{
-    server_id: string;
-    server_name: string;
-    version: string;
-    status: 'online' | 'offline';
-    hostname: string;
-    relay_hostname?: string;
-    capabilities: string[];
-  }>;
+/** `ServerInfoDto::toPayload()` row, before the boundary parse. */
+type HubServerPayload = Record<string, unknown>;
+
+/**
+ * Fail-loud wire-string parse shared by every hub boundary (MW-022). A
+ * missing/non-string/empty value is a CONTRACT violation at this seam —
+ * the hub DTOs declare these fields as strings — so it halts with the
+ * offending field named instead of letting `undefined` ride into the vault
+ * or the roster (the exact poisoning class the review convicted).
+ */
+function requireWireString(value: unknown, fieldName: string, context: string): string {
+  if (typeof value !== 'string' || value === '') {
+    throw new Error(`${context} carried no usable \`${fieldName}\``);
+  }
+  return value;
+}
+
+function requireFiniteNumber(value: unknown, fieldName: string, context: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${context} carried no usable \`${fieldName}\``);
+  }
+  return value;
+}
+
+/**
+ * Parse one roster row from the hub's actual camelCase payload into a
+ * trusted `HubServer` (identity fields fail loud; the two-state `status`
+ * collapses every non-`online` hub convention — offline/claiming/disabled,
+ * documented "conventions NOT gates" in ServerInfoDto — to `offline` rather
+ * than lying about an unchecked cast; a missing/foreign-shaped candidate
+ * list degrades to hostname `''`, which `resolveEffectiveUrl` already owns
+ * as "no direct lane").
+ */
+function parseHubServer(row: unknown): HubServer {
+  if (typeof row !== 'object' || row === null) {
+    throw new Error('Hub server-list row is not an object — cannot parse a server from junk');
+  }
+  const record = row as HubServerPayload;
+  const serverId = requireWireString(record.serverId, 'serverId', 'Hub server-list row');
+  const rowContext = `Hub server-list row ${serverId}`;
+  const candidates = Array.isArray(record.hostnameCandidates) ? record.hostnameCandidates : [];
+  const firstCandidate = candidates.find(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate !== ''
+  );
+  return {
+    serverId,
+    serverName: requireWireString(record.serverName, 'serverName', rowContext),
+    version: requireWireString(record.version, 'version', rowContext),
+    status: record.status === 'online' ? 'online' : 'offline',
+    hostname: firstCandidate ?? '',
+  };
 }
 
 export class HubAuthService {
@@ -91,6 +147,28 @@ export class HubAuthService {
   }
 
   /**
+   * Parse a hub auth envelope (`loginJson`/`refreshJson` →
+   * `createAuthResponse`: `{access_token, refresh_token, token_type,
+   * expires_in, user, claims}`) into the session the store persists.
+   * MW-022 (review mobile__exploiter #6): every leg used to destructure
+   * unchecked — a malformed 200 stored `accessToken: undefined` and the
+   * device spent its life sending `Bearer undefined`. Same boundary law as
+   * {@link resolveUserId}, extended to the tokens and the TTL.
+   */
+  private parseSession(data: SignInResponse, context: string): HubSession {
+    const accessToken = requireWireString(data?.access_token, 'access_token', context);
+    const refreshToken = requireWireString(data?.refresh_token, 'refresh_token', context);
+    const expiresInSeconds = requireFiniteNumber(data?.expires_in, 'expires_in', context);
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
+      userId: this.resolveUserId(data),
+    };
+  }
+
+  /**
    * Sign in to the hub with username/password.
    * Returns a HubSession with access/refresh tokens.
    */
@@ -109,14 +187,7 @@ export class HubAuthService {
       }
     );
 
-    const { access_token, refresh_token, expires_in } = response.data;
-
-    return {
-      accessToken: access_token,
-      refreshToken: refresh_token,
-      expiresAt: Math.floor(Date.now() / 1000) + expires_in,
-      userId: this.resolveUserId(response.data),
-    };
+    return this.parseSession(response.data, 'Hub sign-in response');
   }
 
   /**
@@ -132,23 +203,22 @@ export class HubAuthService {
       }
     );
 
-    const { access_token, refresh_token, expires_in } = response.data;
-
-    return {
-      accessToken: access_token,
-      refreshToken: refresh_token,
-      expiresAt: Math.floor(Date.now() / 1000) + expires_in,
-      userId: this.resolveUserId(response.data),
-    };
+    return this.parseSession(response.data, 'Hub refresh response');
   }
 
   /**
    * Get the list of servers claimed by the user.
+   *
+   * The roster is HUB-PROVIDED data, so it is parsed here and nowhere
+   * downstream: a body without a `servers` array, or a row whose identity
+   * fields violate the DTO contract, fails loud at this boundary (MW-022)
+   * instead of shipping `undefined` into the store, the vault, or a
+   * `.map is not a function` TypeError.
    */
   async listServers(hubUrl: string, session: HubSession): Promise<HubServer[]> {
     const normalizedUrl = this.normalizeHubUrl(hubUrl);
 
-    const response = await this.client.get<ListServersResponse>(
+    const response = await this.client.get<{ servers?: unknown }>(
       `${normalizedUrl}/api/v1/me/servers`,
       {
         headers: {
@@ -157,15 +227,12 @@ export class HubAuthService {
       }
     );
 
-    return response.data.servers.map((server) => ({
-      serverId: server.server_id,
-      serverName: server.server_name,
-      version: server.version,
-      status: server.status,
-      hostname: server.hostname,
-      relayHostname: server.relay_hostname,
-      capabilities: server.capabilities,
-    }));
+    const servers = response.data?.servers;
+    if (!Array.isArray(servers)) {
+      throw new Error('Hub server-list response carried no `servers` array');
+    }
+
+    return servers.map(parseHubServer);
   }
 
   /**

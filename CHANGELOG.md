@@ -32,6 +32,63 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w05 mobile: hub wire-truth boundary parsing + doc-truth pass (MW-017–MW-022) — 2026-11-06
+
+- MW-022 (review mobile__exploiter #5/#6) is the behavior cure: every hub
+  payload this client parses is now checked at the BOUNDARY against the wire
+  the hub actually answers — provenance re-read at phlix-hub @30012378
+  (`ServerListController.php:46-61` → `ServerInfoDto::toPayload()`:
+  camelCase `serverId`/`serverName`/`version`/`status`/`hostnameCandidates`,
+  and `AuthController` login/refresh → `createAuthResponse` snake_case token
+  envelope). The old `listServers` mapping read `server_id`/`server_name`/
+  `relay_hostname`/`capabilities` — fields that NEVER exist on the
+  `/api/v1/me/servers` body — so against a real hub every roster row
+  resolved `undefined` and direct-mode sign-in TypeErrored inside
+  `resolveEffectiveUrl`; the repo's own fixtures fabricated the same dead
+  snake_case shape, which is how it stayed green. `HubServer` is now
+  `{serverId, serverName, version, status, hostname}` (hostname = first
+  non-empty candidate — the hub's own best-direct law; the roster carries no
+  relay string, so the relay lane's estate-pinned URL is BUILT from the
+  encoded serverId exactly as the secnet m8 law always intended); a body
+  without the `servers` array or a row without a usable `serverId`/
+  `serverName`/`version` fails loud; every non-`online` hub status
+  convention collapses to `offline`; `signIn`/`refresh` parse
+  `access_token`/`refresh_token`/`expires_in` with fail-loud boundary checks
+  (no more `Bearer undefined` persisted from a malformed 200), the same law
+  curing the server-refresh leg in `src/api/client.ts`; and `fetchServers`
+  routes failures through the code-first `apiErrorMessage` choke point
+  instead of surfacing raw axios prose. 11 new/converted pins measured RED
+  at parent a5f7d1f (`/tmp` red capture: 11 failed / 80 passed across the
+  three files); suite 122/1757 → 122/1767 (+10 exact: HubAuthService +8
+  net — 1 fabricated-shape test flipped to 5 wire pins + 3 signIn + 1
+  refresh boundary pins, hubStore routing pin +1, client garbage-envelope
+  pin +1); zero new wire codes, envelopes untouched.
+- MW-017 (review mobile__docmaint #5, mobile__writer #3): DEVELOPER.md store
+  table gains the missing `useConnectionSecurityStore` row (16 rows) and the
+  tree count reads `16 use*Store.ts modules total` — both measured against
+  `src/stores/`.
+- MW-018 (review mobile__docmaint #6): DEVELOPER.md iOS pod tree shows all 9
+  files (four families: `PhlixPlayer*`, `PhlixDownloader*`, `PhlixRandom*`,
+  `PhlixWebAuthn*` — the "holds both" claim corrected), new native-module
+  sections document iOS `PhlixDownloader` (event names byte-ident with
+  `DOWNLOAD_EVENTS`, JS falls back to the simulated downloader) and
+  `PhlixRandom` (CSPRNG device-id minting, `SecRandomCopyBytes` /
+  `SecureRandom`, sole consumer `src/api/deviceIdentity.ts`); the repo
+  structure tree gains `android/.../random/`; AGENTS.md header describes the
+  pod/package inventory truthfully.
+- MW-019 (review mobile__docmaint #7): README SyncPlay bullet now states BOTH
+  WS lanes carry the JWT in the `Sec-WebSocket-Protocol: bearer, <jwt>`
+  subprotocol and NEVER in the URL (was relay-only — the law lives in
+  `src/syncplay/SyncPlayService.ts` transport docblock).
+- MW-020 (review mobile__docmaint #8): AGENTS.md layout inventories marked
+  representative-with-totals (api: 17 managers; stores: 16 hooks; screens:
+  27 root + subfolders) — the 2026-era partial lists that read as complete
+  inventories, each pointing at DEVELOPER.md for the full table.
+- MW-021 (review mobile__docmaint #9): README maintenance scripts document
+  `npm run check:podfile-lock` (M-MOBILE-09 auto-linked-pod presence gate,
+  CI leg `test.yml:60`, no macOS needed) and DEVELOPER.md's iOS native-work
+  workflow gains the Podfile.lock regeneration step.
+
 ### Fixed — wave w04 mobile: playback-state union parity, roster identity, media-permission retirement, global route params, sleep-timer purity, CI serial truth (MW-011–MW-016) — 2026-11-06
 
 - MW-011 (review mobile__crossfe): `wirePlaybackState` admitted only 3 of the
