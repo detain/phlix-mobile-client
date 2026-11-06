@@ -1132,3 +1132,100 @@ describe('hubStore', () => {
     });
   });
 });
+
+// MW-025 (review mobile__casualgamer #4): the friendly hub identity must
+// SURVIVE the store — sign-in captures it (HubAuthService boundary), the
+// sanitized AsyncStorage blob keeps it (it is envelope metadata, the same
+// non-secret classification as `userId`), and a cold hydration restores it
+// without any vault read of user material.
+describe('hubStore display-name persistence (MW-025)', () => {
+  const keychainMock = jest.requireMock('react-native-keychain') as {
+    __resetKeychainMock: () => void;
+  };
+
+  const namedSession = {
+    accessToken: 'hub-access-token',
+    refreshToken: 'hub-refresh-token',
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    userId: 'user-123',
+    displayName: 'ada',
+  };
+
+  const servers = [
+    {
+      serverId: 'server-1',
+      serverName: 'My Server',
+      version: '1.0.0',
+      status: 'online' as const,
+      hostname: 'https://192.168.1.100:32400',
+    },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    keychainMock.__resetKeychainMock();
+    useHubStore.setState({
+      hubUrl: null,
+      session: null,
+      servers: [],
+      activeServerId: null,
+      connectionMode: 'direct',
+      effectiveServerUrl: '',
+      serverGeneration: 0,
+      isLoading: false,
+      error: null,
+    });
+    mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(servers);
+  });
+
+  it('the sanitized blob carries the display name (and never the JWTs)', async () => {
+    mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(namedSession);
+
+    await useHubStore.getState().signInToHub('https://hub.example.com', 'ada', 'pw');
+
+    const writes = (AsyncStorage.setItem as jest.Mock).mock.calls;
+    const [, payload] = writes[writes.length - 1];
+    expect(JSON.parse(payload).session.displayName).toBe('ada');
+    expect(payload).not.toContain('hub-access-token');
+  });
+
+  it('cold hydration restores the display name from the sanitized blob', async () => {
+    mockedHubAuthService.hubAuthService.signIn.mockResolvedValue(namedSession);
+    await useHubStore.getState().signInToHub('https://hub.example.com', 'ada', 'pw');
+    const writes = (AsyncStorage.setItem as jest.Mock).mock.calls;
+    const persistedBlob = writes[writes.length - 1][1];
+
+    useHubStore.setState({
+      hubUrl: null,
+      session: null,
+      servers: [],
+      activeServerId: null,
+      connectionMode: 'direct',
+      effectiveServerUrl: '',
+    });
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(persistedBlob);
+
+    await useHubStore.getState().loadPersistedState();
+
+    expect(useHubStore.getState().session?.displayName).toBe('ada');
+    expect(useHubStore.getState().session?.accessToken).toBe('hub-access-token');
+  });
+
+  it('a pre-MW-025 blob (no display name) still hydrates — nothing is invented', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+      JSON.stringify({
+        hubUrl: 'https://hub.example.com',
+        session: { expiresAt: namedSession.expiresAt, userId: 'user-123' },
+        activeServerId: 'server-1',
+        connectionMode: 'direct',
+      })
+    );
+    await secureStorage.storeHubTokens('hub-access-token', 'hub-refresh-token');
+
+    await useHubStore.getState().loadPersistedState();
+
+    const restored = useHubStore.getState().session;
+    expect(restored?.userId).toBe('user-123');
+    expect(restored?.displayName).toBeUndefined();
+  });
+});

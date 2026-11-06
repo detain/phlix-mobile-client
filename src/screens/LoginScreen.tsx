@@ -45,6 +45,24 @@ function normalizeServerUrl(rawUrl: string): string {
   return url;
 }
 
+/**
+ * MW-024 (review mobile__casualgamer #3): the Server field is OPTIONAL.
+ * A brand-new viewer has no address to type — refusing blank turned the
+ * README's "the app defaults to https://api.phlix.app" promise (tier 3 of
+ * `src/api/client.ts` getServerRoot) into dead prose: nobody could reach
+ * that default through the form. Blank now means "no override": the saved
+ * address is CLEARED and the API tiers dial the app's built-in default, so
+ * what the field shows is exactly what the app connects to. A typed address
+ * keeps the audit-M6 https-by-default law untouched ({@link
+ * normalizeServerUrl}).
+ *
+ * @returns '' for the default lane; otherwise the normalized address.
+ */
+function resolveServerTarget(rawField: string): string {
+  const raw = rawField.trim();
+  return raw === '' ? '' : normalizeServerUrl(raw);
+}
+
 const LoginScreen: React.FC = () => {
   // M-MOBILE-73 (review mobile__casualgamer Minor 1): "sign out and you
   // retype the server URL" no more — the last-connected address is a
@@ -113,11 +131,10 @@ const LoginScreen: React.FC = () => {
 
     // Persist the connection target before authenticating (same as password
     // login — the server URL is an input, not part of the response).
-    let url = serverUrl.trim();
-    if (url !== '') {
-      url = normalizeServerUrl(url);
-      useSettingsStore.getState().setServerUrl(url);
-    }
+    // MW-024: blank is the DEFAULT lane — it must also CLEAR a stale saved
+    // override, so what the field shows is exactly what the app connects to.
+    const url = resolveServerTarget(serverUrl);
+    useSettingsStore.getState().setServerUrl(url);
 
     try {
       setError(null);
@@ -131,14 +148,22 @@ const LoginScreen: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+    // MW-024: the Server field is optional — blank means "dial the app's
+    // built-in default" (client.ts tier 3), so only the identity fields are
+    // required here any more.
+    if (!username.trim() || !password.trim()) {
       setError('Please fill in all fields');
       return;
     }
 
     // Scheme-less input goes https (audit M6 — cleartext http only by explicit
-    // opt-in). See {@link normalizeServerUrl}.
-    const url = normalizeServerUrl(serverUrl);
+    // opt-in). See {@link resolveServerTarget}. The store's login persists a
+    // typed address; the blank lane must explicitly drop the override so the
+    // tiers actually fall through to the default.
+    const url = resolveServerTarget(serverUrl);
+    if (url === '') {
+      useSettingsStore.getState().setServerUrl('');
+    }
 
     try {
       setError(null);
@@ -156,7 +181,8 @@ const LoginScreen: React.FC = () => {
   // plus the email `/auth/register` requires; routes the outcome either to the
   // auth gate (mode flips to an open session) or to a notice (approval-gated).
   const handleSignup = async () => {
-    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+    // MW-024: same optional-server law as sign-in (see handleLogin).
+    if (!username.trim() || !password.trim()) {
       setError('Please fill in all fields');
       return;
     }
@@ -165,7 +191,10 @@ const LoginScreen: React.FC = () => {
       return;
     }
 
-    const url = normalizeServerUrl(serverUrl);
+    const url = resolveServerTarget(serverUrl);
+    if (url === '') {
+      useSettingsStore.getState().setServerUrl('');
+    }
     try {
       setError(null);
       setNotice(null);
@@ -227,10 +256,15 @@ const LoginScreen: React.FC = () => {
               />
               {/* M-MOBILE-02 (review mobile__casualgamer #2): the placeholder
                   advertised http:// while a prefix-less address dials https
-                  (audit-M6 law — kept verbatim). Say what the field does. */}
+                  (audit-M6 law — kept verbatim). Say what the field does.
+                  MW-024: one plain sentence for a day-one viewer — whose
+                  server this is and where the address comes from — plus the
+                  blank-field default lane. */}
               <Text style={styles.inputHelp}>
                 No prefix connects over https — for a server on your network,
-                use the full http:// address.
+                use the full http:// address. This app connects to your own
+                Phlix server: ask its administrator for the address. Leave the
+                field blank to use the app's built-in default server instead.
               </Text>
             </View>
 

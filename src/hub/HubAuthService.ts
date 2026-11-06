@@ -14,6 +14,13 @@ export interface HubSession {
   refreshToken: string;
   expiresAt: number;
   userId: string;
+  /**
+   * MW-025 (review mobile__casualgamer #4): the hub's friendly identity —
+   * `user.username`, falling back to `user.email` — captured at the sign-in
+   * boundary so the UI never has to print the raw account UUID. `undefined`
+   * when the hub's `user` row carries neither (nothing is invented).
+   */
+  displayName?: string;
 }
 
 export interface HubServer {
@@ -58,6 +65,16 @@ interface SignInResponse {
   claims?: { sub?: string } & Record<string, unknown>;
   /** Legacy spelling some early hub builds carried; read only as a fallback. */
   user_id?: string;
+}
+
+/** First candidate that is a usable non-empty string, else undefined (boundary read). */
+function firstUsableString(...candidates: unknown[]): string | undefined {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate !== '') {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 /** `ServerInfoDto::toPayload()` row, before the boundary parse. */
@@ -147,6 +164,19 @@ export class HubAuthService {
   }
 
   /**
+   * The friendly half of the identity (MW-025, review mobile__casualgamer #4):
+   * `createAuthResponse` ships the full current-user row minus the password
+   * hash, so `username`/`email` are on this wire — read them at the boundary
+   * (username first) so Settings can stop printing the 36-char account UUID.
+   * OPTIONAL by design: a hub row carrying neither yields `undefined`, and
+   * the UI falls back to a plain label. `claims.sub` is deliberately NOT a
+   * candidate — it is the same UUID as `user.id`, not a friendly name.
+   */
+  private resolveDisplayName(data: SignInResponse): string | undefined {
+    return firstUsableString(data.user?.username, data.user?.email);
+  }
+
+  /**
    * Parse a hub auth envelope (`loginJson`/`refreshJson` →
    * `createAuthResponse`: `{access_token, refresh_token, token_type,
    * expires_in, user, claims}`) into the session the store persists.
@@ -165,6 +195,7 @@ export class HubAuthService {
       refreshToken,
       expiresAt: Math.floor(Date.now() / 1000) + expiresInSeconds,
       userId: this.resolveUserId(data),
+      displayName: this.resolveDisplayName(data),
     };
   }
 

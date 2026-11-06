@@ -231,7 +231,7 @@ ios/LocalPods/PhlixPlayer/
 └── PhlixDownloader.m       # RCT_EXTERN_MODULE bridge (startDownload/pause/resume/cancel/deleteFile)
 ```
 
-Method signatures, event names and payload keys are kept **IDENTICAL** to the Android module (`android/.../download/PhlixDownloaderModule.kt`) and the TS interface (`src/native/types.ts`: `PhlixDownloaderInterface` + `DOWNLOAD_EVENTS`) — the Swift header records this law, and the event-name strings must stay byte-ident with `DOWNLOAD_EVENTS`. The JS layer is `src/services/DownloadService.ts`, which **falls back to a simulated downloader when the native module is absent**, so Jest and non-native runs stay functional (the file header carries an honest UNTESTED-in-CI note: no device/simulator build runs in this environment).
+Method signatures, event names and payload keys are kept **IDENTICAL** to the Android module (`android/.../download/PhlixDownloaderModule.kt`) and the TS interface (`src/native/types.ts`: `PhlixDownloaderInterface` + `DOWNLOAD_EVENTS`) — the Swift header records this law, and the event-name strings must stay byte-ident with `DOWNLOAD_EVENTS`. The JS layer is `src/services/DownloadService.ts`; when the native module is absent it **fails the task loudly with the named missing-module error** (MW-027, review mobile__crossfe #14 — the old simulated-downloader fallback is gone: it faked progress to 100% and marked tasks complete over files never written), so Jest and non-native runs surface the registration failure instead of hiding it (the file header carries an honest UNTESTED-in-CI note: no device/simulator build runs in this environment).
 
 ### Random - PhlixRandom (both platforms, M7)
 

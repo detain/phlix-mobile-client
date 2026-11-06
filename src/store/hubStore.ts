@@ -65,17 +65,24 @@ const HUB_STORAGE_KEY = 'phlix_hub_session';
  * The retained fields are exactly the server lane's non-secret classification
  * (see SecureStorage's ISSUED_HOST_KEY docblock: endpoints and ids are
  * configuration, the minted JWTs are the secrets): connection metadata plus
- * the expiresAt/userId envelope the UI reads without the vault.
+ * the expiresAt/userId/displayName envelope the UI reads without the vault
+ * (MW-025: `displayName` is the hub account's own username/email — the same
+ * classification as `userId`, and the Settings row needs it on cold start).
  */
 function buildSanitizedHubBlob(
   hubUrl: string,
-  session: { expiresAt: number; userId: string },
+  session: { expiresAt: number; userId: string; displayName?: string },
   activeServerId: string | null,
   connectionMode: ConnectionMode
 ): string {
   return JSON.stringify({
     hubUrl,
-    session: { expiresAt: session.expiresAt, userId: session.userId },
+    session: {
+      expiresAt: session.expiresAt,
+      userId: session.userId,
+      ...(typeof session.displayName === 'string' &&
+        session.displayName !== '' && { displayName: session.displayName }),
+    },
     activeServerId,
     connectionMode,
   });
@@ -194,8 +201,16 @@ export const useHubStore = create<HubState>((set, get) => {
 
     try {
       const newSession = await hubAuthService.refresh(hubUrl, session.refreshToken);
-      set({ session: newSession });
-      await persistSession(hubUrl, newSession, get().activeServerId);
+      // MW-025: the current hub answers refresh through the SAME
+      // createAuthResponse leg, so the display name rides along natively. If
+      // an older hub's envelope omits the user row, keep the label the device
+      // already knew — the identity behind these tokens has not moved.
+      const merged: HubSession =
+        newSession.displayName === undefined && session.displayName !== undefined
+          ? { ...newSession, displayName: session.displayName }
+          : newSession;
+      set({ session: merged });
+      await persistSession(hubUrl, merged, get().activeServerId);
     } catch (err) {
       // Refresh token expired - sign out
       get().signOutOfHub();
@@ -294,8 +309,16 @@ export const useHubStore = create<HubState>((set, get) => {
           const envelope = session as {
             expiresAt: number;
             userId: string;
+            displayName?: unknown;
             accessToken?: unknown;
             refreshToken?: unknown;
+          };
+          // MW-025: the identity slice narrowed for the blob builder (the
+          // restored JSON is `unknown` material — read, never re-cast).
+          const blobIdentity = {
+            expiresAt: envelope.expiresAt,
+            userId: envelope.userId,
+            displayName: typeof envelope.displayName === 'string' ? envelope.displayName : undefined,
           };
           // Resolve the JWT pair: vault first. A pre-vault blob carries
           // them in plaintext inside `session` — migrate on first read
@@ -322,7 +345,7 @@ export const useHubStore = create<HubState>((set, get) => {
                 );
                 await AsyncStorage.setItem(
                   HUB_STORAGE_KEY,
-                  buildSanitizedHubBlob(hubUrl, envelope, activeServerId, connectionMode)
+                  buildSanitizedHubBlob(hubUrl, blobIdentity, activeServerId, connectionMode)
                 );
               } catch {
                 // Vault write failed — plaintext copy stays for retry.
@@ -341,7 +364,7 @@ export const useHubStore = create<HubState>((set, get) => {
             try {
               await AsyncStorage.setItem(
                 HUB_STORAGE_KEY,
-                buildSanitizedHubBlob(hubUrl, envelope, activeServerId, connectionMode)
+                buildSanitizedHubBlob(hubUrl, blobIdentity, activeServerId, connectionMode)
               );
             } catch {
               // Next load retries the sweep; the vault holds the pair.
@@ -361,6 +384,8 @@ export const useHubStore = create<HubState>((set, get) => {
             refreshToken,
             expiresAt: envelope.expiresAt,
             userId: envelope.userId,
+            ...(typeof envelope.displayName === 'string' &&
+              envelope.displayName !== '' && { displayName: envelope.displayName }),
           };
           const servers = await hubAuthService.listServers(hubUrl, hydrated);
           const server = servers.find((s) => s.serverId === activeServerId);
@@ -443,7 +468,8 @@ function resolveEffectiveUrl(
  *
  * The two JWTs go to the keychain vault (dedicated hub slots mirroring
  * the server ACCESS/REFRESH pair); only the non-secret session envelope
- * (expiresAt/userId) plus connection metadata stays in AsyncStorage.
+ * (expiresAt/userId/displayName) plus connection metadata stays in
+ * AsyncStorage.
  * This closes the hub lane of audit M1's plaintext-storage class — the
  * vault module's docblock claims every auth JWT, and hub sign-in mints
  * its own access+refresh pair (`HubAuthService.HubSession`), which the

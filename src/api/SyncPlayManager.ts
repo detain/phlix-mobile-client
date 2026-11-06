@@ -115,8 +115,19 @@ interface SyncPlayGroupListResponse {
   groups?: RawSyncPlayGroup[];
 }
 
+/**
+ * Date's epoch span is ±8.64e15 MILLISECONDS (±100,000,000 days); in the
+ * seconds the wire carries, the ceiling is 8.64e12. MW-026 (review
+ * mobile__exploiter #7): `Number.isFinite` alone let a hostile/stale epoch
+ * like 1e20 through — the Date built, but `toISOString()` threw RangeError
+ * and reddened the whole room list for one junk row. Values outside the
+ * buildable span now degrade to `''` exactly like the non-finite lane.
+ */
+const MAX_EPOCH_SECONDS = 8.64e12;
+
 function isoFromUnixSeconds(value: number | undefined): string {
   if (value === undefined || !Number.isFinite(value)) return '';
+  if (Math.abs(value) > MAX_EPOCH_SECONDS) return '';
   return new Date(value * 1000).toISOString();
 }
 

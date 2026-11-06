@@ -6,7 +6,7 @@
  */
 
 // src/components/syncplay/SyncPlayModal.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -51,19 +51,32 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
   const isHost = useSyncplayStore((state) => state.isHost);
   const timeSyncStable = useSyncplayStore((state) => state.timeSyncStable);
 
+  // MW-023 (review mobile__exploiter #3): every load carries a monotonic
+  // sequence token. Only the most-recently-STARTED request may write the
+  // list, surface an error, or lower the spinner — an older response that
+  // lands after a newer one is discarded instead of overwriting fresher
+  // rooms (the stale-beats-fresh class the unguarded Refresh exposed).
+  const roomsRequestSeq = useRef(0);
+
   const loadPublicRooms = useCallback(async () => {
+    const seq = ++roomsRequestSeq.current;
     setIsLoadingRooms(true);
     setError(null);
     try {
       const rooms = await syncPlayManager.getPublicRooms();
+      if (seq !== roomsRequestSeq.current) return;
       setPublicRooms(rooms);
     } catch (err) {
+      if (seq !== roomsRequestSeq.current) return;
       // R15-10: user-facing text comes from the error-code catalog, never raw
       // err.message (axios transport prose). The raw error stays in dev logs.
       console.warn('[SyncPlayModal] load rooms failed:', err);
       setError(describeSyncPlayRestError(err));
     } finally {
-      setIsLoadingRooms(false);
+      // A superseded request must not clear the spinner a newer one owns.
+      if (seq === roomsRequestSeq.current) {
+        setIsLoadingRooms(false);
+      }
     }
   }, []);
 
@@ -88,6 +101,17 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         isPublic,
         password: password || undefined,
       });
+
+      // MW-026 (review mobile__exploiter #7): a 2xx create whose envelope
+      // carries no group id is a contract violation — dialing the socket with
+      // an empty group_id silently strands the viewer outside their own
+      // party. Refuse the dial and fail loud instead.
+      if (result.roomId === '') {
+        setError(
+          'The server created the room but returned no room id — nothing to join. Try again or check the server version.'
+        );
+        return;
+      }
 
       // Open the SyncPlay socket — the transport (port + token carrier) is
       // resolved inside the service by `syncplay/wsEndpoint.ts`; the modal has
@@ -115,6 +139,13 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
   };
 
   const handleJoinRoom = async (roomId: string, roomPassword?: string) => {
+    // MW-026: the same junk lands in the browse list — `mapRoom` degrades a
+    // group row with no id to '' (it must, to keep the row honest), so the
+    // join dial needs its own refuse-loud gate before any REST/socket leg.
+    if (roomId === '') {
+      setError('That room row carries no room id — the server response is malformed; refresh the list and try again.');
+      return;
+    }
     setIsJoining(true);
     setError(null);
 
@@ -312,6 +343,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                     <TouchableOpacity
                       key={room.id}
                       style={styles.roomRow}
+                      testID="syncplay-room-row"
                       onPress={() => handleJoinRoom(room.id)}
                       disabled={isJoining}
                     >
@@ -327,8 +359,13 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 </ScrollView>
               )}
               <TouchableOpacity
-                style={styles.refreshButton}
+                style={[styles.refreshButton, isLoadingRooms && styles.actionButtonDisabled]}
+                testID="syncplay-refresh"
                 onPress={loadPublicRooms}
+                // MW-023: no second GET while one is in flight (the seq token
+                // in loadPublicRooms still owns the write lane for every
+                // other request origin, e.g. the reopen-while-pending effect).
+                disabled={isLoadingRooms}
               >
                 <Text style={styles.refreshButtonText}>Refresh</Text>
               </TouchableOpacity>

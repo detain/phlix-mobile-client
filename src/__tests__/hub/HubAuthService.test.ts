@@ -438,3 +438,66 @@ describe('HubAuthService', () => {
     });
   });
 });
+
+// MW-025 (review mobile__casualgamer #4): the Settings screen rendered
+// "Signed in as {36-char account UUID}" because the session only ever kept
+// `user.id`. The hub's createAuthResponse (phlix-hub AuthManager.php:673-688
+// at 30012378) nests the CURRENT_USER row minus the password hash — `username`
+// and `email` are ON this wire — so the boundary parse carries a friendly
+// display name when the hub provides one, and NOTHING is invented when it
+// does not (an absent identity stays absent; the UI picks a label).
+describe('HubAuthService display identity (MW-025)', () => {
+  const identityService = new HubAuthService();
+
+  const authEnvelope = (user: Record<string, unknown>) => ({
+    data: {
+      access_token: 'a',
+      refresh_token: 'r',
+      expires_in: 3600,
+      user,
+    },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('carries the hub username as the friendly display name', async () => {
+    mockPost.mockResolvedValueOnce(
+      authEnvelope({ id: 'user-123', username: 'ada', email: 'ada@example.com' })
+    );
+
+    const session = await identityService.signIn('https://hub.example.com', 'ada', 'pw');
+
+    expect(session.displayName).toBe('ada');
+    expect(session.userId).toBe('user-123');
+  });
+
+  it('falls back to the email when the row carries no username', async () => {
+    mockPost.mockResolvedValueOnce(
+      authEnvelope({ id: 'user-123', email: 'ada@example.com' })
+    );
+
+    const session = await identityService.signIn('https://hub.example.com', 'ada', 'pw');
+
+    expect(session.displayName).toBe('ada@example.com');
+  });
+
+  it('invents nothing when the hub carries neither name nor email', async () => {
+    mockPost.mockResolvedValueOnce(authEnvelope({ id: 'user-123' }));
+
+    const session = await identityService.signIn('https://hub.example.com', 'ada', 'pw');
+
+    expect(session.displayName).toBeUndefined();
+  });
+
+  it('the refresh envelope carries it too (same createAuthResponse leg)', async () => {
+    mockPost.mockResolvedValueOnce(
+      authEnvelope({ id: 'user-123', username: 'ada', email: 'ada@example.com' })
+    );
+
+    const session = await identityService.refresh('https://hub.example.com', 'r');
+
+    expect(session.displayName).toBe('ada');
+  });
+});

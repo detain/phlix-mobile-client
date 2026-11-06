@@ -32,6 +32,73 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w06 mobile: SyncPlay room-list hardening, login server-field guidance, hub display identity, download fail-loud, signing-docs re-anchor (MW-023–MW-028) — 2026-11-06
+
+- MW-023 (review mobile__exploiter #3): the room-list Refresh button is now
+  a gated control — `disabled={isLoadingRooms}` with the repo's existing
+  dim style — and `loadPublicRooms()` carries a monotonic request-sequence
+  token: every state write (rooms, error, loading-clear) belongs to the
+  LATEST press, so an out-of-order response can no longer overwrite a fresh
+  room list with a stale one. Pinned by the new renderer-free
+  `SyncPlayModal.inflight.test.tsx` (SlotHost doctrine, testID seam like
+  SeekBar's): the control is disabled mid-flight and live after; two
+  overlapping loads resolve second-then-first and only the fresh roster
+  renders.
+- MW-024 (review mobile__casualgamer #3): the Server URL field is now
+  optional by law, matching how `client.ts` already resolves the target
+  (runtime setting → build-time `PHLIX_BASE_URL` → `https://api.phlix.app`).
+  A blank field means "no override": the persisted address is cleared and
+  the tiers dial the built-in default; typed addresses keep the audit-M6
+  prefix-less → https law untouched. All three handlers (sign-in, signup,
+  passkey) share one `resolveServerTarget()`, and the field gained the plain
+  sentence the finding asked for — what the app connects to, where the
+  address comes from, and what blank does. The README's "No configuration is
+  required to start" promise is now TRUE at the UI instead of contradicted
+  by it. fs-gate pins in `loginScreen.gate.test.ts` (+4).
+- MW-025 (review mobile__casualgamer #4): "Signed in as {36-char UUID}" is
+  gone. `HubAuthService.parseSession` now reads the hub's
+  `createAuthResponse` `user` object (provenance re-read at phlix-hub
+  @30012378: `AuthManager.php:673-688`; the row carries `username` and
+  `email`) into an optional `HubSession.displayName` (username, else email;
+  `claims.sub` is deliberately NOT a display candidate — it re-couples to a
+  JWT payload field), the sanitized AsyncStorage blob persists it next to
+  `userId` (same non-secret envelope class, needed on cold start), and
+  `refreshHubSession` carries a known label across rotation when an older
+  hub's refresh envelope omits `user`. SettingsScreen renders
+  "Signed in as {displayName}" and degrades to "Signed in to Hub" — never
+  the raw id. 7 new pins (service parse 4, store persistence 3) +
+  `mw025HubIdentity.test.ts` source pin.
+- MW-026 (review mobile__exploiter #7): hostile-epoch room lists can no
+  longer redden themselves — `isoFromUnixSeconds` range-checks against the
+  Date ceiling (±8.64e12 s) and degrades an absurd `created_at` to an empty
+  timestamp while the row itself still maps; and an id-less create/join
+  response is refused BEFORE the socket dial in both modal paths (empty
+  `group_id` never reaches `connectWithRoom`/`joinRoom`), with the failure
+  surfaced through the existing error lane. New `SyncPlayManager.rooms.test.ts`
+  (+5) + 3 modal pins in the inflight file.
+- MW-027 (review mobile__crossfe #14): `downloadSimulated` is deleted.
+  When `NativeModules.PhlixDownloader` is unregistered, `beginDownload`
+  now fails the task up front — before the stream-URL dial — with the named
+  missing-module error, instead of faking progress to 100% and marking the
+  task completed over a file that was never written. The old test that
+  celebrated the phantom was flipped to pin the refusal; the Wi-Fi-gate
+  suite now runs on a stubbed native module (its sim-interval rationale
+  retired with the simulator). `DEVELOPER.md`/`src/native/types.ts`/
+  DownloadService prose corrected to match.
+- MW-028 (review mobile__devops #5): `docs/signing.md` coordinate drift
+  re-anchored at this tip (all three claims re-verified on disk first):
+  build-ios.yml `CODE_SIGNING_ALLOWED=NO` sites `:56,:121` → `:67,:141`;
+  `android/app/build.gradle:43-48` debug signingConfig → `:63-79`
+  (`signingConfig signingConfigs.debug` at :75); build-android.yml release-APK
+  upload `:98-104` → `:125-133`. The pbxproj `:317,:402` cite re-checked —
+  still true, untouched.
+- Battery: 122 → 125 suites, 1767 → 1792 tests (+25: rooms 5, modal 6,
+  login gate 4, hub service 4, hub store 3, SettingsScreen pin 3;
+  DownloadService sim-fallback pin flipped in place), 1 skipped unchanged;
+  tsc 0; eslint 0 errors, the 2 pre-existing warnings held. 21 pins measured
+  RED at parent 018acc5a3 (`/tmp` red capture 21 failed / 93 passed across
+  the seven files) before any source edit; zero new wire codes.
+
 ### Fixed — wave w05 mobile: hub wire-truth boundary parsing + doc-truth pass (MW-017–MW-022) — 2026-11-06
 
 - MW-022 (review mobile__exploiter #5/#6) is the behavior cure: every hub

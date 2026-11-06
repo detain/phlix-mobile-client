@@ -202,16 +202,24 @@ describe('DownloadService', () => {
       expect(destination).not.toMatch(/\.\./);
     });
 
-    it('falls back to simulated download when native module is absent', async () => {
+    // MW-027 (review mobile__crossfe #14): this pin used to ENCODE the bug —
+    // with the native module absent the service ran a simulator that faked
+    // progress to 100% and marked the task 'completed' with a getLocalPath()
+    // for a file NEVER WRITTEN: a phantom-complete offline promise. A build
+    // without PhlixDownloader cannot produce a playable file, so the task now
+    // FAILS LOUDLY with the named missing-module reason — and fails BEFORE
+    // the stream-URL dial, which was wasted network for an impossible work.
+    it('native module absent: fails loudly with the named missing-module error (MW-027)', async () => {
       mockGetStreamUrl.mockResolvedValue('https://signed/stream.mp4');
       const { service, native } = loadService({ withNative: false });
       expect(native).toBeNull();
       const taskId = await service.startDownload(makeItem({ id: 'item-1' }));
       await flush();
-      // task moved to downloading via the simulated path (no crash)
-      expect(useDownloadStore.getState().tasks[taskId].status).toBe('downloading');
-      // Cancel to clear the simulated-download interval (no leaked timer).
-      await service.cancelDownload(taskId);
+
+      const task = useDownloadStore.getState().tasks[taskId];
+      expect(task.status).toBe('failed');
+      expect(task.error).toMatch(/PhlixDownloader native module is not registered/);
+      expect(mockGetStreamUrl).not.toHaveBeenCalled();
     });
 
     it('marks the task failed when no stream URL is available', async () => {

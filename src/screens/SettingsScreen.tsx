@@ -406,8 +406,14 @@ const SettingsScreen: React.FC = () => {
                 {/* Signed in to Hub */}
                 <View style={styles.hubSignedIn}>
                   <View style={styles.hubInfo}>
+                    {/* MW-025 (review mobile__casualgamer #4): the row used to
+                        print the raw 36-char account UUID. Show the hub's
+                        friendly identity when the boundary captured one, and a
+                        plain label (never the id) when the hub carried none. */}
                     <Text style={styles.hubSignedInText}>
-                      Signed in as {session.userId}
+                      {session.displayName
+                        ? `Signed in as ${session.displayName}`
+                        : 'Signed in to Hub'}
                     </Text>
                     <Text style={styles.hubUrlText}>{hubUrl}</Text>
                   </View>

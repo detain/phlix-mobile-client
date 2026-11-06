@@ -66,9 +66,10 @@ export interface PhlixPlayerInterface extends NativeModule {
  * module (`android/.../download/PhlixDownloaderModule.kt`).
  *
  * NOTE(E4-native): the native iOS/Android implementations are UNTESTED in CI —
- * there is no device/simulator build that runs in this environment. The JS layer
- * (DownloadService) falls back to a simulated downloader when this module is
- * absent (Jest + before the native side is built), so the app stays functional.
+ * there is no device/simulator build that runs in this environment. When this
+ * module is ABSENT (Jest + a build whose native registration failed),
+ * DownloadService now fails the task loudly with the named missing-module
+ * error (MW-027) — the old simulated downloader that faked completion is gone.
  */
 export interface PhlixDownloaderInterface extends NativeModule {
   /**

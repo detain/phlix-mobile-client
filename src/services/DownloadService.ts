@@ -74,8 +74,9 @@ class DownloadService {
 
   /**
    * Subscribe to the native PhlixDownloader event stream. Guarded so it is a
-   * no-op when the native module is absent (Jest + the simulated fallback path),
-   * which keeps the app working before the native side is built.
+   * no-op when the native module is absent (Jest), which keeps module load
+   * harmless before the native side is built — the download START itself
+   * fails loudly in that state (MW-027), it is never simulated.
    */
   private initNativeEvents(): void {
     const downloader = getNativeDownloader();
@@ -88,8 +89,8 @@ class DownloadService {
         downloader as unknown as ConstructorParameters<typeof NativeEventEmitter>[0],
       );
     } catch {
-      // NativeEventEmitter can throw if the module isn't a real emitter — stay
-      // on the simulated path rather than crashing.
+      // NativeEventEmitter can throw if the module isn't a real emitter —
+      // degrade to no live progress events rather than crashing the service.
       return;
     }
     this.eventSubscriptions = [
@@ -272,6 +273,20 @@ class DownloadService {
     store.updateTaskStatus(taskId, 'downloading');
 
     try {
+      // MW-027 (review mobile__crossfe #14): with the native downloader
+      // unregistered this device CANNOT produce a playable file — the old
+      // lane ran a simulator that faked progress to 100% and marked the task
+      // 'completed' over a path never written: a phantom-complete offline
+      // promise. Fail the task LOUDLY with the named missing-module reason,
+      // and fail BEFORE the stream-URL dial, which is wasted network for
+      // work this build cannot do.
+      const PhlixDownloader = getNativeDownloader();
+      if (!PhlixDownloader?.startDownload) {
+        throw new Error(
+          'Downloads are unavailable in this build: the PhlixDownloader native module is not registered'
+        );
+      }
+
       // E2: getStreamUrl resolves the signed direct-play URL from media detail.
       // The total size is not known up front (no transcode probe here) — pass 0
       // and let the native downloader report the real size as it streams.
@@ -283,14 +298,9 @@ class DownloadService {
       const localPath = this.getLocalPath(task.item);
       store.updateTaskProgress(taskId, task.resumeOffset ?? 0, 0);
 
-      const PhlixDownloader = getNativeDownloader();
-      if (PhlixDownloader?.startDownload) {
-        // 5-arg shape (taskId, url, localPath, resumeOffset, totalBytesHint) —
-        // identical across the TS interface and both native modules.
-        PhlixDownloader.startDownload(taskId, streamUrl, localPath, task.resumeOffset ?? 0, 0);
-      } else {
-        this.downloadSimulated(taskId, 0);
-      }
+      // 5-arg shape (taskId, url, localPath, resumeOffset, totalBytesHint) —
+      // identical across the TS interface and both native modules.
+      PhlixDownloader.startDownload(taskId, streamUrl, localPath, task.resumeOffset ?? 0, 0);
     } catch (err) {
       store.updateTaskStatus(taskId, 'failed', err instanceof Error ? err.message : 'Failed to start download');
       this.activeDownloads.delete(taskId);
@@ -298,32 +308,9 @@ class DownloadService {
     }
   }
 
-  private downloadSimulated(taskId: string, totalBytes: number): void {
-    const store = useDownloadStore.getState();
-    let downloaded = store.tasks[taskId]?.downloadedBytes ?? 0;
-
-    const interval = setInterval(() => {
-      const task = store.tasks[taskId];
-      if (!task || task.status !== 'downloading') {
-        clearInterval(interval);
-        return;
-      }
-      downloaded = Math.min(downloaded + Math.floor(totalBytes * 0.1), totalBytes);
-      store.updateTaskProgress(taskId, downloaded, totalBytes);
-
-      const updated = store.tasks[taskId];
-      this.notifyListeners(updated);
-
-      if (downloaded >= totalBytes) {
-        clearInterval(interval);
-        const localPath = this.getLocalPath(updated.item);
-        store.updateTaskLocalPath(taskId, localPath);
-        store.updateTaskStatus(taskId, 'completed');
-        this.activeDownloads.delete(taskId);
-        this.processQueue();
-      }
-    }, 500);
-  }
+  // (MW-027 removed the `downloadSimulated` lane that once lived here: with
+  // no native writer it could only ever fabricate completion. beginDownload
+  // now refuses the work up front instead.)
 
   private getLocalPath(item: MediaItem): string {
     // BOTH wire-supplied parts are sanitized, not just the title: `item.id` is
@@ -343,9 +330,10 @@ class DownloadService {
     // module already exported its private `reactContext.filesDir` as
     // `documentsPath` — which the JS side simply ignored. The Kotlin side
     // writes exactly the path JS hands it, so the JS↔native contract is now
-    // ONE constant on both platforms. The module-absent simulated fallback
-    // yields a root-relative fiction that is never written to disk (unchanged
-    // iOS-era behavior); the destination law-pin test keeps that honest.
+    // ONE constant on both platforms. Since MW-027 the module-absent build
+    // fails in `beginDownload` before reaching here, so every destination
+    // this returns is handed to a REGISTERED native writer; the `|| ''` tier
+    // stays as the published-constant-not-present degrade.
     const docsPath = getNativeDownloader()?.documentsPath || '';
     return `${docsPath}/${filename}`;
   }

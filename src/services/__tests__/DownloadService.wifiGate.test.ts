@@ -10,12 +10,41 @@
 // the gate to its contract: cellular + switch-on => tasks STAY queued (no
 // stream URL is even resolved); leaving cellular => they auto-start with no
 // user action; switch-off => cellular starts immediately.
+//
+// MW-027 (review mobile__crossfe #14) removed the module-absent simulator:
+// an unregistered PhlixDownloader now FAILS the task loudly. These gate pins
+// are about WHEN a start is attempted, not about the missing-module refusal,
+// so the file installs a minimal native downloader for its own module graph
+// — the gate runs on the REAL native start path, exactly as shipped.
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { MediaItem } from '../../types/media';
 import { useDownloadStore } from '../../store/downloadStore';
 import { useSettingsStore } from '../../stores/useSettingsStore';
 import { downloadService } from '../DownloadService';
+
+// Full-replacement react-native mock for this file's graph — the same minimal
+// shape DownloadService.test.ts pins (requireActual does not boot under
+// `testEnvironment: node`). The graph's total RN surface is NativeModules +
+// NativeEventEmitter (DownloadService) and Platform (NotificationService).
+// Factory-local jest.fn()s — a hoisted factory must not reference outer consts.
+jest.mock('react-native', () => {
+  const downloader = {
+    startDownload: jest.fn(),
+    pauseDownload: jest.fn(),
+    resumeDownload: jest.fn(),
+    cancelDownload: jest.fn(),
+    deleteFile: jest.fn(),
+    documentsPath: '/Documents',
+  };
+  return {
+    Platform: { OS: 'ios', select: (o: Record<string, unknown>) => o.ios },
+    NativeModules: { PhlixDownloader: downloader },
+    NativeEventEmitter: jest.fn().mockImplementation(() => ({
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+    })),
+  };
+});
 
 const mockGetStreamUrl = jest.fn();
 jest.mock('../../api/PlaybackManager', () => ({
@@ -29,11 +58,10 @@ const netinfo = NetInfo as unknown as {
   __resetNetwork: () => void;
 };
 
-// Fake timers are MANDATORY here: the module-absent simulated download arms a
-// 500ms interval whose late tick would fire after the file's module registry
-// is torn down (NativeModules getter then crashes the whole jest process).
-// advanceTimersByTimeAsync(0) drains microtasks (the async gate chain) without
-// ever letting that interval tick.
+// Fake timers stay: advanceTimersByTimeAsync(0) drains the async gate chain
+// (fetch → pump → beginDownload) deterministically without letting any queue
+// timer fire early. (The old hazard this file cited — a simulator interval
+// outliving the registry — was retired with the simulator itself by MW-027.)
 beforeAll(() => jest.useFakeTimers());
 afterAll(() => jest.useRealTimers());
 
@@ -71,7 +99,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  // Cancel stragglers so the simulated-download intervals never outlive us.
+  // Cancel stragglers so no task stays marked active past the file's life.
   for (const t of Object.values(useDownloadStore.getState().tasks)) {
     await downloadService.cancelDownload(t.id);
   }

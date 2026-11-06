@@ -34,3 +34,32 @@ describe('LoginScreen server-address honesty (M-MOBILE-02)', () => {
     expect(loginScreen).toContain('return `https://${url}`;');
   });
 });
+
+// MW-024 (review mobile__casualgamer #3): a brand-new viewer had nothing to
+// type — the field seeds empty (useSettingsStore default), and both submit
+// handlers refused a blank Server URL outright while the README promises the
+// app "defaults to https://api.phlix.app" (client.ts tier 3). The server field
+// is now OPTIONAL: blank means "no override — dial the app's built-in default"
+// (and clears any previously saved address, so the field is WYSIWYG), and the
+// label states plainly where a real address comes from. The audit-M6 law for
+// TYPED input is untouched (pinned above).
+describe('LoginScreen server field is optional with honest guidance (MW-024)', () => {
+  it('no handler refuses a blank Server URL at the gate any more', () => {
+    expect(loginScreen).not.toMatch(/!serverUrl\.trim\(\)/);
+  });
+
+  it('username and password remain required for every submit arm', () => {
+    // Sign-in + signup gates both check the two identity fields.
+    const gates = loginScreen.match(/!username\.trim\(\)[\s\S]{0,40}!password\.trim\(\)/g) ?? [];
+    expect(gates.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('a blank field clears the saved override (the field is what connects)', () => {
+    expect(loginScreen).toMatch(/setServerUrl\(''\)/);
+  });
+
+  it('says where the address comes from and what blank means', () => {
+    expect(loginScreen).toMatch(/your own\s+Phlix server/);
+    expect(loginScreen).toMatch(/Leave the\s+field blank/);
+  });
+});
