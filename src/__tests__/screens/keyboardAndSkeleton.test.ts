@@ -49,7 +49,31 @@ describe('M-MOBILE-47 — Login Enter path', () => {
     expect(source).toMatch(
       /onSubmitEditing=\{\(\) => passwordRef\.current\?\.focus\(\)\}/
     );
-    expect(source).toMatch(/onSubmitEditing=\{handleLogin\}/);
+    // MW-008 (review mobile__exploiter #1) rotated this pin: the old law
+    // hard-coded `onSubmitEditing={handleLogin}` and was MEASURED red at the
+    // parent — keyboard Go in signup mode fired POST /auth/login. The submit
+    // must mirror the button's mode-aware dispatch (LoginScreen :278).
+    expect(source).toMatch(
+      /onSubmitEditing=\{mode === 'signup' \? handleSignup : handleLogin\}/
+    );
+    expect(source).not.toMatch(/onSubmitEditing=\{handleLogin\}/);
+  });
+
+  test('the focus chain walks the fields the mode actually renders', () => {
+    // Signup inserts an Email field between Username and Password; the
+    // Username "next" must reach it (MW-008 — the same affordance law: a
+    // keyboard step must not skip a required signup field).
+    expect(source).toMatch(/const emailRef = useRef<TextInput>\(null\)/);
+    expect(source).toMatch(
+      /onSubmitEditing=\{\(\) => \(mode === 'signup' \? emailRef\.current\?\.focus\(\) : passwordRef\.current\?\.focus\(\)\)\}/
+    );
+    // The refs must be ATTACHED — at the parent every chain handler focused a
+    // ref no TextInput owned (zero `ref=` props in the file), so the whole
+    // Enter path was inert decoration (MEASURED red: git-show of the parent
+    // source greps zero ref attachments).
+    expect(source).toMatch(/ref=\{usernameRef\}/);
+    expect(source).toMatch(/ref=\{emailRef\}/);
+    expect(source).toMatch(/ref=\{passwordRef\}/);
   });
 });
 

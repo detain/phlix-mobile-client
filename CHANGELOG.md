@@ -32,6 +32,48 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w03 mobile docs truth + login/syncplay cures (MW-005–MW-010) — 2026-11-06
+
+- MW-005 (DEVELOPER.md truth): dropped the `UserRatingPicker` component
+  bullet — no such component exists in `src/` (the personal star row is an
+  inline `handleStarPress` row inside `MediaDetailScreen`, documented in
+  README's Features; the absence is gated by `wmin61UiPins.test.ts`).
+- MW-006 (DEVELOPER.md truth): rewrote both native "Key Features" lists
+  from the executed bridge surfaces. iOS: deleted "Playback rate control"
+  (zero rate APIs in `PhlixPlayerView.swift`/`.m`) and demoted "Subtitle
+  rendering via AVPlayerLayer" to the honest open `TODO(E3-native)`
+  sidecar seam; added PiP + background-audio + the actual prop/command
+  surface. Android: deleted "DASH" (`dash_url` is type-only, zero
+  consumers) and "Quality selection" (no track-selector surface); stated
+  the media3 1.4.1 HLS + WebVTT-sidecar reality and the five-command
+  bridge (no PiP/speed).
+- MW-007 (terminology): the one user-facing Group/Room mix — the active
+  party's "Leave Group" button in `SyncPlayModal` — now reads "Leave
+  Room", matching every other visible string. Wire payloads and internal
+  identifiers (`currentGroup`, `hashGroupPassword`, …) keep the protocol's
+  "group" law; README's SyncPlay bullet unified to room voice.
+- MW-008 (behavior): keyboard Go on the login Password field dispatched
+  `handleLogin` regardless of mode — in signup it fired POST /auth/login
+  and the signup path was unreachable by keyboard (exploiter #1). The
+  submit now mirrors the button (`mode === 'signup' ? handleSignup :
+  handleLogin`), the Username step walks the signup Email field, and the
+  focus-chain refs are finally ATTACHED to their TextInputs (at the parent
+  zero `ref=` props existed — the whole chain was inert decoration).
+  Red-first: mode-ternary + chain pins measured 2 red at the parent.
+- MW-009 (behavior): `useAuthStore.login()` gained a module-level
+  in-flight re-entry guard — a second concurrent call no-ops instead of
+  double-dispatching /auth/login (a dedicated flag rather than an
+  `isLoading` gate because the store boots `isLoading: true` for
+  hydration; the initial-state law is pinned by this suite). `register`
+  left unguarded (out of card scope). Red-first: guard test measured
+  `Expected number of calls: 1, Received: 2` at the parent.
+- MW-010 (behavior): `handleAppBackground()` now bumps
+  `connectionGeneration` before closing, so a dial still awaiting
+  endpoint resolution is superseded instead of constructing a WebSocket +
+  30s ping timer while backgrounded (exploiter #4; pairs with the M10
+  close-on-our-terms law). Red-first: mid-dial background test measured
+  `Expected: 0, Received: 1` socket builds at the parent.
+
 ### Changed — wave-5 contracts re-pin: @phlix/contracts #v0.5.5→#v0.5.6 + S280 route-manifest re-vendor (regen #36) — 2026-11-04
 
 - Tag-form pin bumped to `github:detain/phlix-contracts#v0.5.6` (tag object

@@ -142,6 +142,45 @@ describe('useAuthStore', () => {
       expect(useAuthStore.getState().error).toBe('bad creds');
       expect(useAuthStore.getState().isLoading).toBe(false);
     });
+
+    // MW-009 (review mobile__exploiter #2): the keyboard 'Go' path bypasses
+    // the button's disabled={isLoading}, so a spam could fan out into
+    // concurrent POST /auth/login dispatches. Shape chosen: NO-OP on re-entry
+    // — while one dispatch owns the state machine a second call returns
+    // immediately (the first call's outcome drives the UI). The deviating
+    // variant — an `isLoading` guard — is rejected ON PURPOSE: the store
+    // boots `isLoading: true` for hydration (and the initial-state law above
+    // pins it), which would silently dead-key the login form during a slow
+    // boot with no feedback. A dedicated in-flight flag separates "a login is
+    // dispatching" from "the store is loading".
+    it('re-entry guard: a second concurrent login() no-ops instead of double-dispatching', async () => {
+      let releaseLogin: (value: unknown) => void = () => {};
+      mockedAuthManager.login.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            releaseLogin = resolve as (value: unknown) => void;
+          })
+      );
+
+      const first = useAuthStore.getState().login('https://srv', 'bob', 'pw');
+      const second = useAuthStore.getState().login('https://srv', 'bob', 'pw');
+
+      expect(mockedAuthManager.login).toHaveBeenCalledTimes(1);
+
+      releaseLogin({ user: mockUser, token_type: 'Bearer' });
+      await Promise.all([first, second]);
+
+      // The in-flight call's outcome lands exactly as before…
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().user).toEqual(mockUser);
+
+      // …and the guard unwinds: a later login dispatches again.
+      mockedAuthManager.login.mockImplementation(() =>
+        Promise.resolve({ user: mockUser, token_type: 'Bearer' } as never)
+      );
+      await useAuthStore.getState().login('https://srv', 'bob', 'pw');
+      expect(mockedAuthManager.login).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('logout', () => {

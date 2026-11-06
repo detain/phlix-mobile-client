@@ -1893,4 +1893,29 @@ describe('SyncPlayService - Membership continuity (C1/C3/C4/M9/M10)', () => {
 
     syncPlayService.disconnect();
   });
+
+  // MW-010 (review mobile__crossfe #5 + mobile__exploiter #4): the stated
+  // background law at SyncPlayService.ts:737-741 is "stop all timers and
+  // close the socket on OUR terms". Closing is real, but the dial leg is
+  // ASYNC (endpoint resolve reads the token vault); with no generation bump
+  // in handleAppBackground, backgrounding mid-dial let the pending leg pass
+  // its `generation !== this.connectionGeneration` check (openSocket :859)
+  // and CONSTRUCT the WebSocket — with the 30 s ping interval on its heels —
+  // while the app sits in background. The bump makes the superseded leg
+  // provably drop instead.
+  it('MW-010: backgrounding mid-dial bumps the generation — the pending socket never materialises', async () => {
+    setupMocks({}, { currentGroup: GROUP });
+    syncPlayService.connect('member-123'); // 'connecting'; openSocket is awaiting the vault leg
+    syncPlayService.handleAppBackground(); // must supersede the in-flight dial
+    await pump();
+
+    expect(MockWebSocket.builds).toBe(0); // no zombie socket behind the background guard
+
+    // The foreground arm still owns recovery: it re-dials from scratch.
+    syncPlayService.handleAppForeground();
+    await pump();
+    expect(MockWebSocket.builds).toBe(1);
+
+    syncPlayService.disconnect();
+  });
 });

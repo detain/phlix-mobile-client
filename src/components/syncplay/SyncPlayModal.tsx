@@ -232,7 +232,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
               style={styles.leaveButton}
               onPress={handleLeaveRoom}
             >
-              <Text style={styles.leaveButtonText}>Leave Group</Text>
+              <Text style={styles.leaveButtonText}>Leave Room</Text>
             </TouchableOpacity>
 
             {error && <Text style={styles.errorText}>{error}</Text>}

@@ -36,6 +36,18 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+// MW-009 (review mobile__exploiter #2): store-level re-entry guard for the
+// login dispatch. The keyboard "Go" path (and any double-tap that slips past
+// the button's disabled={isLoading}) used to fire a CONCURRENT second
+// POST /auth/login. A second login() while one is in flight now no-ops and
+// lets the in-flight dispatch own the outcome (its promise still resolves).
+//
+// Why a dedicated flag instead of gating on isLoading: the store BOOTS
+// isLoading: true for hydration (initial-state law pinned by
+// useAuthStore.test.ts), so an isLoading guard would treat boot hydration as a
+// login in flight and could dead-key the form during a slow boot.
+let loginDispatchInFlight = false;
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
@@ -43,6 +55,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   error: null,
 
   login: async (serverUrl: string, username: string, password: string) => {
+    if (loginDispatchInFlight) {
+      return; // MW-009: a login is already dispatching; it owns the outcome.
+    }
+    loginDispatchInFlight = true;
     set({ isLoading: true, error: null });
     try {
       // The connection target is an INPUT, not part of the auth response —
@@ -67,6 +83,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
       throw error;
+    } finally {
+      loginDispatchInFlight = false;
     }
   },
 

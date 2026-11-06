@@ -49,10 +49,10 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 - **Search**: Global text search across all media types, plus an **advanced filter sheet** (filter by genre, content rating, and year range, and choose the sort field — name, year, rating, date added, or runtime — with an ascending/descending toggle). When browsing (no text query) with name sorting, an **A–Z jump rail** appears down the right edge so you can leap straight to titles starting with any letter (letters with no matches are greyed out); results page in as you scroll.
 - **User Preferences**: Customizable playback settings and app preferences
 - **Continue Watching**: Resume playback from where you left off
-- **SyncPlay watch parties**: The player carries a SyncPlay control for
+- **SyncPlay rooms**: The player carries a SyncPlay control for
   synchronized co-watching: create a room (optionally **public**, with an
   optional password), or join one by room ID from the modal's browse/join
-  surface. The host's play/pause/seek commands drive the group — members'
+  surface. The host's play/pause/seek commands drive the room — members'
   timelines follow the host and manual member seeks defer to the room
   clock. Failures arrive as stable server error codes and are shown as
   readable sentences from a client-side catalog instead of raw protocol

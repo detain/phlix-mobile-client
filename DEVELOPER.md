@@ -85,7 +85,6 @@ Located in `src/components/`, organized by domain:
 - `ContinueWatching`: Resume playback component
 - `RecommendationCard`: Recommendation rail card
 - `RatingBadge`: Age/content rating chip
-- `UserRatingPicker`: Personal star-rating control
 - `ServerSwitcher`: Active-server picker for multi-server setups
 
 **Player Components**
@@ -128,10 +127,16 @@ ios/LocalPods/PhlixPlayer/
 ```
 
 **Key Features**:
-- Native AVPlayer for video playback
-- Support for HLS streams
-- Subtitle rendering via AVPlayerLayer
-- Playback rate control
+- Native AVPlayer for video playback, HLS included
+- Picture-in-picture via `AVPictureInPictureController`
+- Background audio (`.playback` audio session + `UIBackgroundModes=[audio]`)
+- Bridge surface — `play`/`pause`/`seekTo`/`updateVolume`/`updateMuted`/
+  `startPiP`/`stopPiP` with `src`/`autoPlay`/`startPosition`/`subtitleUrl`
+  props (as implemented — the surface is `PhlixPlayerViewManager.m`)
+- Subtitles: the `subtitleUrl` prop is accepted, but native rendering is an
+  open `TODO(E3-native)` sidecar seam in `PhlixPlayerView.swift` — no
+  AVPlayerLayer subtitle track is wired up yet
+- No playback-rate control exists on this bridge
 
 **Integration**:
 ```typescript
@@ -158,10 +163,16 @@ android/.../player/
 ```
 
 **Key Features**:
-- ExoPlayer for video playback
-- Support for HLS and DASH streams
-- Subtitle track selection
-- Quality selection
+- media3 1.4.1 ExoPlayer for video playback (HLS via its extractors; DASH is
+  NOT wired — `dash_url` exists only in API types with zero consumers)
+- WebVTT sidecar subtitles via `MediaItem.SubtitleConfiguration` (setting
+  `subtitleUrl` re-prepares the item; embedded-track handling is deferred —
+  E3-native)
+- Bridge surface — `play`/`pause`/`seekTo`/`setVolume`/`setMuted` with
+  `src`/`autoPlay`/`startPosition`/`volume`/`muted`/`subtitleUrl` props
+  (as implemented — the surface is `PhlixPlayerViewManager.kt`). No PiP, no
+  quality/track selection, no speed control.
+- Pauses automatically when the host view pauses (lifecycle safety)
 
 ### Passkeys / WebAuthn - PhlixWebAuthn (E10e)
 

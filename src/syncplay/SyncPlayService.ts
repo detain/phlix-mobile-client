@@ -739,11 +739,20 @@ class SyncPlayService {
    * close the socket on OUR terms instead of letting the OS do it at an
    * unpredictable moment. Membership intent (group, gate, member id) is kept
    * — the foreground arm re-dials.
+   *
+   * MW-010 (review mobile__exploiter #4): the close is paired with a
+   * connectionGeneration bump. Backgrounding while openSocket still awaits
+   * resolveSyncPlayWsEndpoint used to let that pending leg pass its generation
+   * re-check and construct a WebSocket (with its 30s ping interval) WHILE
+   * backgrounded — violating the law stated above. The bump supersedes every
+   * in-flight dial: a leg that resolves after it sees a stale generation and
+   * drops on the floor. The foreground arm re-dials with a fresh generation.
    */
   handleAppBackground(): void {
     if (this.connectionState === 'disconnected' && this.ws === null && this.reconnectTimeout === null) {
       return; // nothing running — stay inert
     }
+    this.connectionGeneration++;
     this.stopReconnect();
     this.stopSyncInterval();
     this.pongPendingAt = null;

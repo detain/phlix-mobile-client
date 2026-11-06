@@ -68,7 +68,14 @@ const LoginScreen: React.FC = () => {
   // M-MOBILE-47 (review mobile__gameux m13): the form had no Enter path at
   // all — returnKeyType next/go plus a focus chain makes the keyboard's own
   // action walk Server → Username → (go) Sign in.
+  // MW-008 (review mobile__exploiter #1): the chain and the submit are now
+  // MODE-AWARE. Signup inserts an Email field between Username and Password,
+  // so the keyboard must walk it (not skip it), and the Password "Go" key
+  // dispatches the SAME action as the button (was: handleLogin hard-coded —
+  // keyboard Go in signup mode fired POST /auth/login and the signup path
+  // was unreachable by keyboard).
   const usernameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
 
   const login = useAuthStore((state) => state.login);
@@ -237,8 +244,9 @@ const LoginScreen: React.FC = () => {
                 placeholderTextColor="#666"
                 autoCapitalize="none"
                 autoCorrect={false}
+                ref={usernameRef}
                 returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
+                onSubmitEditing={() => (mode === 'signup' ? emailRef.current?.focus() : passwordRef.current?.focus())}
                 blurOnSubmit={false}
               />
             </View>
@@ -255,6 +263,10 @@ const LoginScreen: React.FC = () => {
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
+                  ref={emailRef}
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  blurOnSubmit={false}
                 />
               </View>
             )}
@@ -268,8 +280,9 @@ const LoginScreen: React.FC = () => {
                 placeholder="Enter your password"
                 placeholderTextColor="#666"
                 secureTextEntry
+                ref={passwordRef}
                 returnKeyType="go"
-                onSubmitEditing={handleLogin}
+                onSubmitEditing={mode === 'signup' ? handleSignup : handleLogin}
               />
             </View>
 
