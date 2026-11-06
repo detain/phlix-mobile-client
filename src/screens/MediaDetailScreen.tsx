@@ -30,6 +30,7 @@ import { userManager } from '../api/UserManager';
 import { buildResumeMap, ticksToSeconds } from '../utils/resumePositions';
 import { MediaItem, Season, Episode } from '../types/media';
 import type { Chapter } from '../types/playback';
+import type { HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 import {
   starsFromRating,
   ratingForStar,
@@ -55,14 +56,18 @@ import { DetailSkeleton } from '../components/ui/ContentSkeleton';
 // LIVE window via useWindowDimensions (below) instead of a module-scope
 // `Dimensions.get('window')` frozen at import.
 
-type DetailRouteParams = {
-  MediaDetail: { itemId: string };
-};
+// MW-014 (review mobile__crossfe): this screen mounts on BOTH the Home and
+// Library stacks (RootNavigator.tsx:144 and :166), whose param lists each
+// declare `MediaDetail: { itemId: string }`. The deleted local twin
+// re-declared that shape privately and could drift from the two navigators
+// without the compiler noticing; the union below derives the route type
+// from the SAME global declarations the navigators are built from.
+type MediaDetailRouteProp = RouteProp<HomeStackParamList | LibraryStackParamList, 'MediaDetail'>;
 
 type DetailNavigationProp = NativeStackNavigationProp<any>;
 
 const MediaDetailScreen: React.FC = () => {
-  const route = useRoute<RouteProp<DetailRouteParams, 'MediaDetail'>>();
+  const route = useRoute<MediaDetailRouteProp>();
   const navigation = useNavigation<DetailNavigationProp>();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();

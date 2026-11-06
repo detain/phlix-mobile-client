@@ -459,8 +459,10 @@ Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
 `main`/`master`/`develop`; each can additionally be started manually
 (`workflow_dispatch`), which never replaces the automatic triggers:
 
-- **Tests**: `tsc` type check, ESLint, and the Jest suite (serial), with
-  coverage uploaded.
+- **Tests**: `tsc` type check, ESLint, and the Jest suite — serial by
+  construction: the `package.json` `test` script is `jest --runInBand`
+  (MW-016, review mobile__devops: this sentence used to describe an intent
+  the CI line did not execute), with coverage uploaded.
 - **Build Android**: builds the debug APK and uploads it as a workflow
   artifact on every push/PR. Pushes to `main`/`master` additionally build
   a release APK — debug-signed until real signing is wired (see

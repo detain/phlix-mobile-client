@@ -68,6 +68,11 @@ jobs:
         # NO --passWithNoTests (estate CI-gate audit 2026-10-02): the suite is
         # real, so a jest.config/testMatch regression (or a typo'd pattern) that
         # matches ZERO tests must exit 1 — never green this step vacuously.
+        # MW-016 (review mobile__devops): SERIAL by law — the package.json test
+        # script carries `jest --runInBand` (estate convention, CHANGELOG-gated
+        # local practice), so this invocation and README's "the Jest suite
+        # (serial)" claim describe the SAME execution. Before this wave the CI
+        # line ran default parallel workers while the README asserted serial.
         run: npm test -- --coverage
 
       - name: Upload coverage

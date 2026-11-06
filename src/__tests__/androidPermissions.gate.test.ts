@@ -29,3 +29,27 @@ describe('AndroidManifest notification permission (review mobile__crossfe M3)', 
     );
   });
 });
+
+/**
+ * MW-013 (review mobile__crossfe): the READ_MEDIA_* trio declared a gallery
+ * capability the app does not have — zero MediaStore/Environment usage in
+ * android/ and src/, zero PermissionsAndroid calls in src/ (so on API 33+ the
+ * trio was never even requested). Dead media permissions surface in the
+ * Play Store permission disclosure; retirement is fs-pinned HERE, so a
+ * re-declaration (or a resurrection of the legacy pair) reddens the gate
+ * instead of silently shipping. If a real gallery feature lands, its lane
+ * updates this table in the SAME change that wires the consumer.
+ */
+describe('AndroidManifest media-permission retirement (review mobile__crossfe, MW-013)', () => {
+  const DEAD_MEDIA_PERMISSIONS = [
+    'android.permission.READ_MEDIA_IMAGES',
+    'android.permission.READ_MEDIA_VIDEO',
+    'android.permission.READ_MEDIA_AUDIO',
+    'android.permission.READ_EXTERNAL_STORAGE',
+    'android.permission.WRITE_EXTERNAL_STORAGE',
+  ];
+
+  it.each(DEAD_MEDIA_PERMISSIONS)('does not declare %s', (permission) => {
+    expect(manifest).not.toContain(`<uses-permission android:name="${permission}"`);
+  });
+});

@@ -22,6 +22,8 @@ import {
   SEEK_UNKNOWN_DURATION_CEILING_SECONDS,
   SYNC_REANCHOR_TOLERANCE_SECONDS,
 } from '../../syncplay/wireUnits';
+import { wirePlaybackState } from '../../syncplay/SyncPlayService';
+import type { PlaybackState } from '@phlix/syncplay';
 
 describe('wireMsToSeconds', () => {
   it('decodes ms to seconds and passes undefined through', () => {
@@ -124,5 +126,44 @@ describe('syncReanchorTargetSeconds (MW-118)', () => {
     // bounds the churn rate.
     expect(syncReanchorTargetSeconds(21, 20, true)).toBe(21);
     expect(syncReanchorTargetSeconds(20.4, 20, true)).toBe(20.4);
+  });
+});
+
+// ── MW-011 (review mobile__crossfe): the playback-state boundary parser ─────
+// The canonical SPEC §4 union lives in @phlix/syncplay
+// (node_modules/@phlix/syncplay/dist/messages.d.ts:64 — playing | paused |
+// buffering | stopped). The service whitelist used to be a 3-member local
+// twin, so every legitimate `buffering` group frame collapsed to `stopped`
+// — the group UI read an active party as ended.
+describe('wirePlaybackState (MW-011 — library-union parity)', () => {
+  // Exhaustiveness by CONSTRUCTION: `Record<PlaybackState, true>` makes `tsc`
+  // red if the library union grows (key missing here) OR renames (key extra
+  // here) — the same compile gate already pins the service's
+  // `PLAYBACK_STATES: readonly PlaybackState[]` literal. This table and the
+  // whitelist are then reconciled at RUNTIME by the identity test below.
+  const LIBRARY_STATES: Record<PlaybackState, true> = {
+    playing: true,
+    paused: true,
+    buffering: true,
+    stopped: true,
+  };
+
+  it.each(Object.keys(LIBRARY_STATES))(
+    'admits the canonical library state %s unchanged (no collapse)',
+    (state) => {
+      expect(wirePlaybackState(state)).toBe(state);
+    }
+  );
+
+  it('preserves buffering — the M-MOBILE-26/54 collapse this wave cures', () => {
+    expect(wirePlaybackState('buffering')).toBe('buffering');
+  });
+
+  it('still lands hostile values on the stopped-safe fallback (M-MOBILE-26/54 law intact)', () => {
+    expect(wirePlaybackState('playing-fast')).toBe('stopped');
+    expect(wirePlaybackState(7)).toBe('stopped');
+    expect(wirePlaybackState({ state: 'playing' })).toBe('stopped');
+    expect(wirePlaybackState(null)).toBe('stopped');
+    expect(wirePlaybackState(undefined)).toBe('stopped');
   });
 });

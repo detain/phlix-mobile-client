@@ -70,7 +70,7 @@ import {
   MAX_ACCEPTABLE_RTT,
   STABILITY_VARIANCE_THRESHOLD,
 } from '@phlix/syncplay';
-import type { SyncPlayMessageType } from '@phlix/syncplay';
+import type { PlaybackState, SyncPlayMessageType } from '@phlix/syncplay';
 
 // ---------------------------------------------------------------------------
 // Message Types — canonical map + protocol version come from @phlix/syncplay.
@@ -292,7 +292,13 @@ export interface SyncPlayGroup {
   name: string;
   members: SyncPlayMember[];
   currentMediaId: string | null;
-  playbackState: 'playing' | 'paused' | 'stopped';
+  /**
+   * The canonical SPEC §4 union from @phlix/syncplay — `playing | paused |
+   * buffering | stopped` (messages.d.ts:64). MW-011 (review mobile__crossfe):
+   * this field used to be a 3-member local twin that silently erased the
+   * library's `buffering` state to `stopped` on every group frame.
+   */
+  playbackState: PlaybackState;
   /** Playhead anchor in SECONDS — decoded from the wire's ms at this boundary (S441). */
   playbackPosition: number;
   hostId: string;
@@ -367,17 +373,26 @@ function wireServerTimeMs(value: unknown): number | undefined {
  * A rogue/compromised server (or MITM on an `http://` lane) can send ANY value
  * here; the old `as` cast let a number/object/garbage string flow into the
  * typed `SyncPlayGroup['playbackState']`, which downstream consumers compare
- * against 'playing'/'paused' to drive the native player. Anything not in the
- * whitelist falls back to 'stopped' (review M-MOBILE-26/54).
+ * against 'playing'/'paused' to drive the native player and the outbound
+ * `is_playing` flag. Anything not in the whitelist falls back to 'stopped'
+ * (review M-MOBILE-26/54).
+ *
+ * MW-011 (review mobile__crossfe): the whitelist IS the library union —
+ * typing the array `readonly PlaybackState[]` pins the parity from BOTH
+ * sides at build time: forgetting a member here is a jest red in
+ * wireUnits.test.ts, and any new member the library grows is a `tsc` red on
+ * this literal plus on the exhaustive `Record` the test carries. `buffering`
+ * is a REAL server-sent state (SPEC §4) and was collapsing to `stopped`.
  */
-const PLAYBACK_STATES: readonly SyncPlayGroup['playbackState'][] = [
+const PLAYBACK_STATES: readonly PlaybackState[] = [
   'playing',
   'paused',
+  'buffering',
   'stopped',
 ];
-function wirePlaybackState(value: unknown): SyncPlayGroup['playbackState'] {
+export function wirePlaybackState(value: unknown): PlaybackState {
   return (PLAYBACK_STATES as readonly unknown[]).includes(value)
-    ? (value as SyncPlayGroup['playbackState'])
+    ? (value as PlaybackState)
     : 'stopped';
 }
 
@@ -947,8 +962,33 @@ class SyncPlayService {
     }
   }
 
+  /**
+   * The display name this member broadcasts on the join/create frames.
+   *
+   * MW-012 (review mobile__crossfe): was a hardcoded 'Mobile User', leaving
+   * the phone anonymous in every shared roster while other clients show
+   * profile names. Now reads the signed-in user — profile display name,
+   * then username — and reserves the 'Mobile User' fallback for the
+   * signed-out state.
+   *
+   * The auth store statically imports THIS module (signOut → disconnect),
+   * so the reverse edge is resolved lazily at call time; a module-scope
+   * import would create a load cycle (PlayerScreen.tsx:91 lazy-require
+   * precedent). The `getState?.()` guard mirrors the hermetic-suite idiom
+   * authStore.ts:232 itself uses against mocked stores.
+   */
   private getMemberName(): string {
-    // Could be extended to get from auth store
+    const { useAuthStore } = require('../stores/useAuthStore') as
+      typeof import('../stores/useAuthStore');
+    const user = useAuthStore?.getState?.().user ?? null;
+    const displayName = user?.display_name?.trim();
+    if (displayName) {
+      return displayName;
+    }
+    const username = user?.username?.trim();
+    if (username) {
+      return username;
+    }
     return 'Mobile User';
   }
 

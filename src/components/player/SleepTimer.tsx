@@ -136,17 +136,31 @@ export const useSleepTimer = (onFire: () => void) => {
     }
     const total = minutes * 60;
     setRemainingSeconds(total);
+    // MW-015 (review mobile__crossfe): the tick must stay a PURE decrement —
+    // React 19 StrictMode double-invokes updater functions in development,
+    // and the old arm ran its teardown and callback INSIDE the updater, so
+    // every expiry dispatched the terminal pause twice. Side effects belong
+    // in the effect below, which commits exactly once per transition.
     intervalRef.current = setInterval(() => {
-      setRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          clearTimer();
-          onFire();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setRemainingSeconds((prev) => Math.max(0, prev - 1));
     }, 1000);
   };
+
+  // Terminal arm (MW-015): watches the countdown's transition to zero and
+  // disarms + fires ONCE, after the commit. `intervalRef.current !== null`
+  // separates EXPIRY (the tick reached 0 while the interval is still armed)
+  // from an explicit cancel (clearTimer has already nullled the handle), so
+  // cancelling never fires the pause and an expiry never double-fires.
+  useEffect(() => {
+    if (remainingSeconds === 0 && intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      onFire();
+    }
+    // Fresh `onFire` closes over the committing render; a mid-countdown
+    // identity change re-runs this effect and the null-guard below keeps
+    // the re-run inert — only the expiry transition itself fires the pause.
+  }, [remainingSeconds, onFire]);
 
   // Cleanup on unmount
   useEffect(() => {

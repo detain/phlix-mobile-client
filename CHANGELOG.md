@@ -32,6 +32,64 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w04 mobile: playback-state union parity, roster identity, media-permission retirement, global route params, sleep-timer purity, CI serial truth (MW-011–MW-016) — 2026-11-06
+
+- MW-011 (review mobile__crossfe): `wirePlaybackState` admitted only 3 of the
+  4 SPEC §4 states — a legitimate `buffering` group frame collapsed to
+  `stopped`, telling the group UI the party had ended. `SyncPlayGroup.playbackState`
+  is now the library union itself (`PlaybackState` from @phlix/syncplay,
+  messages.d.ts:64) and the whitelist carries all four members; typing the
+  array `readonly PlaybackState[]` makes drift in EITHER direction a compile
+  error. Pinned by a new exhaustive `Record<PlaybackState, true>` parity
+  section in `wireUnits.test.ts` (6 tests) — the M-MOBILE-26/54 hostile
+  narrowing law stays intact (garbage still lands `stopped`); the parser is
+  now exported. Zero wire codes touched; the syncplay error-union tests are
+  unmodified.
+- MW-012 (review mobile__crossfe): the phone broadcast a hardcoded
+  'Mobile User' on every join/create frame, leaving it anonymous in shared
+  rosters other clients fill with profile names. `getMemberName()` now reads
+  the signed-in user from the auth store (display_name → username → the
+  'Mobile User' fallback reserved for signed-out); the auth store imports
+  this module statically, so the reverse edge is resolved by lazy `require`
+  at call time (PlayerScreen's own lazy-require precedent), keeping the
+  module graph cycle-free. Pinned by 2 new join-frame tests; the existing
+  signed-out pin stays green as the fallback law.
+- MW-013 (review mobile__crossfe): the `READ_MEDIA_IMAGES/VIDEO/AUDIO` trio
+  retired — the M-MOBILE-13 note beside it already stated the premise that
+  indicts the trio (zero MediaStore/Environment usage in `android/` and
+  `src/`, zero `PermissionsAndroid` calls anywhere, so on API 33+ it was
+  never even requested; it only surfaced in the Play Store disclosure). The
+  contradicting "stays as the review directs" clause is gone; the retirement
+  is fs-pinned by 5 new ABSENCE pins in `androidPermissions.gate.test.ts`
+  (the trio + the legacy external-storage pair).
+- MW-014 (review mobile__crossfe): `PlayerScreen` and `MediaDetailScreen`
+  dropped their private route-param twins; both now derive from the GLOBAL
+  param lists in `src/types/navigation.ts` (`RouteProp<RootStackParamList,
+  'Player'>`; the Home|Library stack union for MediaDetail — the two stacks
+  that actually mount it). The episode-advance `replace()` cast — the twin's
+  hidden second consumer — moved to `RootStackParamList['Player']`.
+  Structural law pinned by source-read tests (wmin61UiPins precedent).
+- MW-015 (review mobile__crossfe): the sleep-timer tick is now a PURE
+  decrement; `clearTimer`/`onFire` moved out of the `setRemainingSeconds`
+  updater into a transition effect guarded by the still-armed interval
+  handle — React 19 StrictMode double-invokes updaters in dev, which had
+  been double-dispatching the terminal pause. Cancel-vs-expiry semantics
+  preserved (an explicit `clearTimer()` nulls the handle first, so the
+  effect stays inert). Structural law pinned by source-read tests.
+- MW-016 (review mobile__devops): README claimed the CI Jest suite runs
+  serial while `test.yml` executed default parallel workers. The
+  `package.json` `test` script is now `jest --runInBand` (estate law, the
+  form every CHANGELOG-gated local run already used), so CI's
+  `npm test -- --coverage` and the README sentence describe the same
+  execution; the workflow comment and the README line carry the proof.
+- Suite attribution: parent 121 suites / 1,737 tests (1 sanctioned skip) →
+  122 / 1,757 — +20 tests exactly = MW-011 (6) + MW-012 (2) + MW-013 (5) +
+  structural pins MW-014/MW-015 (7); +1 suite = `w04L4StructuralPins.test.ts`.
+  Red-first: all 17 behavioral/absence pins and 6 of 7 structural pins
+  measured RED at parent 23032fffb (the seventh is an invariant pin, green
+  by design). Gates: tsc 0, eslint 0 errors / 2 warnings (parent-identical
+  pair), copyright 176/176, Podfile.lock in sync.
+
 ### Fixed — wave w01 mobile: SyncPlay re-anchor reaches the player + toolchain/docs truth (MW-118, MW-001–MW-004, LW-099-d) — 2026-11-06
 
 - MW-118 (behavior, Critical): the room's authoritative position rode every

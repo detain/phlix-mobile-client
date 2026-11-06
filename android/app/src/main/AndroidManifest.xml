@@ -14,11 +14,18 @@
          through the deprecated APIs — zero MediaStore/Environment usage in
          android/ and src/ (grep-verified), downloads land in app-private
          dirs — so the pair only inflated the install-time permission
-         prompt. The granular READ_MEDIA_* trio below stays for API 33+,
-         exactly as the review's cure advice directs. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+         prompt.
+         MW-013 (review mobile__crossfe): the granular READ_MEDIA_* trio that
+         M-MOBILE-13 left in "as the review directs" is retired by the SAME
+         premise that paragraph already states — the trio is equally unused
+         (zero MediaStore/Environment references in android/ or src/, and
+         zero PermissionsAndroid calls anywhere in src/, so on API 33+ it was
+         never even requested at runtime). A declared-but-never-used media
+         permission only surfaces in the Play Store permission disclosure for
+         functionality this app does not have. If gallery access is ever
+         built, the declaration AND the request AND the consumer land in that
+         one change. The absence of all four media permissions is fs-pinned
+         by src/__tests__/androidPermissions.gate.test.ts. -->
 
     <!-- Cleartext HTTP is deliberate: Phlix is a self-hosted client that talks
          to user-typed LAN servers (http://192.168.x.x:8096), which Android

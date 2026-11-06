@@ -30,6 +30,7 @@ import { syncPlayService } from '../../syncplay/SyncPlayService';
 import { MAX_INBOUND_FRAME_BYTES } from '../../syncplay/frameLimits';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { useHubStore } from '../../store/hubStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { secureStorage } from '../../services/SecureStorage';
 import { createHubRelayTokenProvider } from '../../hub/RelayTokenProvider';
 import { __resetRelayTokenProvidersForTests } from '../../syncplay/wsEndpoint';
@@ -325,6 +326,56 @@ describe('SyncPlayService - Connection', () => {
     expect(errorCallback).not.toHaveBeenCalled();
 
     syncPlayService.off('onError');
+    syncPlayService.disconnect();
+  });
+
+  // MW-012 (review mobile__crossfe): the roster name rail. The pin above
+  // stays valid — an unauthenticated suite member IS 'Mobile User' (the
+  // signed-out fallback). These pin the signed-in arms of getMemberName().
+  it('broadcasts the signed-in display_name as member_name (MW-012)', async () => {
+    setupMocks({
+      connectionMode: 'relay',
+      hubUrl: 'https://hub.example.com',
+      activeServerId: 'srv-9',
+      session: { accessToken: 'hub-jwt', refreshToken: 'r', expiresAt: 0, userId: 'u' },
+    });
+    useAuthStore.setState({ user: { id: 'u', username: 'ana', display_name: 'Ana' } });
+
+    syncPlayService.connectWithRoom('sp_room9', 'member-999');
+    await pump();
+    MockWebSocket.simulateOpen();
+    const frame = findSentMessage('syncplay_group_join');
+    expect(frame).toBeDefined();
+    expect(frame!.member_name).toBe('Ana');
+
+    useAuthStore.setState({ user: null });
+    syncPlayService.disconnect();
+  });
+
+  it('falls back to the username when display_name is absent or blank (MW-012)', async () => {
+    setupMocks({
+      connectionMode: 'relay',
+      hubUrl: 'https://hub.example.com',
+      activeServerId: 'srv-9',
+      session: { accessToken: 'hub-jwt', refreshToken: 'r', expiresAt: 0, userId: 'u' },
+    });
+
+    useAuthStore.setState({ user: { id: 'u', username: 'ana-lima' } });
+    syncPlayService.connectWithRoom('sp_room10', 'member-999');
+    await pump();
+    MockWebSocket.simulateOpen();
+    expect(findSentMessage('syncplay_group_join')!.member_name).toBe('ana-lima');
+    syncPlayService.disconnect();
+    MockWebSocket.reset();
+
+    // Whitespace-only display_name is "blank", not a name (trim-before-use).
+    useAuthStore.setState({ user: { id: 'u', username: 'ana-lima', display_name: '   ' } });
+    syncPlayService.connectWithRoom('sp_room11', 'member-999');
+    await pump();
+    MockWebSocket.simulateOpen();
+    expect(findSentMessage('syncplay_group_join')!.member_name).toBe('ana-lima');
+
+    useAuthStore.setState({ user: null });
     syncPlayService.disconnect();
   });
 

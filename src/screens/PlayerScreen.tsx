@@ -32,6 +32,7 @@ import { usePlayerStore } from '../stores/usePlayerStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { StreamInfo, SubtitleTrack, Marker } from '../types/playback';
+import type { RootStackParamList } from '../types/navigation';
 import type { QualitySelection, Rendition } from '@phlix/contracts';
 import { AUTO_QUALITY } from '@phlix/contracts';
 import { SeekBar } from '../components/player/SeekBar';
@@ -132,19 +133,14 @@ function detectAccessStreamError(error: unknown): { isAccessError: boolean; mess
   return null;
 }
 
-type PlayerRouteParams = {
-  Player: {
-    itemId: string;
-    startPosition?: number;
-    // E8 (additive): direct live-stream URL. When set, the player plays it
-    // verbatim and SKIPS the itemId detail/transcode lifecycle.
-    streamUrl?: string;
-    liveTitle?: string;
-  };
-};
-
 const PlayerScreen: React.FC = () => {
-  const route = useRoute<RouteProp<PlayerRouteParams, 'Player'>>();
+  // MW-014 (review mobile__crossfe): typed by the GLOBAL RootStackParamList
+  // — 'Player' is registered on the root stack (RootNavigator.tsx:530). The
+  // deleted local twin duplicated the identical shape and could drift from
+  // the navigator without any compiler noticing; the E8 additive live
+  // fields (streamUrl/liveTitle) now ride the single declaration in
+  // src/types/navigation.ts:20-25.
+  const route = useRoute<RouteProp<RootStackParamList, 'Player'>>();
   const navigation = useNavigation();
   const { itemId, startPosition = 0, streamUrl: directStreamUrl, liveTitle } =
     route.params;
@@ -915,7 +911,7 @@ const PlayerScreen: React.FC = () => {
         // at-a-time binges. Typed via the route params; optional-call keeps
         // any container shape safe.
         const nav = navigation as {
-          replace?: (name: string, params: PlayerRouteParams['Player']) => void;
+          replace?: (name: string, params: RootStackParamList['Player']) => void;
         };
         nav.replace?.('Player', { itemId: nextId, startPosition: 0 });
       })
