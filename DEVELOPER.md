@@ -138,15 +138,28 @@ ios/LocalPods/PhlixPlayer/
   AVPlayerLayer subtitle track is wired up yet
 - No playback-rate control exists on this bridge
 
-**Integration**:
+**Integration** — the real `PhlixPlayerViewProps` export (MW-004: this section
+formerly showed invented props; the surface below is `src/native/types.ts`
+verbatim, modulo comment):
 ```typescript
 // src/native/types.ts
 interface PhlixPlayerViewProps {
+  src?: string;                // URL to load (direct play / signed stream URL)
+  autoPlay?: boolean;
+  startPosition?: number;      // SECONDS — the app-internal unit
+  volume?: number;
+  muted?: boolean;
+  subtitleUrl?: string;        // signed WebVTT sidecar URL (see TODO(E3-native) above)
   style?: ViewStyle;
-  streamUrl: string;
-  onPlaybackStart?: () => void;
-  onPlaybackEnd?: () => void;
-  onError?: (error: string) => void;
+  onPlaybackEvent?: (event: NativeSyntheticEvent<PlaybackEvent>) => void;
+  onProgress?: (event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => void;
+  onError?: (event: NativeSyntheticEvent<{ error: string }>) => void;
+}
+
+interface PlaybackEvent {
+  event: 'ready' | 'play' | 'pause' | 'ended' | 'buffering';
+  currentTime?: number;
+  duration?: number;
 }
 ```
 
@@ -206,30 +219,38 @@ Requires the `androidx.credentials:credentials` and `:credentials-play-services-
 
 **Location**: `src/native/types.ts`
 
+MW-004 truth pass: this section used to show `NativePlaybackSession`,
+`SubtitleTrack` and `AudioTrack` "from this file" — none of the three is
+declared here (or anywhere in the repo). The file's real exports:
+
 ```typescript
-// Native module type definitions
-interface NativePlaybackSession {
-  id: string;
-  mediaId: string;
-  position: number;
-  duration: number;
-}
-
-interface SubtitleTrack {
-  id: string;
-  language: string;
-  label: string;
-  codec: string;
-}
-
-interface AudioTrack {
-  id: string;
-  language: string;
-  label: string;
-  codec: string;
-  channels: number;
-}
+// src/native/types.ts — exported surface
+interface PlaybackEvent { … }             // player event envelope (see iOS Integration above)
+interface DownloadEvent { … }             // downloader event envelope
+interface PhlixPlayerViewProps { … }      // the view's props (the bridge surface)
+interface PhlixPlayerInterface { … }      // NativeModule: play/pause/seekTo(seconds)/
+                                          // setVolume/setMuted/getCurrentPosition/getDuration
+interface PhlixDownloaderInterface { … }  // startDownload/pause/resume/cancel/deleteFile, documentsPath
+interface PhlixWebAuthnInterface { … }    // isSupported/register/authenticate (JSON-string ceremony bridge)
+interface PhlixRandomInterface { … }      // randomHex(byteCount) — CSPRNG for device identity
+interface DownloadProgressPayload { … }   // per-event payload shapes for the four DOWNLOAD_EVENTS
+interface DownloadCompletePayload { … }
+interface DownloadErrorPayload { … }
+interface DownloadPausedPayload { … }
+const DOWNLOAD_EVENTS = {                 // native event NAME strings
+  progress: 'PhlixDownloadProgress',      // (keep byte-ident with the iOS/Android emitters)
+  complete: 'PhlixDownloadComplete',
+  error: 'PhlixDownloadError',
+  paused: 'PhlixDownloadPaused',
+} as const;
 ```
+
+Where the **track** types actually live: the `SubtitleTrack`/`AudioTrack`
+that `usePlayerStore` carries are re-exported VERBATIM from
+`@phlix/contracts` by `src/types/playback.ts:55` — the local mirror that once
+existed here was deleted deliberately (the file's header records why), and
+the pinned tag (`github:detain/phlix-contracts#v0.5.6`) is the wire source
+of truth. Don't re-declare track shapes in this repo.
 
 ## State Management
 
@@ -406,12 +427,33 @@ null), never as a plaintext fallback.
 
 ### API Managers
 
+`src/api/` holds seventeen manager modules (MW-003: this table used to list
+four of them). Every one is a static-method class over `client.ts`; the
+row's methods are the actual exported surface:
+
 | Manager | Purpose |
 |---------|---------|
-| `AuthManager` | Login, logout, token refresh |
-| `LibraryManager` | Fetch libraries, media items |
-| `PlaybackManager` | Stream info, playback sessions |
-| `TranscodeManager` | Start/poll on-demand transcode jobs; surfaces the ABR quality ladder (`variants[]`) the in-player `QualityMenu` picks from |
+| `AdminManager` | Admin rails: users (list/create/approve/enable/disable/delete), libraries + catalog sources, plugins, backups, activity log, FS browse, auth-provider enable/disable |
+| `AuthManager` | Login/register/refresh/logout, credential + passkey-login persistence, server discovery, `getCurrentUser`/`getMe` |
+| `CastManager` | Cast device discovery (DLNA/Roku/Chromecast/AirPlay) + session control (castTo/status/pause/resume/seek/stop) |
+| `CollectionManager` | Collections + smart playlists: CRUD, item add/remove/bulk, refresh, per-library listing |
+| `FavoritesManager` | Favorites add/remove/list + personal ratings (`setRating`/`clearRating`/`getMediaRatings`) |
+| `LibraryManager` | Library browsing: items/letter-index/seasons/episodes/recently-added, media-item fetch, search |
+| `LiveTvManager` | Channels + EPG guide, programs, recordings (list/create/delete), series rules, upcoming, channel stream URL |
+| `MarkerManager` | Playback markers + the playback-info payload (track rails + intro/credits markers) feeding `PlayerScreen` |
+| `MusicManager` | Music library: artists/albums/tracks + now-playing rail |
+| `ParentalControlsManager` | Content tags, access schedules, stream limits (profile-gating rails) |
+| `PhotoManager` | Photo libraries/albums, photo detail, slideshow rail |
+| `PlaybackManager` | Playback sessions: create/report-progress/complete/end + signed stream URL (`getStreamUrl`) |
+| `ProfileManager` | User profiles: list/create/update/delete + per-profile PIN set/clear |
+| `SyncPlayManager` | SyncPlay rooms over the `/syncplay/groups` REST rails (create/join/public list/WebSocket URL) + `mapPlaybackState` wire decode |
+| `TranscodeManager` | Start/poll on-demand transcode jobs (`startTranscode`/`getStatus`/`prepare`); surfaces the ABR quality ladder (`variants[]`) the in-player `QualityMenu` picks from |
+| `UserManager` | Account settings + watch history: continue-watching/recently-watched rails, history clear/delete |
+| `WebAuthnManager` | Passkey ceremony payloads: register/login options, credential list/delete |
+
+Supporting modules, not managers: `client.ts` (axios + interceptors),
+`hubAwareClient.ts` (scoped client factory for the hub-relay lane),
+`deviceIdentity.ts` (stable CSPRNG device id), `index.ts` (re-exports).
 
 ## Building and Testing Guide
 
@@ -511,10 +553,10 @@ phlix-mobile/
 ├── src/
 │   ├── api/
 │   │   ├── client.ts         # Axios client with interceptors
-│   │   ├── AuthManager.ts    # Authentication logic
-│   │   ├── LibraryManager.ts # Library/media fetching
-│   │   ├── PlaybackManager.ts# Playback session management
-│   │   └── index.ts         # Re-exports
+│   │   ├── hubAwareClient.ts # Scoped client factory (hub-relay lane)
+│   │   ├── deviceIdentity.ts # Stable CSPRNG device id
+│   │   ├── <Name>Manager.ts  # The 17 API managers (see "API Managers" table)
+│   │   └── index.ts          # Re-exports
 │   ├── components/
 │   │   ├── layout/          # Layout components
 │   │   ├── media/           # Media display components

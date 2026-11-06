@@ -32,6 +32,58 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w01 mobile: SyncPlay re-anchor reaches the player + toolchain/docs truth (MW-118, MW-001–MW-004, LW-099-d) — 2026-11-06
+
+- MW-118 (behavior, Critical): the room's authoritative position rode every
+  `syncplay_playback_sync` echo and host-stamped play/pause command, was
+  decoded at the service boundary — and then dropped: `PlayerScreen`'s
+  play/pause arms applied only the state change (position reached the native
+  player exclusively on explicit `seek`), and the server's DIRECTED S446
+  nudge frame (same family + additive `nudge` object,
+  SyncPlayManager::sendOutOfSyncNudge :1593-1630) was never parsed at all —
+  a mobile member stayed parked at the wrong position while its own
+  position-report loop kept the server informed. The service now marks nudge
+  frames `forceReanchor` (parse-not-cast: a non-object `nudge` degrades to
+  the plain echo), and the member play/pause arms re-anchor FIRST: the
+  command position is applied — through the M-MOBILE-27 clamp — before the
+  play/pause dispatch, unforced only past a tolerance window mirroring the
+  server's own in-sync law (`GroupState::POSITION_TOLERANCE` = 2000 ms,
+  GroupState.php:136), a forced nudge unconditionally (its 1 s server
+  cooldown bounds churn). No rate command was invented — the native bridge
+  still exposes none (S407 refusal stands); the mobile answer to drift is
+  the authoritative seek the frame already carries. Zero new wire codes; the
+  syncplay error union stays frozen; hub-relay frames carry no nudge and are
+  untouched. New pins: 4 in `wireUnits.test.ts` (decision table + the
+  source-carries-proof read-pin), 3 in `SyncPlayService.test.ts` (whole-
+  shape nudge command, inert echo, malformed-nudge vectors), 6 in
+  `PlayerScreen.test.tsx` (apply-beyond-window play AND pause, tolerated
+  small delta, forced inside-window apply, clamp leg, host-gate stands).
+- LW-099-d (recorded, behavior untouched): `TimeSync.addSample` gained the
+  ruling comment — the `+rtt/2` offset sign is ESTATE WIRE LAW, byte-matching
+  the server's compute (phlix-server src/Session/SyncPlay/TimeSync.php:153)
+  and phlix-syncplay SPEC §5, not a textbook-NTP porting slip; any future
+  sign flip is a lockstep estate-wide wire change, never a local edit.
+- MW-001 (README truth): the iOS toolchain floor moved v15.0 → v16.1 — RN
+  0.85's `pod install` hard-fails below it (`min_xcode_version_supported`
+  returns '16.1'; react-native `scripts/cocoapods/helpers.rb:87-88`).
+- MW-002 (README truth): the install step is now the CI form
+  `npm ci --allow-git=all` (all three workflows; verbatim-lock install + npm
+  11 hardening admitting the `@phlix/*` github: tag pins), with the `.env`
+  narrative line carried to the same form and yarn kept as the honest
+  floating alternative.
+- MW-003 (DEVELOPER.md truth): the API Managers table listed 4 of 17 —
+  completed with every manager's real exported surface, plus the three
+  non-manager supporting modules; the structure-tree `api/` block matches.
+- MW-004 (DEVELOPER.md truth): the TypeScript Interfaces section documented
+  `NativePlaybackSession`/`SubtitleTrack`/`AudioTrack` as `src/native/types.ts`
+  exports — none of the three is declared there (or anywhere in the repo).
+  Replaced with the file's real export surface (player/download/WebAuthn/
+  random interfaces + event payload shapes + `DOWNLOAD_EVENTS`), a pointer
+  that the store's track types are the verbatim `@phlix/contracts` re-export
+  (`src/types/playback.ts:55`), and the iOS Integration example rewritten to
+  the actual `PhlixPlayerViewProps` (`src`/`autoPlay`/`startPosition`/…, not
+  the invented `streamUrl`/`onPlaybackStart`).
+
 ### Fixed — wave w03 mobile docs truth + login/syncplay cures (MW-005–MW-010) — 2026-11-06
 
 - MW-005 (DEVELOPER.md truth): dropped the `UserRatingPicker` component

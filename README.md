@@ -147,7 +147,10 @@ Before you begin, ensure you have the following installed:
 
 ### iOS Development
 
-- **Xcode** (v15.0 or later)
+- **Xcode** (v16.1 or later — not v15: React Native 0.85's `pod install`
+  hard-fails below 16.1 by its own floor,
+  `min_xcode_version_supported` → `'16.1'` in the react-native package's
+  `scripts/cocoapods/helpers.rb:87-88`)
 - **CocoaPods** (`sudo gem install cocoapods`)
 - **macOS** (required for iOS development)
 - **Apple Developer Account** (for device deployment)
@@ -171,10 +174,14 @@ cd phlix-mobile-client
 ### 2. Install Dependencies
 
 ```bash
-# Using npm
-npm install
+# Using npm — the CI install form (all three workflows use exactly this).
+# `npm ci` installs the tracked package-lock.json verbatim and fails loud
+# on drift; `--allow-git=all` admits the @phlix/* github: tag pins
+# (npm 11 install hardening; same form as phlix-tizen).
+npm ci --allow-git=all
 
-# Or using yarn
+# Or using yarn (v1.22.x) — installs floating; there is no committed yarn
+# lock to honor.
 yarn install
 ```
 
@@ -202,7 +209,8 @@ Three facts about this file, from how the code consumes it
   so after changing them you must rebuild the app (`npm run android` / a fresh
   Xcode build) — reloading Metro is not enough. The module is already wired
   on both platforms (`dotenv.gradle` in `android/app/build.gradle`, the
-  autolinked pod on iOS), so `npm install` + `pod install` is all it takes.
+  autolinked pod on iOS), so `npm ci --allow-git=all` + `pod install` is all
+  it takes.
   These are the only two keys the app reads; `.env` is git-ignored, but
   anything in it ships inside the app bundle unencrypted — put no secrets
   there.
