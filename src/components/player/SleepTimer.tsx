@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 
 const PRESET_MINUTES = [15, 30, 45, 60, 90, 120];
 
@@ -45,9 +46,7 @@ export const SleepTimerMenu: React.FC<SleepTimerProps> = ({
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={styles.title}>Sleep Timer</Text>
-            <TouchableOpacity onPress={onClose} accessibilityLabel="Close sleep timer">
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close sleep timer" />
           </View>
 
           <View style={styles.presetGrid}>
@@ -195,10 +194,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
-  },
-  closeText: {
-    color: '#fff',
-    fontSize: 20,
   },
   presetGrid: {
     flexDirection: 'row',

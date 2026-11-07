@@ -15,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { SubtitleTrack } from '../../types/playback';
 
 interface SubtitleTrackListProps {
@@ -60,9 +61,7 @@ export const SubtitleTrackList: React.FC<SubtitleTrackListProps> = ({
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={styles.title}>Subtitles</Text>
-            <TouchableOpacity onPress={onClose} accessibilityLabel="Close subtitles menu">
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close subtitles menu" />
           </View>
 
           <ScrollView style={styles.list}>
@@ -153,10 +152,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
-  },
-  closeText: {
-    color: '#fff',
-    fontSize: 20,
   },
   list: {
     maxHeight: 300,

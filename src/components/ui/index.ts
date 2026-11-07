@@ -10,3 +10,4 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorView } from './ErrorView';
 export { EmptyState } from './EmptyState';
 export { SearchBar } from './SearchBar';
+export { CloseGlyph } from './CloseGlyph';

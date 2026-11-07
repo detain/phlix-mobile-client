@@ -25,6 +25,7 @@ import {
   StyleSheet,
   FlatList,
 } from 'react-native';
+import CloseGlyph from './ui/CloseGlyph'; // MW-103
 import { useHubStore } from '../store/hubStore';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -111,9 +112,7 @@ const ServerSwitcher: React.FC<ServerSwitcherProps> = ({ visible, onClose }) => 
         <View style={styles.modalContent}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Switch Server</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close server switcher" color="#888" />
           </View>
 
           {/* Connection Mode Toggle */}
@@ -124,6 +123,11 @@ const ServerSwitcher: React.FC<ServerSwitcherProps> = ({ visible, onClose }) => 
                 connectionMode === 'direct' && styles.modeButtonActive,
               ]}
               onPress={() => setConnectionMode('direct')}
+              // MW-102: 8pt padding on 13pt text measured ~33pt tall; the
+              // mode rail is now a real 44pt control with selected-state
+              // announcement.
+              accessibilityRole="button"
+              accessibilityState={{ selected: connectionMode === 'direct' }}
             >
               <Text
                 style={[
@@ -140,6 +144,8 @@ const ServerSwitcher: React.FC<ServerSwitcherProps> = ({ visible, onClose }) => 
                 connectionMode === 'relay' && styles.modeButtonActive,
               ]}
               onPress={() => setConnectionMode('relay')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: connectionMode === 'relay' }}
             >
               <Text
                 style={[
@@ -200,11 +206,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  closeButton: {
-    color: '#888',
-    fontSize: 20,
-    padding: 4,
-  },
   modeToggle: {
     flexDirection: 'row',
     padding: 12,
@@ -212,8 +213,12 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 8,
+    // MW-102: 13pt vertical padding + 13pt text clears the 44pt floor;
+    // minHeight states the law outright for any future font metric.
+    paddingVertical: 13,
     paddingHorizontal: 12,
+    minHeight: 44,
+    justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: '#2d2d44',
     alignItems: 'center',

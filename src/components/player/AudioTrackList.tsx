@@ -15,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { AudioTrack } from '../../types/playback';
 
 interface AudioTrackListProps {
@@ -77,9 +78,7 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={styles.title}>Audio</Text>
-            <TouchableOpacity onPress={onClose} accessibilityLabel="Close audio menu">
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close audio menu" />
           </View>
 
           {note ? <Text style={styles.noteText}>{note}</Text> : null}
@@ -154,10 +153,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
-  },
-  closeText: {
-    color: '#fff',
-    fontSize: 20,
   },
   list: {
     maxHeight: 300,

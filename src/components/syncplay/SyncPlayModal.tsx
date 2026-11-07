@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
+import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
@@ -220,9 +221,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
           <View style={styles.content} onStartShouldSetResponder={() => true}>
             <View style={styles.header}>
               <Text style={styles.title}>SyncPlay</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Text style={styles.closeButton}>✕</Text>
-              </TouchableOpacity>
+              <CloseGlyph onPress={onClose} accessibilityLabel="Close SyncPlay" />
             </View>
 
             <Text style={styles.groupName}>{currentGroup.name}</Text>
@@ -297,9 +296,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         <View style={styles.content} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>SyncPlay</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close SyncPlay" />
           </View>
 
           {/* Tab Navigation */}
@@ -381,7 +378,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={roomName}
                 onChangeText={setRoomName}
                 placeholder="Enter room name"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
               />
 
               <View style={styles.switchRow}>
@@ -402,7 +399,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Enter password"
-                    placeholderTextColor="#666"
+                    placeholderTextColor="#888"
                     secureTextEntry
                   />
                 </>
@@ -431,7 +428,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={joinRoomId}
                 onChangeText={setJoinRoomId}
                 placeholder="Enter room ID"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
               />
 
               {/* M4: gated rooms are exactly what a shared Room ID implies —
@@ -442,7 +439,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={joinPassword}
                 onChangeText={setJoinPassword}
                 placeholder="Enter password"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
                 secureTextEntry
               />
 
@@ -490,10 +487,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
-  },
-  closeButton: {
-    color: '#fff',
-    fontSize: 20,
   },
   tabBar: {
     flexDirection: 'row',
@@ -693,7 +686,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   roomIdHint: {
-    color: '#666',
+    color: '#888',
     fontSize: 12,
     marginBottom: 16,
   },

@@ -15,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { QualitySelection } from '@phlix/contracts';
 import type { QualityOption } from './quality';
 
@@ -63,9 +64,7 @@ export const QualityMenu: React.FC<QualityMenuProps> = ({
         <View style={styles.content} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>Quality</Text>
-            <TouchableOpacity onPress={onClose} accessibilityLabel="Close quality menu">
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+            <CloseGlyph onPress={onClose} accessibilityLabel="Close quality menu" />
           </View>
 
           <ScrollView style={styles.list}>
@@ -119,10 +118,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '600',
-  },
-  closeText: {
-    color: '#fff',
-    fontSize: 20,
   },
   list: {
     maxHeight: 300,

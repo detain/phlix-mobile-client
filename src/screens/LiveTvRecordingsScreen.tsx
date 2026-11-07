@@ -19,6 +19,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import CloseGlyph from '../components/ui/CloseGlyph'; // MW-103
 import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -290,9 +291,7 @@ const LiveTvRecordingsScreen: React.FC = () => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Schedule a recording</Text>
-              <TouchableOpacity onPress={() => setShowCreate(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
+              <CloseGlyph onPress={() => setShowCreate(false)} accessibilityLabel="Close schedule recording" />
             </View>
             <Text style={styles.modalHint}>
               Pick an upcoming program to record.
@@ -451,10 +450,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
-  },
-  modalClose: {
-    color: '#fff',
-    fontSize: 20,
   },
   modalHint: {
     color: '#888',
