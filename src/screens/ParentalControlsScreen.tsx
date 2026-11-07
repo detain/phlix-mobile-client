@@ -588,6 +588,10 @@ const ParentalControlsScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.tagRemove}
                   onPress={() => removeTag(tag.id)}
+                  // MW-102: 20pt destructive control → 44pt effective via
+                  // 12pt slop per side, and a name for screen readers.
+                  accessibilityLabel="Remove blocked tag"
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   <Text style={styles.tagRemoveText}>×</Text>
                 </TouchableOpacity>

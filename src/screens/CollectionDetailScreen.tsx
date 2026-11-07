@@ -110,6 +110,12 @@ const CollectionDetailScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.removeButton}
           onPress={() => handleRemove(item)}
+          // MW-102 (review mobile__gameux): a DESTRUCTIVE control measured
+          // 28pt — below the 44pt platform floor — with no accessible name
+          // at all ("✕" announces nothing). hitSlop widens the touch region
+          // 8pt per side (28 + 16 = 44) without moving an ink pixel.
+          accessibilityLabel="Remove from collection"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Text style={styles.removeButtonText}>✕</Text>
         </TouchableOpacity>
