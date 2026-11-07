@@ -1,0 +1,60 @@
+{
+  "auditReportVersion": 3,
+  "vulnerabilities": {
+    "deepmerge": {
+      "name": "deepmerge",
+      "severity": "low",
+      "via": [
+        {
+          "source": 1,
+          "name": "deepmerge",
+          "dependencyPath": [
+            0,
+            1
+          ],
+          "title": "Advisory GHSA-gcqx-w48m-w2h4",
+          "url": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+          "severity": "low",
+          "cwe": [
+            "CWE-400"
+          ],
+          "range": ">=4.2.0 <=4.3.1"
+        }
+      ],
+      "effects": [
+        "deepmerge"
+      ],
+      "fixAvailable": false
+    },
+    "evil-pkg": {
+      "name": "evil-pkg",
+      "severity": "high",
+      "via": [
+        {
+          "source": 1,
+          "name": "evil-pkg",
+          "dependencyPath": [
+            0,
+            1
+          ],
+          "title": "Advisory GHSA-aaaa-bbbb-cccc",
+          "url": "https://github.com/advisories/GHSA-aaaa-bbbb-cccc",
+          "severity": "high",
+          "cwe": [
+            "CWE-400"
+          ],
+          "range": "*"
+        }
+      ],
+      "effects": [
+        "evil-pkg"
+      ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "total": 2
+    }
+  }
+}

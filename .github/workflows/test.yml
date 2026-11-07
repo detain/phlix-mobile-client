@@ -59,6 +59,19 @@ jobs:
       - name: Podfile.lock sync (native pod auto-link)
         run: npm run check:podfile-lock
 
+      - name: Security audit (reviewed-allowlist gate)
+        # MW-100 (review w07L4 DD #3): replaces the bare `npm audit
+        # --audit-level=high` posture — a severity filter hides every
+        # moderate-or-below advisory, greens on a broken audit, and keeps the
+        # accepted-risk set invisible. The gate enforces a SUBSET law: every
+        # reported advisory id (ANY severity) must appear in
+        # scripts/audit-gate.mjs ALLOWED_ADVISORIES with a measured
+        # justification; anything else reddens (exit 1), and a broken audit
+        # fails structurally (exit 2). The step's exit code IS the gate — no
+        # shell-level suppression, no per-step opt-out (both are pinned away
+        # by src/__tests__/workflowInstalls.gate.test.ts).
+        run: npm run audit:gate
+
       - name: Run tests
         # --coverage is REQUIRED for the uploads below to have anything to send.
         # jest.config.js sets collectCoverageFrom but NOT collectCoverage, so
