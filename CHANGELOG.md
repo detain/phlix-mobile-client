@@ -32,6 +32,63 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w07 mobile L2: shared boot-gate spinner, hub-concept copy, yarn/overrides caveat, CocoaPods floor, settings-store doc regen, component inventory (MW-029–MW-034) — 2026-11-06
+
+- MW-029 (review mobile__devops #6): the README's yarn endorsement now
+  qualifies the hazard — yarn v1 ignores npm's `overrides` field, so the
+  declared transitive mitigations (`glob`, `rimraf`, `compression`,
+  `shell-quote`) silently do NOT apply on a plain yarn install; the
+  Prerequisites bullet and the install-step comment both say so and name
+  the `resolutions`-entries path for anyone who installs that way.
+- MW-030 (review mobile__devops #7): the CocoaPods prerequisite moves from a
+  bare `sudo gem install cocoapods` to Homebrew-preferred with a v1.17 floor
+  — the floor is the generation version recorded in the committed
+  `ios/Podfile.lock` footer (`COCOAPODS: 1.17.0`); an older pod rewrites
+  that header line and churns the very diff `check:podfile-lock` protects.
+- MW-031 (review mobile__docmaint #10): DEVELOPER.md's `useSettingsStore`
+  block was a fossil (theme/playbackQuality/subtitlesEnabled/subtitleLanguage/
+  autoPlay + loadSettings/updateSettings never existed together; only the
+  quality field had been corrected in prose). Regenerated from the real
+  store: all 14 fields with their defaults, all 14 persisting setters, the
+  load/save/reset trio, and the `sanitizeSettings` boundary law
+  (unknown-key drop, type-mismatch drop, theme whitelist) — the subsumed
+  correction note is gone.
+- MW-032 (review mobile__docmaint #11): the component inventory was missing
+  four shipped components — `ErrorBoundary` (layout section) and
+  `ContentSkeleton` / `InsecureConnectionBanner` / `LocalPlaceholder` (UI
+  section), each described from its real source behavior.
+- MW-033 (review mobile__gameux #9): the cold-boot auth-hydrate gate rendered
+  a hand-rolled Text while every other loading surface speaks through the
+  shared components. The gate now returns `<LoadingSpinner fullScreen />` —
+  the identical prior visual (centered ActivityIndicator on #0f0f1a) from
+  the component that owns it — with the now-dead `loadingContainer`/
+  `loadingText` styles and the unused `Text` import retired. Pinned by the
+  new source-read `rootNavigatorBootGate.test.ts` (3 pins, measured RED 3/3
+  at parent b4a6338 — repo doctrine: no React renderer in test deps, so the
+  gate's render shape is pinned against the real source on the
+  w04L4StructuralPins precedent).
+- MW-034 (review mobile__casualgamer #5): the Hub sign-in modal asked only
+  for a "Hub URL". One honest explainer now sits under its title — a hub is
+  the OPTIONAL remote-access service for reaching claimed servers from
+  outside the home network, and the address comes from the hub's operator
+  (the app ships no default hub to point at) — and the signed-out card's
+  hint now leads with "Optional". Inline copy per the repo's no-catalog
+  precedent.
+- Review carry-in (w06L3 minor): `SyncPlayManager.rooms.test.ts` told a
+  false wire story — it drove room-LIST rows carrying `created_at` (and
+  `group_id`), but the live list wire (`SyncPlaySnapshotService::listGroups`
+  at server tip a63dc0db) emits only `{id, name, member_count,
+  has_password, current_media, is_playing}`. The header now says what is
+  true: the list-path epoch leg is BELT (a fabricated field must degrade,
+  never throw — still pinned that way), and the guard's PRODUCTION
+  conviction arm is `group.members[].joined_at` on the create/join envelope
+  (`GroupState::getState` members), so the out-of-range suite
+  (1e20/-1e20/8.641e12/non-numeric) moved there. Test-only: zero behavior
+  change; suite 5→7 pins, full battery 125/1,792+1skip → 126/1,797+1skip
+  (new gate-pin file +3, rooms net +2, exact attribution).
+- Zero wire codes; no dependency or lock churn; `@phlix/contracts`/
+  `@phlix/syncplay` pins unmoved.
+
 ### Fixed — wave w06 mobile: SyncPlay room-list hardening, login server-field guidance, hub display identity, download fail-loud, signing-docs re-anchor (MW-023–MW-028) — 2026-11-06
 
 - MW-023 (review mobile__exploiter #3): the room-list Refresh button is now

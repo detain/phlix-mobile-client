@@ -77,6 +77,7 @@ Located in `src/components/`, organized by domain:
 
 **Layout Components**
 - `SafeContainer`: Safe area wrapper with consistent styling
+- `ErrorBoundary`: Root render-phase error boundary — `componentDidCatch` reports to the console (the sanctioned release log sink) and the fallback renders a readable card with a Retry that remounts the protected subtree. Deliberately does not claim to catch async/timer errors — outside React's error semantics.
 
 **Media Components**
 - `MediaCard`: Card view for media items
@@ -376,21 +377,52 @@ interface LibraryState {
 
 ```typescript
 interface SettingsState {
-  theme: 'light' | 'dark' | 'system';
-  playbackQuality: 'auto' | '480p' | '720p' | '1080p' | '4k';
-  subtitlesEnabled: boolean;
-  subtitleLanguage: string;
-  autoPlay: boolean;
+  // Playback
+  defaultQuality: string; // 'auto' — PlayerScreen seeds its quality picker
+                          //          from this and writes fresh picks back
+  autoplay: boolean; // true
+  autoPlayNextEpisode: boolean; // true
+  defaultSubtitleLanguage: string; // 'en'
+  defaultAudioLanguage: string; // 'en'
+  // Downloads
+  downloadQuality: string; // 'high'
+  maxConcurrentDownloads: number; // 2
+  downloadPath: string; // '' (OS default)
+  downloadOverWifiOnly: boolean; // true — enforced in DownloadService.processQueue()
+  // Appearance / app
+  theme: 'dark' | 'light' | 'system'; // 'dark'
+  enableNotifications: boolean; // true
+  enableBiometricAuth: boolean; // false
+  // Server
+  serverUrl: string; // ''
+  serverName: string; // ''
+  // Actions — every setter writes state AND persists (saveSettings());
+  // resetSettings() restores the defaults and REMOVES the persisted blob.
+  setDefaultQuality: (quality: string) => void;
+  setAutoplay: (autoplay: boolean) => void;
+  setAutoPlayNextEpisode: (autoplay: boolean) => void;
+  setDefaultSubtitleLanguage: (language: string) => void;
+  setDefaultAudioLanguage: (language: string) => void;
+  setDownloadQuality: (quality: string) => void;
+  setMaxConcurrentDownloads: (max: number) => void;
+  setDownloadPath: (path: string) => void;
+  setDownloadOverWifiOnly: (enabled: boolean) => void;
+  setTheme: (theme: 'dark' | 'light' | 'system') => void;
+  setEnableNotifications: (enable: boolean) => void;
+  setEnableBiometricAuth: (enable: boolean) => void;
+  setServerUrl: (url: string) => void;
+  setServerName: (name: string) => void;
   loadSettings: () => Promise<void>;
-  updateSettings: (settings: Partial<Settings>) => Promise<void>;
+  saveSettings: () => Promise<void>;
+  resetSettings: () => void;
 }
 ```
 
-> The actual field is `defaultQuality: string` (default `'auto'`), set via
-> `setDefaultQuality`. It is now genuinely read and applied: `PlayerScreen`
-> seeds its in-player quality-picker selection from it and persists a fresh
-> pick back to it whenever the viewer changes quality. Previously it was
-> persisted/settable but never read by any playback code.
+The persisted blob (`phlix_settings` in AsyncStorage) passes through
+`sanitizeSettings` on load: unknown keys are dropped, wrong-typed scalars
+fall back to their defaults, and `theme` must additionally hit the
+`'dark' | 'light' | 'system'` whitelist — a stale or tampered blob can
+never smuggle a value the typed state would choke on (M-MOBILE-31).
 
 ## API Layer
 

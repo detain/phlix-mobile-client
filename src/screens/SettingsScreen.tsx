@@ -521,7 +521,7 @@ const SettingsScreen: React.FC = () => {
               >
                 <Text style={styles.hubSignInButtonText}>Sign in to Hub</Text>
                 <Text style={styles.hubSignInHint}>
-                  Access your claimed servers remotely
+                  Optional — access your claimed servers remotely
                 </Text>
               </TouchableOpacity>
             )}
@@ -657,6 +657,17 @@ const SettingsScreen: React.FC = () => {
             onStartShouldSetResponder={() => true}
           >
             <Text style={styles.hubSignInTitle}>Sign in to Hub</Text>
+
+            {/* MW-034 (review mobile__casualgamer #5): the form asked for a
+                "Hub URL" on the assumption the reader knows what a hub is
+                and where its address comes from. One honest sentence —
+                optional remote-access service, address supplied by your
+                hub operator (there is no default hub to point at). */}
+            <Text style={styles.hubSignInIntro}>
+              A hub is the optional service that lets this app reach your
+              Phlix servers from outside your home network. Enter the hub
+              address your hub operator gave you.
+            </Text>
 
             <TextInput
               style={styles.hubInput}
@@ -848,6 +859,15 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 13,
     marginTop: 4,
+  },
+  // MW-034: modal intro copy sits centered under the centered title; the
+  // shared hint style is the signed-out button's (left-aligned, marginTop).
+  hubSignInIntro: {
+    color: '#9a9ab0',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   hubSignedIn: {
     flexDirection: 'row',

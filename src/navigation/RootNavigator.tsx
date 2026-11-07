@@ -10,7 +10,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Text, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
+import { View, StyleSheet, Alert, BackHandler, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../stores/useAuthStore';
@@ -48,6 +48,7 @@ import {
   RecommendationsScreen,
   WatchHistoryScreen,
 } from '../screens';
+import { LoadingSpinner } from '../components/ui';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 // M-MOBILE-67 (review mobile__gameux Major 9): the container no longer takes
 // the bare PHLIX_LINKING — deepLinkGate wraps the SAME prefixes/config with a
@@ -280,12 +281,13 @@ const RootNavigator = () => {
     return () => clearTimeout(timer);
   }, [isAuthenticated]);
 
+  // MW-033 (review mobile__gameux #9): the boot gate used to speak its own
+  // hand-rolled Text copy while every other loading surface in the app goes
+  // through the shared spinner/skeleton language. fullScreen already means
+  // "centered ActivityIndicator on #0f0f1a" — the gate's exact prior visual
+  // vocabulary, now from the one component that owns it.
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading…</Text>
-      </View>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   return (
@@ -563,16 +565,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.1 }],
     backgroundColor: 'rgba(0,102,204,0.22)',
     borderRadius: 15,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0f0f1a',
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 16,
   },
 });
 
