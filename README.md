@@ -15,7 +15,7 @@ A cross-platform mobile application for media playback, built with React Native.
 
 ## Project Overview
 
-Phlix Mobile is a React Native application built for the **Phlix media server** — it speaks the `phlix-server` `/api/v1` API directly, with remote access routed through the **Phlix Hub** relay. It is not a generic multi-server client and does not speak Jellyfin or Emby APIs. It provides a native mobile experience with:
+Phlix Mobile is a React Native application built for the **Phlix media server** — it speaks the `phlix-server` `/api/v1` API directly, with remote access routed through the **Phlix Hub** relay. It is not a generic client for other media-server APIs and does not speak Jellyfin or Emby APIs. It provides a native mobile experience with:
 
 - **Movies & TV Series**: Browse, search, and play media content
 - **Music Playback**: Listen to your music library with full playback controls
@@ -71,14 +71,14 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 - **Admin Backup**: Settings → Admin → Backup lets administrators list existing backups (label, size, created date), create a new backup (with an optional label), restore a backup (with a clear destructive confirmation — it overwrites the current database/config and may restart the server), delete a backup, and upload a backup to S3. An auto-backup **schedule** card lets you set the backup interval (days) and how many backups to retain.
 - **Admin Logs**: Settings → Admin → Logs is a server log viewer — pick a log file (or **All logs (merged)**) to tail it, choose how many lines to show (200/500/1000), see a "truncated" badge when the file is longer, and pull to refresh. Long lines scroll horizontally in a monospace view so nothing is clipped.
 - **Admin File Browser**: Settings → Admin → File Browser is a server-side directory browser (breadcrumb navigation, up-one-level, tap a folder to descend). It also serves as the **path picker** for libraries — when adding or editing a library, tap **Browse…** on the paths field to pick a folder on the server and have it filled in for you.
-- **Cast**: A Cast button on the media detail screen opens a discovery picker that finds **Chromecast, Roku, AirPlay and DLNA** devices on your network, sends the item to the chosen device, and shows a live transport view (status badge polled every 2.5s, Play/Pause, Stop, and a Seek bar). Capability-gated controls reflect what each backend supports (DLNA has no resume; Roku has no stop/seek; AirPlay has no seek). Leaving the screen keeps the device playing — only **Stop** halts it.
+- **Cast**: A Cast button on the media detail screen opens a discovery picker that finds **Chromecast, Roku, AirPlay, and DLNA** devices on your network, sends the item to the chosen device, and shows a live transport view (status badge polled every 2.5s, Play/Pause, Stop, and a seek bar). Capability-gated controls reflect what each backend supports (DLNA has no resume; Roku has no stop/seek; AirPlay has no seek). Leaving the screen keeps the device playing — only **Stop** halts it.
 - **Music**: Tapping a music library opens a dedicated Music screen with a segmented **Artists | Albums | Tracks** view. Artists list their albums in-screen; albums open an ordered track list (sorted by disc then track number); the Tracks tab pages through every track. Tapping any track plays it through the standard player (a track id is a media-item id — there is no separate audio player). Music aggregates across all music libraries server-side, so the per-library entry is informational.
 - **Photos**: Tapping a photo library opens a dedicated Photos screen that groups your pictures into **date-based albums** (a 2-column grid with cover thumbnails and per-album counts; a library picker appears when you have more than one photo library). Opening an album shows a 3-column thumbnail grid, and tapping a photo launches a full-screen, swipeable viewer. In the viewer, a tap toggles an **EXIF info overlay** (camera, lens, dimensions, date, GPS) and a **Slideshow** button auto-advances the album at the server's configured interval. All images load over signed URLs, so no extra authentication is needed.
 - **Collections**: **Settings → Library → Collections** lists your collections — named groupings of media within a library. Create a new collection (name + library picker), tap one to open its items in a poster grid (tap a poster to jump to its detail screen), remove items from a manual collection, and delete a collection with confirm. Collections come in two kinds: **manual** ones you curate by hand, and **smart** ones (marked ⚡) that the server builds from a saved smart-playlist — smart collections are **refresh-only** (a Refresh button re-evaluates the playlist; you can't add or remove their items by hand).
-- **Favorites & ratings**: When you're signed in, the media detail screen shows a **heart toggle** to favorite/un-favorite an item and a **1–10 star rating** (five stars, each worth two points — tap to set, re-tap the current rating to clear). **Settings → Library → Favorites** lists everything you've favorited in a poster grid (pull to refresh, pages in as you scroll); tap a poster to open its detail. Favorites and ratings are stored per account on the server.
+- **Favorites & Ratings**: When you're signed in, the media detail screen shows a **heart toggle** to favorite/un-favorite an item and a **1–10 star rating** (five stars, each worth two points — tap to set, re-tap the current rating to clear). **Settings → Library → Favorites** lists everything you've favorited in a poster grid (pull to refresh, pages in as you scroll); tap a poster to open its detail. Favorites and ratings are stored per account on the server.
 - **Passkeys (WebAuthn)**: Sign in without a password. On the login screen, **Sign in with a passkey** runs your device's native passkey ceremony (Face ID / Touch ID / fingerprint / device PIN) and logs you straight in. **Settings → Security → Passkeys** lists your registered passkeys (with created/last-used dates), lets you **add a passkey** (a one-tap registration ceremony, optional label) and remove one. The passkey button and the Passkeys screen only appear on devices that support platform passkeys (iOS 15+ / Android with Credential Manager and a configured screen lock).
 
-> **Passkeys are DEVICE-ONLY at runtime.** The passkey ceremony is driven by native modules — iOS `ASAuthorization` platform passkeys (iOS 15+) and Android's AndroidX Credential Manager — and shows the system biometric/PIN sheet, which **only runs on a real device** (no simulator/emulator, and CI compiles the native code but cannot run a ceremony). The JavaScript layer is fully tested. For cross-device passkey portability the **server/host** must publish the relying-party association files for the `rpId` it returns — iOS `apple-app-site-association` (`webcredentials`) and Android Digital Asset Links (`assetlinks.json`); these are server/host infrastructure, not mobile-app config.
+> **Passkeys are DEVICE-ONLY at runtime.** The passkey ceremony is driven by native modules — iOS `ASAuthorization` platform passkeys (iOS 15+) and Android's AndroidX Credential Manager — and shows the system biometric/PIN sheet, which **only runs on a real device** (no simulator/emulator, and CI compiles the native code but cannot run a ceremony). The JavaScript layer is fully tested. For cross-device passkey portability the **server** must publish the relying-party association files for the `rpId` it returns — iOS `apple-app-site-association` (`webcredentials`) and Android Digital Asset Links (`assetlinks.json`); these are server infrastructure, not mobile-app config.
 
 > **Cast is SERVER-MEDIATED.** All four backends are driven entirely through the server's HTTP routes (`/cast`, `/roku`, `/airplay`, `/dlna` — discover → send → transport); the mobile app sends the item's *signed stream URL* and the server relays commands to the device. There is **no native local Cast SDK** in the client today — this is a deliberate choice (build-safe under the New-Architecture CI gate, testable, and covering all four backends instead of Chromecast-only). A native local Cast SDK (e.g. `react-native-google-cast` for Chromecast) is a **future enhancement** folded into the TurboModule/Fabric rewrite epic + on-device smoke test.
 
@@ -107,7 +107,7 @@ Phlix Mobile supports **Hub Mode** for remote access to your Phlix servers:
 | Mode | Description | Use Case |
 |------|-------------|----------|
 | **Direct** | Connects directly to server hostname (e.g., `http://192.168.1.100:8096`) | Same network as server |
-| **Via Hub Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
+| **Relay** | Routes traffic through Hub relay endpoint | Remote access when not on same network |
 
 Hub sessions survive app restarts. The hub JWT pair is persisted in the OS keychain vault via `react-native-keychain` (the plugin provides access to the Keychain on iOS and the Keystore on Android); `AsyncStorage` holds only non-secret session metadata — hub URL, user id, expiry, active server, connection mode. Pre-vault installs that stored the whole session in plaintext `AsyncStorage` are migrated on first read, and signing out of the hub wipes both the vault slots and the metadata blob.
 
@@ -286,7 +286,7 @@ The TypeScript surface is `src/native/types.ts` (`PhlixWebAuthnInterface`) wrapp
 #### Prerequisites
 
 1. Ensure CocoaPods dependencies are installed
-2. Open `ios/PhlixMobile.xcworkspace` in Xcode
+2. Open `ios/PhlixMobile.xcworkspace` (created by `pod install` — only the `.xcodeproj` is committed) in Xcode
 3. Select your target device or simulator
 4. Configure signing (if deploying to a real device)
 
@@ -449,7 +449,8 @@ automate (there is no fastlane or store-upload machinery in this repository).
 3. **Your own iPhone (personal device, manual)**: there is no published
    device build to download — CI ships no `.ipa`, so the only way to run
    this app on a physical iPhone today is building it yourself in Xcode
-   with a free Apple ID: open `ios/PhlixMobile.xcworkspace`, set your team
+   with a free Apple ID: open `ios/PhlixMobile.xcworkspace` (created by
+   `pod install`), set your team
    under *Signing & Capabilities*, and run the app on the attached device.
    Be aware of the free-provisioning trap: builds signed with a **personal
    (non-paid) Apple ID expire after 7 days** and the app silently stops

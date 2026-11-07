@@ -1,4 +1,4 @@
-# Phlix Mobile - Developer Guide
+# Phlix Mobile — Developer Guide
 
 This document provides technical documentation for developers working on Phlix Mobile.
 
@@ -117,7 +117,7 @@ Located in `src/components/`, organized by domain:
 
 ## Native Module Design
 
-### iOS - PhlixPlayer (Swift)
+### iOS — PhlixPlayer (Swift)
 
 **Location**: `ios/LocalPods/PhlixPlayer/`
 
@@ -173,7 +173,7 @@ interface PlaybackEvent {
 }
 ```
 
-### Android - PhlixPlayer (Kotlin)
+### Android — PhlixPlayer (Kotlin)
 
 **Location**: `android/app/src/main/java/com/phlixmobile/player/`
 
@@ -197,7 +197,7 @@ android/.../player/
   quality/track selection, no speed control.
 - Pauses automatically when the host view pauses (lifecycle safety)
 
-### Passkeys / WebAuthn - PhlixWebAuthn (E10e)
+### Passkeys / WebAuthn — PhlixWebAuthn
 
 A second native module implements platform passkeys (WebAuthn) on both platforms. The bridge is intentionally thin: the server's WebAuthn options go in as a JSON string and the authenticator's attestation/assertion comes back as a JSON string — **all base64url <-> binary conversion happens natively** (in Swift on iOS; not at all on Android, where Credential Manager works directly in WebAuthn JSON).
 
@@ -225,7 +225,7 @@ Requires the `androidx.credentials:credentials` and `:credentials-play-services-
 
 > **Device-only at runtime.** The passkey ceremony shows the system biometric/PIN sheet, which only runs on a real device — CI compiles the native code but cannot run a ceremony, and the JS layer is fully covered by Jest with the native module mocked. Cross-device portability additionally requires the **server** to publish relying-party association files (`apple-app-site-association` `webcredentials` for iOS, `assetlinks.json` for Android) for the `rpId` it returns.
 
-### Downloads - PhlixDownloader (iOS)
+### Downloads — PhlixDownloader (iOS)
 
 **iOS** — `ios/LocalPods/PhlixPlayer/PhlixDownloader.swift` + `PhlixDownloader.m`:
 
@@ -237,7 +237,7 @@ ios/LocalPods/PhlixPlayer/
 
 Method signatures, event names and payload keys are kept **IDENTICAL** to the Android module (`android/.../download/PhlixDownloaderModule.kt`) and the TS interface (`src/native/types.ts`: `PhlixDownloaderInterface` + `DOWNLOAD_EVENTS`) — the Swift header records this law, and the event-name strings must stay byte-ident with `DOWNLOAD_EVENTS`. The JS layer is `src/services/DownloadService.ts`; when the native module is absent it **fails the task loudly with the named missing-module error** (MW-027, review mobile__crossfe #14 — the old simulated-downloader fallback is gone: it faked progress to 100% and marked tasks complete over files never written), so Jest and non-native runs surface the registration failure instead of hiding it (the file header carries an honest UNTESTED-in-CI note: no device/simulator build runs in this environment).
 
-### Random - PhlixRandom (both platforms, M7)
+### Random — PhlixRandom (both platforms)
 
 CSPRNG-backed random bytes for device identity — the device id used to be `Math.random()`-shaped (predictable under a known PRNG state) until this module replaced it.
 

@@ -373,6 +373,49 @@ describe('HubAuthService', () => {
       ).rejects.toThrow(/serverId/);
     });
 
+    it('degrades wire-legal empty label rows per-row instead of aborting the roster', async () => {
+      // w05L3 minor (review w05L3 verdict): the boundary was STRICTER than
+      // the wire. The hub's own read projection coerces NULL/non-string
+      // server_name/version columns to '' BEFORE constructing the DTO
+      // (phlix-hub src/Hub/ServerInfoHandler.php:203,205 @8913ae11; the
+      // shared ServerInfoDto ctor is a plain readonly string with no
+      // non-empty gate), so `''` — and any foreign shape reaching it —
+      // is a reachable row value, not a contract violation. Before this
+      // law, ONE such row threw inside `servers.map(parseHubServer)` and
+      // failed the user's ENTIRE roster: a cosmetic label anomaly became
+      // a total hub outage. Identity (serverId) still hard-fails — the
+      // pin above owns that law.
+      const mockSession = {
+        accessToken: 'valid-token',
+        refreshToken: 'refresh',
+        expiresAt: Date.now() / 1000 + 3600,
+        userId: 'user-123',
+      };
+
+      mockGet.mockResolvedValueOnce({
+        data: {
+          servers: [
+            { ...realWireRow, serverId: 'srv-blank-name', serverName: '' },
+            { ...realWireRow, serverId: 'srv-blank-version', version: '' },
+            { ...realWireRow, serverId: 'srv-junk-name', serverName: 42 },
+            { ...realWireRow, serverId: 'srv-ok' },
+          ],
+        },
+      });
+
+      const result = await service.listServers('https://hub.example.com', mockSession);
+
+      // Every row survives; the label falls back to the row's guaranteed
+      // identity, the version to '' (mirroring the hub's degradation).
+      expect(result.map((s) => s.serverName)).toEqual([
+        'srv-blank-name',
+        'My Server',
+        'srv-junk-name',
+        'My Server',
+      ]);
+      expect(result.map((s) => s.version)).toEqual(['1.0.0', '', '1.0.0', '1.0.0']);
+    });
+
     it('should return empty array when user has no servers', async () => {
       const mockSession = {
         accessToken: 'valid-token',

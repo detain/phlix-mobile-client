@@ -32,6 +32,41 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w08 mobile L1: hub server-roster parse degrades wire-legal empty labels per row; writer doc pass — 2026-11-06
+
+- Behavior (carry-in, review w05L3 verdict): one roster row with an empty or
+  non-string `serverName`/`version` threw inside `servers.map(parseHubServer)`
+  and failed the user's ENTIRE hub server list — the client boundary was
+  stricter than the wire. The hub's own read projection coerces NULL/non-string
+  `server_name`/`version` to `''` before constructing the DTO
+  (`ServerInfoHandler.php:203,205`), so an empty label is a reachable row
+  value, not a contract violation. `parseHubServer` now degrades labels per
+  row: an empty/non-string name falls back to the row's guaranteed identity
+  (`serverId`), the version to `''`, mirroring the hub's degradation. Identity
+  (`serverId`) and session fields keep the fail-loud law — the pin above owns
+  that. Red-first at the parent (the new `listServers` conviction threw
+  `carried no usable 'serverName'` pre-fix); battery 126 suites
+  1796P+1skip -> 1797P+1skip exact (+1, same file).
+- `src/api/SyncPlayManager.ts` epoch-guard docblock re-told to the w07L2
+  wire-truth pass (comment-only): the production conviction lane is
+  `members[].joined_at` on the create/join envelope (`GroupState.php:433`
+  emits from `time()`); list rows carry no `created_at` at all
+  (`SyncPlaySnapshotService::listGroups`), so the `mapRoom` epoch arm is belt.
+- Writer pass (review mobile__writer #8-#13): README "not a generic
+  multi-server client" reworded to kill the collision with "Multi-Server
+  Support"; serial comma restored ("Chromecast, Roku, AirPlay, and DLNA"),
+  "Seek bar" lowered to match the file's "seek bar", "Favorites & ratings"
+  title-cased to its sibling labels; passkey note says "the server"
+  throughout (server/host drift); the mode table row "Via Hub Relay" was
+  trimmed to "Relay" so its name derives from the list's "Relay Mode"
+  (parallel with the untouched "Direct"/"Direct Mode" pair);
+  `ios/PhlixMobile.xcworkspace` is now marked created by `pod install` at its
+  first mention in each document (README, docs/signing.md).
+- DEVELOPER.md heading separators unified to the em dash and the opaque
+  ticket markers "(E10e)" / ", M7" dropped from headings; docs/signing.md
+  bundle-id parenthetical comma splice split into "note: ... — the two are
+  not the same string."
+
 ### Fixed — wave w07 mobile L2 docs forward-correction: component inventory completed; boot-gate visual wording corrected — 2026-11-06
 
 - Forward-correction to two documentation claims in the wave w07 mobile L2

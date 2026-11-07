@@ -81,17 +81,33 @@ function firstUsableString(...candidates: unknown[]): string | undefined {
 type HubServerPayload = Record<string, unknown>;
 
 /**
- * Fail-loud wire-string parse shared by every hub boundary (MW-022). A
- * missing/non-string/empty value is a CONTRACT violation at this seam —
- * the hub DTOs declare these fields as strings — so it halts with the
- * offending field named instead of letting `undefined` ride into the vault
- * or the roster (the exact poisoning class the review convicted).
+ * Fail-loud wire-string parse for IDENTITY and session fields (MW-022). A
+ * missing/non-string/empty value is a CONTRACT violation at this seam — the
+ * hub cannot name a server it does not identify, and a session without
+ * tokens is unusable — so it halts with the offending field named instead
+ * of letting `undefined` ride into the vault or the roster (the exact
+ * poisoning class the review convicted). LABEL fields (serverName/version)
+ * deliberately do NOT run through here: the hub wire makes `''` reachable
+ * for both, see {@link degradeLabelString}.
  */
 function requireWireString(value: unknown, fieldName: string, context: string): string {
   if (typeof value !== 'string' || value === '') {
     throw new Error(`${context} carried no usable \`${fieldName}\``);
   }
   return value;
+}
+
+/**
+ * Per-row degradation for roster LABEL fields (w05L3 minor: the boundary
+ * must not be stricter than the wire). The hub's read projection coerces
+ * NULL/non-string server_name/version columns to `''` BEFORE constructing
+ * the DTO (phlix-hub src/Hub/ServerInfoHandler.php:203,205 @8913ae11; the
+ * shared ServerInfoDto ctor gates nothing), so an empty label is a legal
+ * row, not an error — one such row may never sink the user's whole roster.
+ * Non-string junk degrades on the same lane as the hub does.
+ */
+function degradeLabelString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value !== '' ? value : fallback;
 }
 
 function requireFiniteNumber(value: unknown, fieldName: string, context: string): number {
@@ -103,12 +119,15 @@ function requireFiniteNumber(value: unknown, fieldName: string, context: string)
 
 /**
  * Parse one roster row from the hub's actual camelCase payload into a
- * trusted `HubServer` (identity fields fail loud; the two-state `status`
+ * trusted `HubServer`. Identity fields fail loud; the two-state `status`
  * collapses every non-`online` hub convention — offline/claiming/disabled,
  * documented "conventions NOT gates" in ServerInfoDto — to `offline` rather
- * than lying about an unchecked cast; a missing/foreign-shaped candidate
- * list degrades to hostname `''`, which `resolveEffectiveUrl` already owns
- * as "no direct lane").
+ * than lying about an unchecked cast; the label fields (`serverName`/
+ * `version`) and the candidate list degrade PER ROW (empty name falls back
+ * to the row's serverId, version and a missing/foreign-shaped candidate
+ * list to `''`, which `resolveEffectiveUrl` already owns as "no direct
+ * lane") — the wire permits all of those, so the parse mirrors the hub's
+ * own degradation instead of holding a cosmetic row hostage (w05L3 minor).
  */
 function parseHubServer(row: unknown): HubServer {
   if (typeof row !== 'object' || row === null) {
@@ -116,15 +135,14 @@ function parseHubServer(row: unknown): HubServer {
   }
   const record = row as HubServerPayload;
   const serverId = requireWireString(record.serverId, 'serverId', 'Hub server-list row');
-  const rowContext = `Hub server-list row ${serverId}`;
   const candidates = Array.isArray(record.hostnameCandidates) ? record.hostnameCandidates : [];
   const firstCandidate = candidates.find(
     (candidate): candidate is string => typeof candidate === 'string' && candidate !== ''
   );
   return {
     serverId,
-    serverName: requireWireString(record.serverName, 'serverName', rowContext),
-    version: requireWireString(record.version, 'version', rowContext),
+    serverName: degradeLabelString(record.serverName, serverId),
+    version: degradeLabelString(record.version, ''),
     status: record.status === 'online' ? 'online' : 'offline',
     hostname: firstCandidate ?? '',
   };

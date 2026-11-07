@@ -120,7 +120,11 @@ interface SyncPlayGroupListResponse {
  * seconds the wire carries, the ceiling is 8.64e12. MW-026 (review
  * mobile__exploiter #7): `Number.isFinite` alone let a hostile/stale epoch
  * like 1e20 through — the Date built, but `toISOString()` threw RangeError
- * and reddened the whole room list for one junk row. Values outside the
+ * and sank the whole mapped result. Mechanism re-told per the w07L2
+ * wire-truth pass: the PRODUCTION conviction lane is `members[].joined_at`
+ * on the create/join envelope (the server emits it from `time()`); list
+ * rows carry no `created_at` at all, so the epoch arm below in `mapRoom`
+ * is belt — an unknown key must degrade, never throw. Values outside the
  * buildable span now degrade to `''` exactly like the non-finite lane.
  */
 const MAX_EPOCH_SECONDS = 8.64e12;

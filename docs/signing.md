@@ -59,7 +59,7 @@ security import cert.p12 -k ~/Library/Keychains/login.keychain
 1. Go to [developer.apple.com → Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/profiles)
 2. Create a new **Provisioning Profile**:
    - Type: **App Store** (for TestFlight/App Store) or **Ad Hoc** (for direct device testing)
-   - App ID: Select the App ID matching your bundle identifier (`com.phlixmobile.PhlixMobile` — the value committed in `ios/PhlixMobile.xcodeproj/project.pbxproj` `PRODUCT_BUNDLE_IDENTIFIER`; note the Android `applicationId` is the shorter `com.phlixmobile`, they are NOT the same string)
+   - App ID: Select the App ID matching your bundle identifier (`com.phlixmobile.PhlixMobile` — the value committed in `ios/PhlixMobile.xcodeproj/project.pbxproj` `PRODUCT_BUNDLE_IDENTIFIER`; note: the Android `applicationId` is the shorter `com.phlixmobile` — the two are not the same string)
    - Select your Distribution Certificate
    - Add device UDIDs if using Ad Hoc
 3. Download the `.mobileprovision` file
@@ -73,7 +73,7 @@ cp your_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
 #### 4. Configure Xcode Signing
 
-1. Open `ios/PhlixMobile.xcworkspace` in Xcode
+1. Open `ios/PhlixMobile.xcworkspace` (created by `pod install` — only the `.xcodeproj` is committed) in Xcode
 2. Select the **PhlixMobile** scheme → **Product** → **Archive**
 3. In the Xcode Organizer, select your archive and click **Distribute App**
 4. Choose your distribution method (App Store Connect / Ad Hoc / Enterprise)
