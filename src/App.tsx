@@ -15,6 +15,7 @@ import { RootNavigator, navigationRef } from './navigation';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuthStore } from './stores/useAuthStore';
 import { useSettingsStore } from './stores/useSettingsStore';
+import { useHubStore } from './store/hubStore';
 import { initDeviceIdentity } from './api/deviceIdentity';
 import { startHubRelayConsumer, stopHubRelayConsumer } from './syncplay/HubRelayConsumer';
 import { syncPlayService } from './syncplay/SyncPlayService';
@@ -53,6 +54,23 @@ const App: React.FC = () => {
       } catch (error) {
         console.error('Failed to initialize app:', error);
       }
+
+      // Review mobile__crossfe Major 4 (MW-099): hydrate the persisted hub
+      // session at BOOTSTRAP, not lazily on a Settings-screen mount. Relay
+      // mode was dead on a cold start: the consumer below read a null store
+      // until the user visited Settings, and wsEndpoint fallbacks chose the
+      // direct lane in the meantime. The restore is deliberately NOT awaited:
+      // its listServers round-trip must not gate the auth flow, and
+      // startHubRelayConsumer SUBSCRIBES to this store — the socket opens on
+      // its own the moment hydration lands (the "hub store restores a
+      // persisted session" note below is now literally true at boot). Errors
+      // are swallowed inside loadPersistedState (a corrupt blob must not
+      // crash boot), and the store's idempotency memo makes this call and
+      // the Settings-screen belt one restore per process — with the
+      // M-MOBILE-12 deferral exception: a swallowed vault error re-arms the
+      // memo so the next read completes the migration. The hydration promise
+      // never rejects (outer catch is total), so fire-and-forget is safe here.
+      useHubStore.getState().loadPersistedState();
 
       // S298 — boot the hub-relay pending-command consumer ("open-whenever").
       // The socket opens itself once hub auth exists (the hub store restores a

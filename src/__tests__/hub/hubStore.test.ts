@@ -6,9 +6,14 @@
  */
 
 // src/__tests__/hub/hubStore.test.ts
-import { useHubStore } from '../../store/hubStore';
+import {
+  useHubStore,
+  __resetHubHydrationForTests,
+} from '../../store/hubStore';
 import * as HubAuthService from '../../hub/HubAuthService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as fs from 'fs';
+import * as path from 'path';
 import { secureStorage } from '../../services/SecureStorage';
 
 jest.mock('@react-native-async-storage/async-storage');
@@ -61,6 +66,11 @@ describe('hubStore', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // MW-099: the hydration memo is process-lifetime by design; every case
+    // here drives (or proves the absence of) a real restore, so each case
+    // needs a cold-boot memo. Same reason the wsEndpoint suite re-arms its
+    // relay-token provider seams.
+    __resetHubHydrationForTests();
     // Reset store state
     useHubStore.setState({
       hubUrl: null,
@@ -1164,6 +1174,9 @@ describe('hubStore display-name persistence (MW-025)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     keychainMock.__resetKeychainMock();
+    // MW-099 memo re-arm — this top-level describe is NOT covered by the
+    // main hubStore beforeEach; each case here drives its own cold restore.
+    __resetHubHydrationForTests();
     useHubStore.setState({
       hubUrl: null,
       session: null,
@@ -1227,5 +1240,124 @@ describe('hubStore display-name persistence (MW-025)', () => {
     const restored = useHubStore.getState().session;
     expect(restored?.userId).toBe('user-123');
     expect(restored?.displayName).toBeUndefined();
+  });
+});
+
+// MW-099 (review mobile__crossfe Major 4): hub hydration moved to app
+// bootstrap (App.tsx) so relay mode is live on a cold start, with the
+// Settings-screen call kept as a belt. The STORE now owns the idempotency
+// law — exactly one restore per process — and these cases pin it.
+describe('hubStore bootstrap hydration idempotency (MW-099)', () => {
+  const session = {
+    accessToken: 'hub-access-token',
+    refreshToken: 'hub-refresh-token',
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    userId: 'user-123',
+  };
+  const servers = [
+    {
+      serverId: 'server-2',
+      serverName: 'Second Server',
+      version: '1.0.0',
+      status: 'online' as const,
+      hostname: 'https://192.168.1.101:32400',
+    },
+  ];
+
+  const armBlob = () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+      JSON.stringify({
+        hubUrl: 'https://hub.example.com',
+        session,
+        activeServerId: 'server-2',
+        connectionMode: 'relay',
+      })
+    );
+    mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(servers);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    __resetHubHydrationForTests();
+    useHubStore.setState({
+      hubUrl: null,
+      session: null,
+      servers: [],
+      activeServerId: null,
+      connectionMode: 'direct',
+      effectiveServerUrl: '',
+      serverGeneration: 0,
+      isLoading: false,
+      error: null,
+    });
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  it('restores AT MOST ONCE per process: two callers share one round-trip', async () => {
+    armBlob();
+
+    const first = useHubStore.getState().loadPersistedState();
+    const second = useHubStore.getState().loadPersistedState();
+
+    // Same promise object — the memo hands the second caller the FIRST
+    // restore, not a parallel one.
+    expect(first).toBe(second);
+
+    await Promise.all([first, second]);
+
+    expect(mockedHubAuthService.hubAuthService.listServers).toHaveBeenCalledTimes(1);
+    expect(AsyncStorage.getItem as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(useHubStore.getState().activeServerId).toBe('server-2');
+  });
+
+  it('the swallowed-error branch RE-ARMS: the next read retries (M-MOBILE-12 deferral law)', async () => {
+    // The vault-deferral precedent: when the restore throws INTERNALLY
+    // (caught, swallowed), the memo must not seal the half-done migration
+    // away forever. getItem failing once is the minimal injected defect.
+    (AsyncStorage.getItem as jest.Mock)
+      .mockRejectedValueOnce(new Error('transient disk fault'))
+      .mockResolvedValue(
+        JSON.stringify({
+          hubUrl: 'https://hub.example.com',
+          session,
+          activeServerId: 'server-2',
+          connectionMode: 'relay',
+        })
+      );
+    mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(servers);
+
+    await expect(useHubStore.getState().loadPersistedState()).resolves.toBeUndefined();
+    expect(mockedHubAuthService.hubAuthService.listServers).not.toHaveBeenCalled();
+
+    await useHubStore.getState().loadPersistedState();
+    expect(mockedHubAuthService.hubAuthService.listServers).toHaveBeenCalledTimes(1);
+    expect(useHubStore.getState().activeServerId).toBe('server-2');
+  });
+
+  it('the test seam re-arms the memo (cold boot again)', async () => {
+    armBlob();
+    await useHubStore.getState().loadPersistedState();
+    __resetHubHydrationForTests();
+    await useHubStore.getState().loadPersistedState();
+
+    expect(mockedHubAuthService.hubAuthService.listServers).toHaveBeenCalledTimes(2);
+  });
+
+  it('App.tsx hydrates at bootstrap BEFORE the relay consumer starts (source pin)', () => {
+    // Honest fs source-read pin (precedent: keyboardAndSkeleton suite):
+    // MW-099 is a LOAD-ORDER law — hydration must be fired before
+    // startHubRelayConsumer so the consumer's store subscription sees the
+    // restore land, and the call must live in the boot initialize() flow.
+    const app = fs.readFileSync(
+      path.resolve(__dirname, '../../App.tsx'),
+      'utf8'
+    );
+    const hydrateAt = app.indexOf('loadPersistedState()');
+    const consumerAt = app.indexOf('startHubRelayConsumer({');
+    expect(hydrateAt).toBeGreaterThan(-1);
+    expect(consumerAt).toBeGreaterThan(-1);
+    expect(hydrateAt).toBeLessThan(consumerAt);
+    expect(app).toContain('useHubStore.getState().loadPersistedState();');
   });
 });

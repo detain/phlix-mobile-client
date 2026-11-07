@@ -58,6 +58,30 @@ interface HubState {
 const HUB_STORAGE_KEY = 'phlix_hub_session';
 
 /**
+ * Hydration idempotency memo (MW-099). loadPersistedState now runs at app
+ * bootstrap (App.tsx) AND still as a belt on Settings-screen mount; the
+ * restore — blob read, roster fetch, identity switch, migration sweep — must
+ * execute AT MOST ONCE per process. A second caller receives the SAME
+ * promise: no duplicate listServers round-trip, no second sweep racing the
+ * first, no double switchServerIdentity wake-up.
+ *
+ * A restore that ends in the swallowed-error branch RE-ARMS the memo: the
+ * vault-deferral law (M-MOBILE-12 case 4) demands the next read complete the
+ * migration, and the error branch is exactly that deferral. A clean restore
+ * — including a "nothing to restore" one — is final for the process.
+ */
+let hubHydration: Promise<void> | null = null;
+
+/**
+ * Test seam (precedent: wsEndpoint's __resetRelayTokenProvidersForTests):
+ * the memo is process-lifetime by design, so a battery that drives cold-boot
+ * hydration repeatedly must be able to re-arm it between cases.
+ */
+export function __resetHubHydrationForTests(): void {
+  hubHydration = null;
+}
+
+/**
  * The ONE sanctioned shape of the `phlix_hub_session` blob: the JWT pair NEVER
  * lives inside it. Both writers — `persistSession` at issuance and
  * `loadPersistedState`'s migration/crash-residue sweep — serialize through this
@@ -278,7 +302,13 @@ export const useHubStore = create<HubState>((set, get) => {
 
   clearError: () => set({ error: null }),
 
-  loadPersistedState: async () => {
+  loadPersistedState: () => {
+    if (hubHydration === null) {
+      hubHydration = (async () => {
+    // MW-099 x M-MOBILE-12: "final" means NOTHING was deferred. Any swallowed
+    // error — the outer catch or one of the vault-deferral arms below —
+    // re-arms the memo so the next read completes the migration.
+    let deferred = false;
     try {
       const data = await AsyncStorage.getItem(HUB_STORAGE_KEY);
       if (data) {
@@ -349,6 +379,7 @@ export const useHubStore = create<HubState>((set, get) => {
                 );
               } catch {
                 // Vault write failed — plaintext copy stays for retry.
+                deferred = true;
               }
             }
           } else if (legacyPair) {
@@ -368,6 +399,7 @@ export const useHubStore = create<HubState>((set, get) => {
               );
             } catch {
               // Next load retries the sweep; the vault holds the pair.
+              deferred = true;
             }
           }
           if (!accessToken || !refreshToken) {
@@ -394,7 +426,7 @@ export const useHubStore = create<HubState>((set, get) => {
             connectionMode
           );
           // Hydration is not exempt from the switch law: `loadPersistedState`
-          // runs lazily from the Settings screen, so the identity it restores
+          // runs at bootstrap (App.tsx) and via the Settings belt, so the identity it restores
           // CAN move under warm caches (same-id replay → no cascade, no bump).
           const nextGeneration = switchServerIdentity(activeServerId);
           const patch: Partial<HubState> = {
@@ -412,8 +444,18 @@ export const useHubStore = create<HubState>((set, get) => {
         }
       }
     } catch {
-      // Ignore errors loading persisted state
+      // Ignore errors loading persisted state — BUT re-arm the memo: a
+      // swallowed failure (the vault-deferred migration of M-MOBILE-12 (4))
+      // must complete on the NEXT read, so only a clean restore is
+      // once-per-process.
+      hubHydration = null;
     }
+    if (deferred) {
+      hubHydration = null;
+    }
+      })();
+    }
+    return hubHydration;
   },
   };
 });
