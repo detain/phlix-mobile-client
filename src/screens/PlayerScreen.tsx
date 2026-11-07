@@ -54,7 +54,11 @@ import { ErrorView } from '../components/ui/ErrorView';
 import { downloadService } from '../services/DownloadService';
 import { playbackProgressReporter } from '../services/PlaybackProgressReporter';
 import type { PlaybackEvent, PhlixPlayerViewProps } from '../native/types';
-import { syncPlayService, type PlaybackCommand } from '../syncplay/SyncPlayService';
+import {
+  syncPlayService,
+  type PlaybackCommand,
+  type SyncPlayMember,
+} from '../syncplay/SyncPlayService';
 import { clampSeekSeconds, syncReanchorTargetSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
@@ -64,6 +68,12 @@ import { SyncPlayModal, SyncPlayOverlay } from '../components/syncplay';
 /** Window in which an identical SyncPlay failure is Alerted once, not per
  * frame (review mobile__casualgamer m12). Distinct failures are unaffected. */
 const ERROR_ALERT_COALESCE_MS = 5000;
+
+/** How long a membership announcement (joined/left/host) rides the SyncPlay
+ * overlay before the line falls back to the connection rail / member
+ * count (MW-101 — the rails were write-only: no viewer ever saw a
+ * departure, a arrival, or the fact that the party socket had dropped). */
+const MEMBERSHIP_NOTICE_MS = 4000;
 
 // M-MOBILE-90 (review mobile__crossfe Minor 17): the local
 // `NativePhlixPlayerProps` shadow — every event typed `any`, duplicating what
@@ -194,6 +204,9 @@ const PlayerScreen: React.FC = () => {
   /** m12 — per-failure Alert timestamps (identical code+sentence inside the
    * coalescing window are logged, not stacked). */
   const errorAlertTimesRef = useRef<Map<string, number>>(new Map());
+  // MW-101: the transient membership sentence shown on the overlay pill.
+  const [membershipNotice, setMembershipNotice] = useState<string | null>(null);
+  const membershipNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPlayingRef = useRef(false);
   // E4: offline-mode flag — true when playing a local downloaded file. Surfaces
   // a small "Offline" badge in the top bar.
@@ -468,8 +481,41 @@ const PlayerScreen: React.FC = () => {
       Alert.alert('SyncPlay error', sentence);
     };
 
+    // MW-101: membership visibility. These three events were emitted by the
+    // service into the void — the party saw NOBODY leave, join, or change
+    // host, and could not tell a flapping connection from a quiet room.
+    // One notice rides the overlay pill at a time; a later event replaces
+    // the sentence AND restarts the expiry clock.
+    const showMembershipNotice = (sentence: string) => {
+      if (membershipNoticeTimerRef.current !== null) {
+        clearTimeout(membershipNoticeTimerRef.current);
+      }
+      setMembershipNotice(sentence);
+      membershipNoticeTimerRef.current = setTimeout(() => {
+        membershipNoticeTimerRef.current = null;
+        setMembershipNotice(null);
+      }, MEMBERSHIP_NOTICE_MS);
+    };
+    const handleMemberJoin = (member: SyncPlayMember) => {
+      showMembershipNotice(`${member.name} joined`);
+    };
+    const handleMemberLeft = (_memberId: string, memberName: string) => {
+      showMembershipNotice(`${memberName} left`);
+    };
+    const handleHostChanged = (newHostId: string) => {
+      // The NEW snapshot is already in the store at emit time, so this is
+      // the one roster lookup that CAN read names.
+      const host = useSyncplayStore
+        .getState()
+        .currentGroup?.members.find((m) => m.id === newHostId);
+      showMembershipNotice(host ? `${host.name} is now the host` : 'Host changed');
+    };
+
     syncPlayService.on('onPlaybackCommand', handleSyncPlayCommand);
     syncPlayService.on('onError', handleSyncPlayError);
+    syncPlayService.on('onMemberJoined', handleMemberJoin);
+    syncPlayService.on('onMemberLeft', handleMemberLeft);
+    syncPlayService.on('onHostChanged', handleHostChanged);
 
     // Gate (audit M5): opening a player is not joining a group. The socket
     // must ONLY exist while a SyncPlay group is active — group join/create
@@ -488,6 +534,13 @@ const PlayerScreen: React.FC = () => {
       // advance): the member lost their own watch party.
       syncPlayService.off('onPlaybackCommand', handleSyncPlayCommand);
       syncPlayService.off('onError', handleSyncPlayError);
+      syncPlayService.off('onMemberJoined', handleMemberJoin);
+      syncPlayService.off('onMemberLeft', handleMemberLeft);
+      syncPlayService.off('onHostChanged', handleHostChanged);
+      if (membershipNoticeTimerRef.current !== null) {
+        clearTimeout(membershipNoticeTimerRef.current);
+        membershipNoticeTimerRef.current = null;
+      }
       if (useSyncplayStore.getState().currentGroup === null) {
         syncPlayService.disconnect();
       }
@@ -1310,7 +1363,7 @@ const PlayerScreen: React.FC = () => {
 
               {/* SyncPlay indicator / button */}
               {currentGroup ? (
-                <SyncPlayOverlay onPress={() => setShowSyncPlayOverlay(true)} />
+                <SyncPlayOverlay onPress={() => setShowSyncPlayOverlay(true)} notice={membershipNotice} />
               ) : (
                 <TouchableOpacity
                   style={styles.syncPlayButton}

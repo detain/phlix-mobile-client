@@ -403,7 +403,14 @@ interface SyncPlayServiceEvents {
   onGroupStateUpdate: (group: SyncPlayGroup) => void;
   onPlaybackCommand: (cmd: PlaybackCommand) => void;
   onMemberJoined: (member: SyncPlayMember) => void;
-  onMemberLeft: (memberId: string) => void;
+  /**
+   * MW-101: the departure carries the LAST KNOWN display name — the store
+   * has already been replaced with the new snapshot when this fires, so a
+   * consumer reading the roster would only find "the id that vanished".
+   * The name comes from the previous snapshot's roster (wire default
+   * 'Unknown' when the frame never carried one).
+   */
+  onMemberLeft: (memberId: string, memberName: string) => void;
   onHostChanged: (newHostId: string) => void;
   onError: (code: string, message: string) => void;
   onTimeSyncUpdate: (status: { offset: number; latency: number; isStable: boolean }) => void;
@@ -427,8 +434,11 @@ class SyncPlayService {
   private connectionGeneration = 0;
   /** Room to join once the socket opens (connectWithRoom); null = re-join current. */
   private pendingJoinRoomId: string | null = null;
-  /** Member ids seen in the last group_state — the basis of join/left diffs. */
-  private lastMemberIds = new Set<string>();
+  /**
+   * Last group_state roster (id → name) — the basis of join/left diffs.
+   * MW-101: it carries names precisely so the left-event can say WHO.
+   */
+  private lastRoster = new Map<string, string>();
   private reconnectAttempts = 0;
   /**
    * Cached GROUP GATE digest for the room we intend to be in (review
@@ -515,7 +525,7 @@ class SyncPlayService {
     this.setConnectionState('disconnected');
     this.timeSync.reset();
     this.yourId = '';
-    this.lastMemberIds.clear();
+    this.lastRoster.clear();
     this.pendingJoinRoomId = null;
     this.reconnectAttempts = 0;
     this.groupGate = null;
@@ -632,7 +642,7 @@ class SyncPlayService {
     });
 
     useSyncplayStore.getState().setCurrentGroup(null);
-    this.lastMemberIds.clear();
+    this.lastRoster.clear();
     this.stopSyncInterval();
     // Leaving is a decision to not come back — the cached gate dies with the
     // membership so a later auto-rejoin can't sneak back in (C1) and nothing
@@ -1163,7 +1173,7 @@ class SyncPlayService {
     this.setConnectionState('disconnected');
     this.stopSyncInterval();
     this.timeSync.reset();
-    this.lastMemberIds.clear();
+    this.lastRoster.clear();
     this.scheduleReconnect();
   }
 
@@ -1327,12 +1337,12 @@ class SyncPlayService {
     // left events from the diff (this replaces the prose `message.includes`
     // sniff that never matched the server's actual INFO wording pattern).
     const currentIds = new Set(members.map((m) => m.id));
-    for (const memberId of this.lastMemberIds) {
+    for (const [memberId, memberName] of this.lastRoster) {
       if (!currentIds.has(memberId)) {
-        this.events.onMemberLeft?.(memberId);
+        this.events.onMemberLeft?.(memberId, memberName);
       }
     }
-    this.lastMemberIds = currentIds;
+    this.lastRoster = new Map(members.map((m) => [m.id, m.name]));
 
     this.events.onGroupStateUpdate?.(group);
   }

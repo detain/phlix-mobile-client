@@ -13,19 +13,39 @@ import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../../utils/textScalePolicy';
 
 interface SyncPlayOverlayProps {
   onPress: () => void;
+  /**
+   * MW-101 (review mobile__gameux Major — liveness rails were write-only):
+   * a transient membership announcement owned by PlayerScreen — "Bob left",
+   * "Carol joined", "X is now the host". Takes precedence over the member
+   * count line for as long as it is set; null restores the count.
+   */
+  notice?: string | null;
 }
 
 /**
  * SyncPlayOverlay - Shows when user is in a SyncPlay room
- * Displays room name, member count, and sync status indicator
+ * Displays room name, a LIVE status line (member count, the connection rail,
+ * or a transient membership notice) and the sync indicator.
  */
-const SyncPlayOverlay: React.FC<SyncPlayOverlayProps> = ({ onPress }) => {
+const SyncPlayOverlay: React.FC<SyncPlayOverlayProps> = ({ onPress, notice = null }) => {
   const currentGroup = useSyncplayStore((state) => state.currentGroup);
   const timeSyncStable = useSyncplayStore((state) => state.timeSyncStable);
+  const isConnected = useSyncplayStore((state) => state.isConnected);
+  const isConnecting = useSyncplayStore((state) => state.isConnecting);
 
   if (!currentGroup) {
     return null;
   }
+
+  // MW-101: the service mirrors every socket transition into these store
+  // flags (M9 liveness rail). Before this file read them, a dropped SyncPlay
+  // connection was invisible to the party — the overlay kept smiling a
+  // member count while frames went nowhere. Precedence: explicit notice >
+  // connection rail > member count.
+  const offline = !isConnected;
+  const statusLine = notice ?? (offline ? (isConnecting ? 'Reconnecting…' : 'Disconnected') : null);
+  const memberCount = currentGroup.members.length;
+  const countLine = `${memberCount} member${memberCount !== 1 ? 's' : ''}`;
 
   return (
     <TouchableOpacity
@@ -53,15 +73,17 @@ const SyncPlayOverlay: React.FC<SyncPlayOverlayProps> = ({ onPress }) => {
             {currentGroup.name}
           </Text>
           <Text style={styles.memberCount} maxFontSizeMultiplier={TEXT_MAX_FONT_SIZE_MULTIPLIER}>
-            {currentGroup.members.length} member{currentGroup.members.length !== 1 ? 's' : ''}
+            {statusLine ?? countLine}
           </Text>
         </View>
         <View
           style={[
             styles.syncDot,
-            timeSyncStable ? styles.syncStable : styles.syncUnstable,
+            offline ? styles.syncOffline : timeSyncStable ? styles.syncStable : styles.syncUnstable,
           ]}
-          accessibilityLabel={timeSyncStable ? 'Sync stable' : 'Sync unstable'}
+          accessibilityLabel={
+            offline ? 'Sync offline' : timeSyncStable ? 'Sync stable' : 'Sync unstable'
+          }
         />
       </View>
     </TouchableOpacity>
@@ -111,6 +133,12 @@ const styles = StyleSheet.create({
   },
   syncUnstable: {
     backgroundColor: '#ff9500',
+  },
+  // MW-101: honest gray while the SyncPlay socket is down — the dot no
+  // longer claims a sync verdict for a connection that has none. (A chrome
+  // background token, not a text color: outside the MW-104 family.)
+  syncOffline: {
+    backgroundColor: '#555',
   },
 });
 

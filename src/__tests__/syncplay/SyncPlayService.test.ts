@@ -845,7 +845,9 @@ describe('SyncPlayService - Group state parsing (wire law)', () => {
       group: wireGroup({ 'user-1': { id: 'user-1', name: 'Alice', is_host: true } }),
     });
     expect(left).toHaveBeenCalledTimes(1);
-    expect(left).toHaveBeenCalledWith('user-2');
+    // MW-101 rotation: the departure now names WHO (from the PREVIOUS
+    // snapshot's roster — Bob is already gone from the store at emit time).
+    expect(left).toHaveBeenCalledWith('user-2', 'Bob');
 
     // The old prose sniff used to fire on message text — an unrelated INFO
     // whose sentence merely contains "left" must stay silent now.
