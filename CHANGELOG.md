@@ -32,6 +32,28 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w07 mobile L2 docs forward-correction: component inventory completed; boot-gate visual wording corrected — 2026-11-06
+
+- Forward-correction to two documentation claims in the wave w07 mobile L2
+  entry below. History stays verbatim — newer truth rides this fresh entry,
+  never an edit of the old one.
+- The component-inventory bullet (review mobile__docmaint #11) claimed four
+  shipped components had been added to the DEVELOPER.md inventory —
+  `ErrorBoundary` (layout section) plus `ContentSkeleton` /
+  `InsecureConnectionBanner` / `LocalPlaceholder` (UI section), "each
+  described from its real source behavior". Only the `ErrorBoundary` bullet
+  actually landed in that change. The other three are real shipped
+  components (`src/components/ui/`) whose promised inventory coverage was
+  never delivered. It is delivered now: three bullets in the UI Components
+  section, each described from verified source behavior at this tip.
+- The boot-gate bullet (review mobile__gameux #9) called the swap to
+  `<LoadingSpinner fullScreen />` "the identical prior visual (centered
+  ActivityIndicator on #0f0f1a)". It was not identical: the prior gate was
+  static centered Text ("Loading…", white 16pt) on that same background —
+  there was no ActivityIndicator before the swap. The background and
+  centering carried over; the indicator is precisely the text→spinner
+  unification the finding asked for — new behavior, not a preserved visual.
+
 ### Fixed — wave w07 mobile L2: shared boot-gate spinner, hub-concept copy, yarn/overrides caveat, CocoaPods floor, settings-store doc regen, component inventory (MW-029–MW-034) — 2026-11-06
 
 - MW-029 (review mobile__devops #6): the README's yarn endorsement now

@@ -102,6 +102,9 @@ Located in `src/components/`, organized by domain:
 - `LoadingSpinner`: Loading indicator
 - `EmptyState`: Empty list placeholder
 - `ErrorView`: Error display component
+- `ContentSkeleton`: Cold-load placeholders in the shape of the content on its way — `DetailSkeleton` mirrors MediaDetailScreen's real proportions (300pt hero band, 35%-width poster with title/meta stack, a rail of three poster cards) and `GridSkeleton` renders two-up poster rows (`rows` prop, default 3). Blocks pulse opacity via RN-core `Animated` only — no new pod — and each instance's loop is cancelled on unmount so fast navigation bursts leak no timers. The boxes hide from screen readers while the containers announce the load ("Loading details" / "Loading results"). Honesty rule: a skeleton is a shape, never fake data — no counts, titles or durations.
+- `InsecureConnectionBanner`: Persistent cleartext indicator mounted at the root beside `CastSessionPill`; renders exactly while `useConnectionSecurityStore` reports a live cleartext lane and returns null the moment every lane is encrypted again. Amber and non-dismissible (no close affordance) — the copy states WHAT (traffic readable on this network) and WHAT TO DO (use on trusted networks only), deliberately avoiding scare-red because LAN-http is a ratified working mode.
+- `LocalPlaceholder`: Offline-honest poster/photo fallback for the card and photo surfaces that once called a third-party placeholder web service per missing image — a brand-dark tile with a per-kind glyph (poster 🎬 / photo 🖼️), zero network calls, zero bitmap assets. The caller supplies the same width/height it would have given the replaced `<Image>`, so rows never reflow; the tile reads "No preview available" while the glyph itself stays decorative.
 
 **Cast Components** (`components/cast/`)
 - `CastButton`: Start-cast affordance
