@@ -30,14 +30,19 @@ import {
   type CastBackend,
   type CastDevice,
 } from '../types/cast';
+import { apiErrorMessage } from '../api/client';
 import type { RootStackParamList } from '../types/navigation';
 import { formatTime } from '../utils/formatters';
 
 const POLL_INTERVAL_MS = 2500;
 const SEEK_STEP_MS = 15000;
 
-const errText = (err: unknown, fallback: string): string =>
-  err instanceof Error ? err.message : fallback;
+// MW-098 (review mobile__casualgamer #1): this file used to carry a local
+// `errText` helper that echoed `err.message` — raw axios text ("Network
+// Error", "Request failed with status code 404") straight into the user's
+// Alert. Every failure surface here now rides the repo's single REST error
+// door, apiErrorMessage: catalog copy for a known code, quarantined server
+// prose otherwise, transport-class guidance for response-less failures.
 
 type CastNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Cast'>;
 
@@ -147,7 +152,7 @@ const CastScreen: React.FC = () => {
       });
       setPositionMs(0);
     } catch (err) {
-      Alert.alert('Cast failed', errText(err, 'Could not cast to this device.'));
+      Alert.alert('Cast failed', apiErrorMessage(err, 'Could not cast to this device.'));
     } finally {
       if (mountedRef.current) {
         setConnecting(false);
@@ -166,7 +171,7 @@ const CastScreen: React.FC = () => {
     } catch (err) {
       // M-MOBILE-87 (review mobile__writer Minor 33): 'Transport' was internal
       // vocabulary leaking to users.
-      Alert.alert('Playback control failed', errText(err, 'Could not change playback.'));
+      Alert.alert('Playback control failed', apiErrorMessage(err, 'Could not change playback.'));
     }
   };
 
@@ -176,7 +181,7 @@ const CastScreen: React.FC = () => {
     try {
       await seek(next);
     } catch (err) {
-      Alert.alert('Seek failed', errText(err, 'Could not seek.'));
+      Alert.alert('Seek failed', apiErrorMessage(err, 'Could not seek.'));
     }
   };
 
@@ -185,7 +190,7 @@ const CastScreen: React.FC = () => {
       await stopAndDisconnect();
       clearTimer();
     } catch (err) {
-      Alert.alert('Stop failed', errText(err, 'Could not stop playback.'));
+      Alert.alert('Stop failed', apiErrorMessage(err, 'Could not stop playback.'));
     }
   };
 

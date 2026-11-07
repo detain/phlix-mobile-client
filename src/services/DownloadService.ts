@@ -22,11 +22,74 @@ import {
   type DownloadErrorPayload,
   type DownloadPausedPayload,
 } from '../native/types';
+import { apiErrorMessage } from '../api/client';
 
 const MAX_CONCURRENT_DOWNLOADS = 2;
 
 // Re-export the native event-name constants so callers/tests share one source.
 export { DOWNLOAD_EVENTS };
+
+/* ── MW-045 (review mobile__casualgamer #2): actionable failure copy ───────
+ * Native download failures arrive as raw wire/OS strings. The full inventory
+ * at the emitting boundary:
+ *   - Android PhlixDownloaderModule.kt finishError: "HTTP ${code}",
+ *     "Empty response body", and unwrapped OkHttp exception messages;
+ *   - iOS PhlixDownloader.swift: URLSession/NSError localizedDescription;
+ *   - the JS lane: axios text and the app's own throws.
+ * None of it tells a user what to DO — the list used to render verbatim
+ * after "Failed: ". `describeDownloadFailure` parses every known shape at
+ * this boundary into one short, actionable sentence; unmappable text falls
+ * to the generic retry copy instead of echoing machine noise. The raw
+ * string survives for field diagnosis in handleNativeError's console line.
+ */
+const DOWNLOAD_CONNECTIVITY = 'Your connection was interrupted — check the network and try again.';
+const DOWNLOAD_DISK_FULL = 'Not enough free storage on this device — make space and try again.';
+const DOWNLOAD_LINK_EXPIRED = 'The download link expired — start the download again.';
+const DOWNLOAD_ITEM_GONE = 'That item could not be found on this server.';
+const DOWNLOAD_SERVER_ERROR = 'The server had a problem delivering the file — try again later.';
+const DOWNLOAD_EMPTY_BODY = 'The server sent no data — try again later.';
+const DOWNLOAD_GENERIC = 'The download failed — try again.';
+
+const DISK_FULL_SHAPE = /no space left|volume .*is full|not enough space|insufficient storage|ENOSPC/i;
+// Hostname/DNS wording must be tested BEFORE the "could not be found" item
+// lane: iOS prints "A server with the specified hostname could not be
+// found." for dead DNS — a connectivity event, not a vanished item.
+const CONNECTIVITY_SHAPE = /resolve host|hostname|connection|network|offline|timed out|timeout|socket|ECONNRESET|EAI_AGAIN/i;
+const RESOURCE_GONE_SHAPE = /resource could not be found|no longer available/i;
+
+export const describeDownloadFailure = (raw: string): string => {
+  const text = raw.trim();
+  if (text === '') {
+    return DOWNLOAD_GENERIC;
+  }
+  const http = /^HTTP (\d{3})$/.exec(text);
+  if (http) {
+    const code = Number(http[1]);
+    if (code === 401 || code === 403) {
+      return DOWNLOAD_LINK_EXPIRED;
+    }
+    if (code === 404 || code === 410) {
+      return DOWNLOAD_ITEM_GONE;
+    }
+    if (code >= 500) {
+      return DOWNLOAD_SERVER_ERROR;
+    }
+    return `The server rejected the download (HTTP ${code}).`;
+  }
+  if (DISK_FULL_SHAPE.test(text)) {
+    return DOWNLOAD_DISK_FULL;
+  }
+  if (text === 'Empty response body') {
+    return DOWNLOAD_EMPTY_BODY;
+  }
+  if (RESOURCE_GONE_SHAPE.test(text)) {
+    return DOWNLOAD_ITEM_GONE;
+  }
+  if (CONNECTIVITY_SHAPE.test(text)) {
+    return DOWNLOAD_CONNECTIVITY;
+  }
+  return DOWNLOAD_GENERIC;
+};
 
 function getNativeDownloader(): PhlixDownloaderInterface | undefined {
   return NativeModules.PhlixDownloader as PhlixDownloaderInterface | undefined;
@@ -302,7 +365,11 @@ class DownloadService {
       // identical across the TS interface and both native modules.
       PhlixDownloader.startDownload(taskId, streamUrl, localPath, task.resumeOffset ?? 0, 0);
     } catch (err) {
-      store.updateTaskStatus(taskId, 'failed', err instanceof Error ? err.message : 'Failed to start download');
+      // MW-098's sibling on this surface (review mobile__casualgamer #1/#2):
+      // the app's own throws above ("No downloadable stream available…") are
+      // already user prose and ride through quarantine unchanged; axios junk
+      // is replaced by the door's catalog/transport/fallback precedence.
+      store.updateTaskStatus(taskId, 'failed', apiErrorMessage(err, 'The download could not be started — try again.'));
       this.activeDownloads.delete(taskId);
       this.processQueue();
     }
@@ -384,8 +451,11 @@ class DownloadService {
   }
 
   handleNativeError(taskId: string, error: string): void {
+    // MW-045: the user gets the mapped prose; the raw native/OS string stays
+    // in the console for field diagnosis (it is never user-facing copy).
+    console.warn(`[DownloadService] native failure for ${taskId}: ${error}`);
     const store = useDownloadStore.getState();
-    store.updateTaskStatus(taskId, 'failed', error);
+    store.updateTaskStatus(taskId, 'failed', describeDownloadFailure(error));
     this.activeDownloads.delete(taskId);
     this.processQueue();
   }

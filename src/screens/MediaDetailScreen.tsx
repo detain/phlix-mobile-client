@@ -27,6 +27,7 @@ import { libraryManager } from '../api/LibraryManager';
 import { favoritesManager } from '../api/FavoritesManager';
 import { markerManager } from '../api/MarkerManager';
 import { userManager } from '../api/UserManager';
+import { apiErrorMessage } from '../api/client';
 import { buildResumeMap, ticksToSeconds } from '../utils/resumePositions';
 import { MediaItem, Season, Episode } from '../types/media';
 import type { Chapter } from '../types/playback';
@@ -187,7 +188,12 @@ const MediaDetailScreen: React.FC = () => {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load media details');
+      // MW-098 (review mobile__casualgamer #1): raw `err.message` printed axios
+      // text ("Request failed with status code 404") as the entire user-facing
+      // failure. The ErrorView below now shows what the apiErrorMessage door
+      // returns: catalog copy for a known code, quarantined server prose
+      // otherwise, this fallback for junk.
+      setError(apiErrorMessage(err, 'Failed to load media details'));
     } finally {
       setIsLoading(false);
     }
@@ -305,7 +311,7 @@ const MediaDetailScreen: React.FC = () => {
       setIsFavorite(previous); // revert
       Alert.alert(
         'Favorite Failed',
-        err instanceof Error ? err.message : 'Could not update favorite'
+        apiErrorMessage(err, 'Could not update favorite')
       );
     } finally {
       setFavBusy(false);
@@ -333,7 +339,7 @@ const MediaDetailScreen: React.FC = () => {
       setRating(previous); // revert
       Alert.alert(
         'Rating Failed',
-        err instanceof Error ? err.message : 'Could not update rating'
+        apiErrorMessage(err, 'Could not update rating')
       );
     } finally {
       setRateBusy(false);

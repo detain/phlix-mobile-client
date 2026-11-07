@@ -327,10 +327,15 @@ describe('DownloadService', () => {
       const taskId = await service.startDownload(makeItem({ id: 'item-1' }));
       await flush();
 
+      // MW-045 (review mobile__casualgamer #2): the store now holds ACTIONABLE
+      // prose, not the raw native string — 'Network down' is transport-class
+      // and maps to the connectivity copy (table pinned in
+      // DownloadService.failureCopy.test.ts). This pin used to enshrine the
+      // raw echo; the law inverted with the fix.
       service.handleNativeError(taskId, 'Network down');
       const task = useDownloadStore.getState().tasks[taskId];
       expect(task.status).toBe('failed');
-      expect(task.error).toBe('Network down');
+      expect(task.error).toBe('Your connection was interrupted — check the network and try again.');
     });
 
     it('handleNativePaused marks paused', async () => {

@@ -21,7 +21,7 @@ src/
 ├── syncplay/      # SyncPlay wire client (service, relay, endpoints, catalog)
 ├── types/         # TypeScript type definitions
 ├── utils/         # Utility functions
-└── App.tsx        # Root component (+ index.ts entry point)
+└── App.tsx        # Root component (boot registration lives in the root-level index.js)
 ```
 
 > **The store-vs-stores trap.** There are TWO state directories with confusingly
@@ -59,8 +59,8 @@ library), **MediaDetailScreen** (movie/series/music detail), **PlayerScreen**
 content), **LoginScreen** (server sign-in + passkey), **ProfileSelectScreen**
 (profile chooser/PIN), **FavoritesScreen**, **WatchHistoryScreen**,
 **RecommendationsScreen**, **CollectionsScreen** + **CollectionDetailScreen**,
-**MusicScreen** + **MusicAlbumScreen**, **PhotosScreen** + **PhotoAlbumScreen**
-+ **PhotoViewerScreen**, **LiveTvScreen** + **LiveTvRecordingsScreen**,
+**MusicScreen** + **MusicAlbumScreen**, **PhotosScreen** + **PhotoAlbumScreen** +
+**PhotoViewerScreen**, **LiveTvScreen** + **LiveTvRecordingsScreen**,
 **ParentalControlsScreen**, **PasskeysScreen** (WebAuthn enrollment),
 **CastScreen** (device picker/session), and **AdminDashboardScreen** +
 **AdminUsersScreen** + **AdminLibrariesScreen**.
@@ -614,6 +614,7 @@ adb logcat | grep PhlixMobile
 
 ```
 phlix-mobile/
+├── index.js                 # App registration entry (AppRegistry → src/App)
 ├── src/
 │   ├── api/
 │   │   ├── client.ts         # Axios client with interceptors
@@ -660,7 +661,7 @@ phlix-mobile/
 │   │   ├── storage.ts       # AsyncStorage helpers
 │   │   └── index.ts
 │   ├── App.tsx              # Root component
-│   └── index.ts             # Entry point
+│   └── index.ts             # Re-export barrel (types/media, types/playback, types/navigation)
 ├── ios/
 │   └── LocalPods/
 │       └── PhlixPlayer/     # Native iOS player

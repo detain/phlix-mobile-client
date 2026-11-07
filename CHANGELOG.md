@@ -32,6 +32,50 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w09 mobile L1: actionable download-failure copy; cast/detail error surfaces ride the apiErrorMessage door; writer doc-currency pass — 2026-11-06
+
+- Behavior (review mobile__casualgamer #2 / MW-045): a failed download
+  rendered the RAW native string after "Failed: " — Android `finishError`
+  emits `HTTP ${code}`, "Empty response body" and unwrapped OkHttp exception
+  text; iOS emits `NSError.localizedDescription`. The new pure boundary
+  mapper `describeDownloadFailure` (src/services/DownloadService.ts) maps
+  the whole inventory to short actionable prose (expired link for 401/403,
+  item-gone for 404/410 and the iOS resource-missing wording, server/storage/
+  connectivity sentences, code-carrying copy for other HTTP shapes) and
+  falls back to generic retry prose for unmappable text — machine noise
+  never reaches the UI; the raw string now rides a console diagnostic in
+  `handleNativeError`. The `beginDownload` JS-side catch, which previously
+  stored `err.message` verbatim, routes through `apiErrorMessage` (the
+  app's own throw sentences pass through quarantine unchanged). The existing
+  pin that stored the raw echo verbatim was converted to the new law.
+- Behavior (review mobile__casualgamer #1 / MW-098): seven error surfaces
+  printed raw `err.message` as the entire user-facing response — CastScreen
+  through a local `errText` helper (now retired) at its four Alerts, and
+  MediaDetailScreen at its load-failure ErrorView plus the favorite/rating
+  Alerts. All seven now call the repo's existing REST error door
+  `apiErrorMessage(err, fallback)`: catalog copy for a known wire code,
+  quarantined "Server says:" prose otherwise, the reachability checklist for
+  transport-class failures, and the surface's own fallback for junk. Pinned
+  behaviorally through the real CastScreen hook-host harness (transport copy
+  and `not_found` catalog copy asserted at the Alert) and by source-routing
+  pins (src/__tests__/screens/w09L1ErrorRouting.test.ts,
+  w04L4StructuralPins.test.ts precedent).
+- Docs (review mobile__writer #4/5/6/7 — MW-041..044): CLAUDE.md's summary
+  said React Navigation v6 while AGENTS.md and the pinned dependency say v7
+  — now v7 with the pinned shape; README's Live TV section quoted a friendly
+  string neither screen shows — replaced with the actual "Live TV is not
+  set up" empty-state title and both screens' real body copy; DEVELOPER.md's
+  screen paragraph had a line-initial `+` (Markdown bullet artifact) — moved
+  to end of the previous line; and the structure docs no longer label
+  `src/index.ts` (a types re-export barrel) as the app entry point — the
+  real registration entry, the root-level `index.js` (AppRegistry), joined
+  the Project Structure Summary tree and both labels were corrected.
+- Tests: +32 (failure-copy inventory table + store wiring 23, error-routing
+  source pins 7, cast Alert copy behavior 2); battery 128 suites,
+  1829 pass + 1 skipped (parent 126/1797+1); skip identity unchanged
+  (`deviceIdentity.test.ts` stored-id pin); tsc 0; eslint 0 errors with the
+  two pre-existing unused-disable warnings (PlayerScreen, SleepTimer) held.
+
 ### Fixed — wave w08 mobile L1: hub server-roster parse degrades wire-legal empty labels per row; writer doc pass — 2026-11-06
 
 - Behavior (carry-in, review w05L3 verdict): one roster row with an empty or

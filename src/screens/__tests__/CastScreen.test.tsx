@@ -171,7 +171,8 @@ import CastScreen from '../CastScreen';
 import { useCastStore } from '../../stores/useCastStore';
 import { isCastPillVisible } from '../../components/cast/castPillHelpers';
 import { castManager } from '../../api/CastManager';
-import { FlatList } from 'react-native';
+import { SERVER_UNREACHABLE_MESSAGE } from '../../api/client';
+import { Alert, FlatList } from 'react-native';
 import type { CastDevice } from '../../types/cast';
 
 const mocked = castManager as jest.Mocked<typeof castManager>;
@@ -444,5 +445,53 @@ describe('CastScreen — M-MOBILE-16 session persistence', () => {
     expect(useCastStore.getState().activeDevice).toBeNull();
     expect(hasText(host.tree as El, 'Cast to a device')).toBe(true);
     expect(mocked.stop).not.toHaveBeenCalled();
+  });
+});
+
+// ── MW-098 (review mobile__casualgamer #1): cast failures speak USER prose ──
+// The four catch blocks used to print raw Error text — "Network Error",
+// "Request failed with status code 404" — straight into the Alert. They now
+// route through the same apiErrorMessage door the login lane uses (the repo's
+// established error-copy choke point): transport class → the reachability
+// checklist; contract {error,code} body → catalog copy. The screen's own
+// fallbacks stay behind it for junk bodies.
+
+describe('CastScreen — MW-098 error copy rides apiErrorMessage', () => {
+  let alertSpy: jest.SpyInstance;
+  beforeEach(() => {
+    alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    alertSpy.mockRestore();
+  });
+
+  const castFailWith = async (err: unknown) => {
+    mocked.discover.mockResolvedValue([tv]);
+    mocked.castTo.mockRejectedValue(err);
+    const host = mount();
+    await flush();
+    host.rerender();
+    pressDeviceCard(host, tv);
+    await flush();
+    host.unmount();
+    mountedHost = null;
+  };
+
+  it('transport-class failure renders the reachability checklist, not "Network Error"', async () => {
+    await castFailWith(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }));
+    const copy = alertSpy.mock.calls.find((c) => c[0] === 'Cast failed')?.[1];
+    expect(copy).toBe(SERVER_UNREACHABLE_MESSAGE);
+    expect(copy).not.toContain('Network Error');
+  });
+
+  it('contract {error,code} body renders catalog copy, not the raw axios status line', async () => {
+    await castFailWith(
+      Object.assign(new Error('Request failed with status code 404'), {
+        response: { status: 404, data: { error: 'nope', code: 'not_found' } },
+      }),
+    );
+    const copy = alertSpy.mock.calls.find((c) => c[0] === 'Cast failed')?.[1];
+    expect(copy).toBe('That item could not be found on this server.');
+    expect(copy).not.toContain('Request failed');
   });
 });
