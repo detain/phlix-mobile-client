@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
+import ModalSheet from '../components/ui/ModalSheet'; // MW-116
 import { useAuthStore } from '../stores/useAuthStore';
 import { useAdminStore } from '../stores/useAdminStore';
 import type { AdminUser } from '../types/admin';
@@ -392,6 +393,9 @@ const AdminUsersScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setEditorVisible(false)}
         >
+          {/* MW-116: username/email/password fields must ride ABOVE the
+              keyboard — single-source sheet padding. */}
+          <ModalSheet>
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>
               {editingUser ? 'Edit User' : 'New User'}
@@ -454,6 +458,7 @@ const AdminUsersScreen: React.FC = () => {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
     </SafeContainer>

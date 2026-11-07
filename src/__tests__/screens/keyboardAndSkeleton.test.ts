@@ -104,3 +104,45 @@ describe('M-MOBILE-43 — cold loads render skeletons', () => {
     );
   });
 });
+
+// MW-116 (review mobile__gameux #1 + mobile__crossfe #6): six modal sheets
+// (SyncPlay bottom sheet, Hub sign-in, collection create, profile editor +
+// PIN, passkey rename, admin user form) place TextInputs with NO keyboard
+// avoidance — the keyboard covers the field/focus while typing. The cure is
+// ONE single-source component; these are renderer-free law pins per the
+// SeekBar.test doctrine.
+describe('MW-116 — modal sheets avoid the keyboard (single source)', () => {
+  const sheetFiles = [
+    'src/components/syncplay/SyncPlayModal.tsx',
+    'src/screens/SettingsScreen.tsx',
+    'src/screens/CollectionsScreen.tsx',
+    'src/screens/ProfileSelectScreen.tsx',
+    'src/screens/PasskeysScreen.tsx',
+    'src/screens/AdminUsersScreen.tsx',
+  ];
+
+  test('ModalSheet is the one KeyboardAvoidingView source, behavior="padding"', () => {
+    const sheet = read('src/components/ui/ModalSheet.tsx');
+    expect(sheet).toMatch(/<KeyboardAvoidingView\s+behavior="padding"/);
+    // Repo modal law (M-MOBILE-47, SearchScreen): inside a transparent Modal
+    // Android's adjustResize never sees the dialog window, so 'height' is a
+    // snapping bug — the component must NOT branch by platform.
+    expect(sheet).not.toMatch(/Platform\.OS/);
+  });
+
+  test.each(sheetFiles)('%s drives its sheet through ModalSheet', (rel) => {
+    const source = read(rel);
+    expect(source).toMatch(/import ModalSheet from '.*\/ui\/ModalSheet'/);
+    expect(source).toMatch(/<ModalSheet/);
+  });
+
+  test('SyncPlayModal takes the bottom-sheet variant (centered={false})', () => {
+    expect(read('src/components/syncplay/SyncPlayModal.tsx')).toMatch(
+      /<ModalSheet centered=\{false\}/
+    );
+  });
+
+  test.each(sheetFiles)('%s does not hand-roll a second KeyboardAvoidingView', (rel) => {
+    expect(read(rel)).not.toMatch(/<KeyboardAvoidingView/);
+  });
+});

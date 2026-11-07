@@ -16,6 +16,16 @@ interface SafeContainerProps {
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
 }
 
+/**
+ * Root-stack safe edges (MW-105, review mobile__gameux #6). M-MOBILE-36 grew
+ * the TAB BAR itself for the home indicator — but root-stack screens render
+ * WITHOUT any tab bar, so the top-only default parked their last row under
+ * the 34pt gesture strip (the ProfileSelect CTA being the measured victim).
+ * Stack screens opt in with this constant; TAB screens must NOT pass it —
+ * the bar already carries the inset and doing both double-pads.
+ */
+export const STACK_EDGES: ('top' | 'bottom')[] = ['top', 'bottom'];
+
 export const SafeContainer: React.FC<SafeContainerProps> = ({
   children,
   backgroundColor = '#0f0f1a',

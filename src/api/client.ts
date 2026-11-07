@@ -297,6 +297,13 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor - keep baseURL in sync with settings + attach the
     // Phlix device headers and the bearer token on every request.
+    //
+    // MW-106 (review mobile__crossfe #13): this leg runs on the hot path of
+    // EVERY api call, so the two vault reads below are served through the
+    // SecureStorage read-through memo — one physical keychain decrypt per
+    // session snapshot with write-side invalidation — instead of a fresh
+    // decrypt per request. Semantics (host-binding, fail-closed pre-pin)
+    // are unchanged; the law pins live in client.test.ts.
     this.client.interceptors.request.use(
       async (config) => {
         // Re-resolve base URL so a runtime server change takes effect.

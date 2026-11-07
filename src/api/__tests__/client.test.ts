@@ -119,6 +119,53 @@ describe('ApiClient request interceptor', () => {
 
     expect(config.headers._store['X-Phlix-Session-ID']).toBe('sess-9');
   });
+
+  // MW-106 (review mobile__crossfe #13): the interceptor sits on the hot
+  // path of EVERY api call; each pass used to run a fresh keychain decrypt.
+  // The vault facade now serves a read-through memo — one physical read per
+  // session snapshot — invalidated by storeTokens/clearTokens so a rotated
+  // or wiped pair is visible to the very next request. The pins below drive
+  // the interceptor itself (the hot path the finding named).
+  it('MW-106 — repeated requests share ONE physical vault read (read-through memo)', async () => {
+    await secureStorage.storeTokens('tok-memo', 'tok-ref', 'https://api.phlix.app');
+    const getGenericPassword = (
+      jest.requireMock('react-native-keychain') as { getGenericPassword: jest.Mock }
+    ).getGenericPassword;
+    const readsBefore = getGenericPassword.mock.calls.length;
+
+    const interceptor = getRequestInterceptor();
+    for (let i = 0; i < 3; i += 1) {
+      const config = makeConfig();
+      await interceptor(config);
+      expect(config.headers._store.Authorization).toBe('Bearer tok-memo');
+    }
+
+    expect(getGenericPassword.mock.calls.length - readsBefore).toBe(1);
+  });
+
+  it('MW-106 — a rotated pair is visible to the very next request (write invalidates the memo)', async () => {
+    await secureStorage.storeTokens('tok-old', 'tok-r', 'https://api.phlix.app');
+    const interceptor = getRequestInterceptor();
+    await interceptor(makeConfig());
+
+    await secureStorage.storeTokens('tok-new', 'tok-r2', 'https://api.phlix.app');
+    const config = makeConfig();
+    await interceptor(config);
+
+    expect(config.headers._store.Authorization).toBe('Bearer tok-new');
+  });
+
+  it('MW-106 — a wipe hides the token from the very next request (clear invalidates the memo)', async () => {
+    await secureStorage.storeTokens('tok-gone', 'tok-r', 'https://api.phlix.app');
+    const interceptor = getRequestInterceptor();
+    await interceptor(makeConfig());
+
+    await secureStorage.clearTokens();
+    const config = makeConfig();
+    await interceptor(config);
+
+    expect(config.headers._store.Authorization).toBeUndefined();
+  });
 });
 
 // S407: subtitle rails carry a server-relative SIGNED path on the wire; the

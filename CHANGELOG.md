@@ -32,6 +32,66 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w13 mobile L9: stack bottom safe-area opt-in, vault read memo, inset-aware player chrome, issued-origin logout revoke, single-source modal keyboard sheet, watch-party entry surfaces — 2026-11-07
+
+- Behavior (review mobile__gameux #6): root-stack screens render WITHOUT the
+  tab bar, and the earlier home-indicator fix only grew the TAB BAR itself —
+  so a stack screen keeping the SafeContainer top-only default parked its
+  last row under the gesture strip (the profile-select CTA was the measured
+  victim). SafeContainer now exports a single-source `STACK_EDGES`
+  (top + bottom) and the profile screen's three branch states opt into it;
+  tab screens must not (the bar carries the inset — a new source pin holds
+  the no-double-pad law for all five).
+- Perf (review mobile__crossfe #13): the request interceptor ran a fresh
+  keychain decrypt plus two storage reads on EVERY api call. The three
+  server-vault reads now serve a read-through memo inside the vault facade —
+  one physical read per session snapshot — with write-side invalidation at
+  both ends of every store/wipe and never-cached failed reads, so a rotated
+  or revoked pair is visible to the very next request. Semantics (host
+  binding, fail-closed pre-pin) unchanged; three interceptor pins measure the
+  read count and the two invalidation laws.
+- Behavior (review mobile__gameux #7): the player chrome used hardcoded
+  20pt paddings while hiding the status bar — the notch sat under the top
+  bar in portrait and intruded edge-side in landscape, and the progress rail
+  ignored the home indicator. The top bar and the rail now pad by the LIVE
+  safe-area insets of the ACTIVE edge (the rotation lesson: never assume
+  the cutout sits at the top).
+- Security (review mobile__secnet #2): logout POSTed its best-effort revoke
+  leg to the CURRENT server setting — after a server change that was a no-op
+  for the host that actually minted the pair, whose refresh token stayed
+  valid there. The vault now pins the raw minting base URL beside the
+  canonical host (absolute http(s) origins only; bare-host and pre-existing
+  pairs keep the old fallback), and the revoke leg targets the issuing
+  origin with an explicit bearer header read before the wipe — immune to
+  the cross-host ride refusal it previously depended on.
+- Behavior (review mobile__gameux #1 + mobile__crossfe #6): six modal sheets
+  — SyncPlay's in-group panel AND its room browser, the hub sign-in form,
+  collection create, profile editor and PIN prompts, passkey add, admin
+  user form — placed TextInputs with no keyboard avoidance, so the keyboard
+  buried the focused field and its submit button. `src/components/ui/
+  ModalSheet` makes the fix single-source with the repo's established
+  modal law (behavior="padding" on both platforms); the seven sheet mounts
+  across the six files now render through it, and source pins forbid
+  hand-rolling the avoidance away again.
+- Behavior (review mobile__gameux #2): the watch-party pill was chrome — it
+  faded with the controls, silently leaving an active member without even a
+  reminder of the room. It now lives on an always-on, tap-through layer in
+  its historic top-right home (with a stable testID), the chrome's entry
+  glyph appears only when NOT in a room, and the media-detail page gained a
+  labeled "Watch with friends" row opening the shared room modal, so the
+  feature is findable before playback.
+
+### Docs — correction: the w12 contrast entry quotes 2.97:1, not 2.98:1, for the retired meta ink — 2026-11-07
+
+- The previous wave's entry quotes 2.98:1 for `#666` on the darkest
+  back-office ground. The repo's own assertion anchor and a fresh WCAG
+  relative-luminance computation both say 2.97:1 (2.9707). Prose-only
+  rounding drift in the quoted figure — the code comment and the test
+  always carried the correct number; no behavior, threshold or file census
+  changes. The other three quotients the entry quotes (2.33:1, 4.81:1,
+  3.77:1) measure correct. History stays verbatim per the append-only law;
+  this entry IS the correction.
+
 ### Fixed — wave w12 mobile L1: bootstrap hub-hydration memo, CI audit allowlist gate, SyncPlay liveness rail + membership notices, touch-target sizing, CloseGlyph law, meta-text contrast, download-copy arm order — 2026-11-06
 
 - Behavior (hub): the persisted-state restore of the hub store ran ONLY from

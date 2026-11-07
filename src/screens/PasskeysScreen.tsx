@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { SafeContainer } from '../components/layout';
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
+import ModalSheet from '../components/ui/ModalSheet'; // MW-116
 import { useWebAuthnStore } from '../stores/useWebAuthnStore';
 import { webAuthnService } from '../services/WebAuthnService';
 import type { PasskeyCredential } from '../types/webauthn';
@@ -205,6 +206,8 @@ const PasskeysScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setShowAdd(false)}
         >
+          {/* MW-116: keyboard avoidance via the single-source sheet. */}
+          <ModalSheet>
           <View style={styles.modal} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Add a passkey</Text>
             <Text style={styles.modalHint}>
@@ -232,6 +235,7 @@ const PasskeysScreen: React.FC = () => {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
     </SafeContainer>

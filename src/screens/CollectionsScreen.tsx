@@ -24,6 +24,7 @@ import { useCollectionStore } from '../stores/useCollectionStore';
 import { libraryManager } from '../api/LibraryManager';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
 import { fireHaptic } from '../utils/haptics';
+import ModalSheet from '../components/ui/ModalSheet'; // MW-116
 import type { Library } from '../types/media';
 import type { Collection } from '../types/collection';
 import { SafeContainer } from '../components/layout';
@@ -221,6 +222,8 @@ const CollectionsScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setShowCreate(false)}
         >
+          {/* MW-116: keyboard avoidance via the single-source sheet. */}
+          <ModalSheet>
           <View style={styles.modal} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>New Collection</Text>
 
@@ -278,6 +281,7 @@ const CollectionsScreen: React.FC = () => {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
     </SafeContainer>

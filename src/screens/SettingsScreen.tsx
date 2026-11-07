@@ -21,6 +21,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeContainer } from '../components/layout';
+import ModalSheet from '../components/ui/ModalSheet'; // MW-116
 import { useAuthStore } from '../stores/useAuthStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { useHubStore } from '../store/hubStore';
@@ -652,6 +653,9 @@ const SettingsScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setShowHubSignIn(false)}
         >
+          {/* MW-116: three fields + submit — the form the keyboard used to
+              bury — now sit inside the single-source sheet padding. */}
+          <ModalSheet>
           <View
             style={styles.hubSignInModal}
             onStartShouldSetResponder={() => true}
@@ -723,6 +727,7 @@ const SettingsScreen: React.FC = () => {
               <Text style={styles.hubCancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
 

@@ -6,4 +6,4 @@
  */
 
 // src/components/layout/index.ts
-export { SafeContainer } from './SafeContainer';
+export { SafeContainer, STACK_EDGES } from './SafeContainer';

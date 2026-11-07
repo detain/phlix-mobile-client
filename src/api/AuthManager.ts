@@ -137,15 +137,36 @@ class AuthManager {
    * best-effort server-side revocation. `/auth/logout` is a ROOT-level route
    * (outside the `/api/v1` prefix — hence the absolutized URL, which axios
    * uses as-is) and performs the real revocation — refresh-token deny entry
-   * + session kill — whenever a bearer token is attached, which the request
-   * interceptor does here while the vault still holds it. Its answer is a
+   * + session kill — whenever a bearer token is attached. Its answer is a
    * browser redirect, not JSON: we fire it for the side effect and MUST NOT
    * gate the local wipe on success (offline or an old server build must not
    * strand the user signed-in).
+   *
+   * MW-108 (review mobile__secnet #2): the leg targets the MINTING origin the
+   * vault pinned at login (saveCredentials hands the live API base), NOT the
+   * current server setting — change-server-then-logout used to POST the
+   * revoke at the new host, a no-op for the old one, while the pair stayed
+   * valid where it was minted. Without a pinned absolute origin (bare-host
+   * or pre-MW-108 pair) the current-settings join remains the best known
+   * answer. The bearer rides as an EXPLICIT header read before the wipe:
+   * the host-binding interceptor refuses cross-host token rides, which is
+   * exactly the drift case this leg must survive.
    */
   async logout(): Promise<void> {
+    const [token, issuedOrigin] = await Promise.all([
+      secureStorage.getAccessToken(),
+      secureStorage.getIssuedOrigin(),
+    ]);
+    const revokeUrl =
+      issuedOrigin !== null
+        ? `${issuedOrigin.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')}/auth/logout`
+        : absolutizeApiPath('/auth/logout');
+    const bearer =
+      token !== null && token !== ''
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : undefined;
     try {
-      await apiClient.post(absolutizeApiPath('/auth/logout'), {});
+      await apiClient.post(revokeUrl, {}, bearer);
     } catch {
       // Best-effort — the local teardown below always proceeds.
     }

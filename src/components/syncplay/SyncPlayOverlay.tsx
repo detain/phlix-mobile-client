@@ -49,6 +49,7 @@ const SyncPlayOverlay: React.FC<SyncPlayOverlayProps> = ({ onPress, notice = nul
 
   return (
     <TouchableOpacity
+      testID="syncPlayPill"
       style={styles.container}
       onPress={onPress}
       accessibilityLabel="Open SyncPlay"

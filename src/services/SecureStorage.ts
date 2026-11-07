@@ -55,6 +55,18 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
  * surviving without the tokens it authenticates.
  */
 const ISSUED_HOST_KEY = 'phlix.access_issued_host';
+/**
+ * The RAW minting base URL of the currently-stored server pair (MW-108,
+ * review mobile__secnet #2). ISSUED_HOST_KEY keeps the canonical HOSTNAME,
+ * which is lossy for calling BACK at the minting origin: the logout revoke
+ * leg must land where the pair was minted even after the user moved the
+ * current-server setting elsewhere. Stored only when the writer hands an
+ * absolute http(s) URL (saveCredentials passes the live API base); empty
+ * otherwise, consumers then fall back to the current-settings join. Same
+ * lifecycle as the host pin — configuration, not a credential.
+ */
+const ISSUED_ORIGIN_KEY = 'phlix.access_issued_origin';
+const ABSOLUTE_URL_RE = /^https?:\/\//i;
 /** Keychain username half — the password half is the credential itself. */
 const TOKEN_USERNAME = 'phlix';
 
@@ -142,6 +154,33 @@ function migratedOnce(): Promise<void> {
   return migrationPromise;
 }
 
+/**
+ * MW-106 (review mobile__crossfe #13): the request interceptor awaits
+ * `getAccessToken()` + `getIssuedHost()` on EVERY api call, which put a fresh
+ * keychain decrypt (plus a storage read) on the hot path of the whole app.
+ * The three server-vault reads now serve a read-through memo: concurrent and
+ * later callers share one physical read until something invalidates it.
+ *
+ * Invalidation is WRITE-SIDE, never a TTL: every mutation of the server vault
+ * funnels through storeTokens/clearTokens in this module, both drop the memo
+ * on entry AND again once their queued write settles — a read that started
+ * while a write sat in the queue can neither cache the value the write is
+ * about to bury nor survive it. A FAILED physical read is never cached (the
+ * next caller retries from the disk/vault), so the memo cannot stick a
+ * transient keychain hiccup into a permanent logout-shaped shadow. The test
+ * seam that re-arms the migration latch re-arms these memos too, which is
+ * exactly why the existing real-vault suites keep passing unedited.
+ */
+let accessTokenMemo: Promise<string | null> | null = null;
+let issuedHostMemo: Promise<string | null> | null = null;
+let issuedOriginMemo: Promise<string | null> | null = null;
+
+function invalidateServerMemos(): void {
+  accessTokenMemo = null;
+  issuedHostMemo = null;
+  issuedOriginMemo = null;
+}
+
 class SecureStorage {
   /**
    * Persist a fresh token pair AND the host that minted it. The vault is the
@@ -161,11 +200,19 @@ class SecureStorage {
         'SecureStorage: storeTokens requires the minting host of the token pair'
       );
     }
+    invalidateServerMemos(); // MW-106
     await afterVaultWrite(async () => {
       await AsyncStorage.setItem(ISSUED_HOST_KEY, pinnedHost);
+      // MW-108: keep the RAW minting base URL when the caller had one, so a
+      // later logout can revoke at the issuing origin across a server change.
+      await AsyncStorage.setItem(
+        ISSUED_ORIGIN_KEY,
+        ABSOLUTE_URL_RE.test(issuedHost) ? issuedHost : ''
+      );
       await writeSlot(ACCESS_SERVICE, accessToken);
       await writeSlot(REFRESH_SERVICE, refreshToken);
       await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY]);
+      invalidateServerMemos(); // MW-106: the NEXT read sees this fresh pair
     });
   }
 
@@ -176,8 +223,38 @@ class SecureStorage {
    * register, passkey, or the REST refresh leg) re-pins the pair.
    */
   async getIssuedHost(): Promise<string | null> {
+    if (!issuedHostMemo) {
+      issuedHostMemo = AsyncStorage.getItem(ISSUED_HOST_KEY).catch((error: unknown) => {
+        issuedHostMemo = null; // never memoize a failed read
+        throw error;
+      });
+    }
     try {
-      return await AsyncStorage.getItem(ISSUED_HOST_KEY);
+      return await issuedHostMemo;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The raw base URL the stored pair was minted against (scheme + host +
+   * port, typically `<root>/api/v1` as handed by saveCredentials), or null
+   * when no absolute origin was ever pinned (bare host from older builds,
+   * or a pre-pin migrated session) — consumers then fall back to the current
+   * server setting. MW-108 (review mobile__secnet #2).
+   */
+  async getIssuedOrigin(): Promise<string | null> {
+    if (!issuedOriginMemo) {
+      issuedOriginMemo = AsyncStorage.getItem(ISSUED_ORIGIN_KEY).then(
+        (raw) => (typeof raw === 'string' && raw !== '' ? raw : null),
+        (error: unknown) => {
+          issuedOriginMemo = null; // never memoize a failed read
+          throw error;
+        }
+      );
+    }
+    try {
+      return await issuedOriginMemo;
     } catch {
       return null;
     }
@@ -185,13 +262,25 @@ class SecureStorage {
 
   /** The access JWT, or null (migrating a pre-vault session on first read). */
   async getAccessToken(): Promise<string | null> {
-    try {
-      await migratedOnce();
-    } catch (error) {
-      console.error('SecureStorage: token migration failed', error);
+    if (!accessTokenMemo) {
+      accessTokenMemo = (async () => {
+        try {
+          await migratedOnce();
+        } catch (error) {
+          console.error('SecureStorage: token migration failed', error);
+          // MW-106 folded into the M1 never-orphan law: a snapshot that
+          // swallowed a FAILED migration must not be memoized — the next
+          // read has to retry the move of the still-present plaintext copy.
+          accessTokenMemo = null;
+        }
+        return await readSlot(ACCESS_SERVICE);
+      })().catch((error: unknown) => {
+        accessTokenMemo = null; // never memoize a failed read
+        throw error;
+      });
     }
     try {
-      return await readSlot(ACCESS_SERVICE);
+      return await accessTokenMemo;
     } catch {
       return null;
     }
@@ -213,13 +302,20 @@ class SecureStorage {
 
   /** Wipe every token trace: both vault slots, the minted-host pin, and both legacy keys. */
   async clearTokens(): Promise<void> {
+    invalidateServerMemos(); // MW-106: no in-flight read may cache across a wipe
     await afterVaultWrite(async () => {
       await Keychain.resetGenericPassword({ service: ACCESS_SERVICE });
       await Keychain.resetGenericPassword({ service: REFRESH_SERVICE });
-      await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, ISSUED_HOST_KEY]);
+      await AsyncStorage.multiRemove([
+        ACCESS_TOKEN_KEY,
+        REFRESH_TOKEN_KEY,
+        ISSUED_HOST_KEY,
+        ISSUED_ORIGIN_KEY,
+      ]);
       // A pending (or failed-and-cached) migration must not move values the
       // user just revoked; arm a fresh pass over the now-empty legacy keys.
       migrationPromise = null;
+      invalidateServerMemos(); // MW-106
     });
   }
 
@@ -341,9 +437,14 @@ class SecureStorage {
     }
   }
 
-  /** Test seam: clear the once-per-process migration latch between cases. */
+  /**
+   * Test seam: clear the once-per-process migration latch between cases —
+   * and, with it, the MW-106 read-through memos, so a test that re-arms the
+   * migration always re-arms fresh physical reads too.
+   */
   __resetMigrationLatchForTests(): void {
     migrationPromise = null;
+    invalidateServerMemos();
   }
 }
 

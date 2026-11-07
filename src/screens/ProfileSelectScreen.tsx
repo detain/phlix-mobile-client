@@ -18,7 +18,8 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { SafeContainer } from '../components/layout';
+import { SafeContainer, STACK_EDGES } from '../components/layout';
+import ModalSheet from '../components/ui/ModalSheet'; // MW-116
 import { LoadingSpinner, ErrorView, EmptyState } from '../components/ui';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useProfileStore } from '../stores/useProfileStore';
@@ -230,7 +231,7 @@ const ProfileSelectScreen: React.FC = () => {
 
   if (isLoading && profiles.length === 0) {
     return (
-      <SafeContainer>
+      <SafeContainer edges={STACK_EDGES}>
         <LoadingSpinner fullScreen />
       </SafeContainer>
     );
@@ -238,14 +239,14 @@ const ProfileSelectScreen: React.FC = () => {
 
   if (error && profiles.length === 0) {
     return (
-      <SafeContainer>
+      <SafeContainer edges={STACK_EDGES}>
         <ErrorView message={error} onRetry={refresh} />
       </SafeContainer>
     );
   }
 
   return (
-    <SafeContainer>
+    <SafeContainer edges={STACK_EDGES}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profiles</Text>
         <Text style={styles.headerSubtitle}>
@@ -285,6 +286,8 @@ const ProfileSelectScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setEditorVisible(false)}
         >
+          {/* MW-116: single-source keyboard padding for this sheet. */}
+          <ModalSheet>
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>
               {editingProfile ? 'Edit Profile' : 'New Profile'}
@@ -339,6 +342,7 @@ const ProfileSelectScreen: React.FC = () => {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
 
@@ -354,6 +358,8 @@ const ProfileSelectScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setPinVisible(false)}
         >
+          {/* MW-116: single-source keyboard padding for this sheet. */}
+          <ModalSheet>
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <Text style={styles.modalTitle}>Enter PIN</Text>
             <Text style={styles.modalSubtitle}>
@@ -385,6 +391,7 @@ const ProfileSelectScreen: React.FC = () => {
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
     </SafeContainer>

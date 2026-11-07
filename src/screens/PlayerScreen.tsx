@@ -22,7 +22,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { playbackManager } from '../api/PlaybackManager';
 import { transcodeManager } from '../api/TranscodeManager';
 import { markerManager } from '../api/MarkerManager';
@@ -179,6 +179,14 @@ const PlayerScreen: React.FC = () => {
       cancelled = true;
     };
   }, [itemId, liveTitle, isLiveStream]);
+
+  // MW-107 (review mobile__gameux #7): the chrome's geometry must come from
+  // the LIVE safe-area insets, not hardcoded edges. The status bar is hidden
+  // in this fullScreenModal, so the insets are all the chrome has to stand
+  // on — and they rotate: in landscape the cutout lands on the leading/
+  // trailing edge (M-MOBILE-39 lesson: never assume the notch sits at the
+  // top), which the old fixed 20pt paddings ignored entirely.
+  const insets = useSafeAreaInsets();
 
   // Player state
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
@@ -1284,7 +1292,18 @@ const PlayerScreen: React.FC = () => {
       {/* Overlay Controls */}
       {showControls && (
         <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]}>
-          <View style={styles.topBar}>
+          <View
+            style={[
+              styles.topBar,
+              {
+                // MW-107: crown by the TOP inset + 8, sides by the ACTIVE
+                // edge insets — the fixed 20/20 is the fallback style only.
+                paddingTop: insets.top + 8,
+                paddingLeft: insets.left + 20,
+                paddingRight: insets.right + 20,
+              },
+            ]}
+          >
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => navigation.goBack()}
@@ -1361,10 +1380,12 @@ const PlayerScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* SyncPlay indicator / button */}
-              {currentGroup ? (
-                <SyncPlayOverlay onPress={() => setShowSyncPlayOverlay(true)} notice={membershipNotice} />
-              ) : (
+              {/* SyncPlay entry (MW-117, review mobile__gameux #2): while IN a
+                  room the pill is room STATE, not chrome — it lives on its own
+                  always-on layer below the overlay so the control fade can no
+                  longer erase it. The chrome keeps only the plain entry glyph
+                  for users not in a room. */}
+              {!currentGroup && (
                 <TouchableOpacity
                   style={styles.syncPlayButton}
                   onPress={() => setShowSyncPlayOverlay(true)}
@@ -1443,6 +1464,29 @@ const PlayerScreen: React.FC = () => {
         </Animated.View>
       )}
 
+      {/* MW-117 (review mobile__gameux #2): the in-group SyncPlay pill on an
+          ALWAYS-ON layer — it used to fade with the chrome, silently leaving
+          an active member without any reminder of the room (or of the sync
+          state this pill is the only surface for). Box-none, so every tap
+          but the pill's own still falls through to the video surface and
+          reveals the controls; the pill keeps its historic top-right home,
+          inset-padded per MW-107. */}
+      {currentGroup && (
+        <View
+          testID="syncPlayPillLayer"
+          pointerEvents="box-none"
+          style={[
+            styles.pillLayer,
+            { top: insets.top + 8, paddingRight: insets.right + 20 },
+          ]}
+        >
+          <SyncPlayOverlay
+            onPress={() => setShowSyncPlayOverlay(true)}
+            notice={membershipNotice}
+          />
+        </View>
+      )}
+
       {/* M-MOBILE-44 first clause (review mobile__gameux, r2 cure): a
           persistent progress rail OUTSIDE the auto-hide gate. The bar stays
           on screen after the chrome fades; while the chrome is hidden the
@@ -1456,7 +1500,17 @@ const PlayerScreen: React.FC = () => {
       {!isLiveStream && (
         <View
           testID="playerProgressRail"
-          style={styles.progressRail}
+          style={[
+            styles.progressRail,
+            {
+              // MW-107: the rail keeps its 40pt floor but lifts above a real
+              // home indicator, and the side padding tracks the ACTIVE
+              // (rotated) edge.
+              paddingLeft: insets.left + 20,
+              paddingRight: insets.right + 20,
+              paddingBottom: Math.max(40, insets.bottom + 16),
+            },
+          ]}
           pointerEvents={showControls ? 'auto' : 'none'}
         >
           <SeekBar
@@ -1600,9 +1654,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
+    paddingHorizontal: 20, // MW-107 fallback; live insets override inline
     paddingTop: 20,
     gap: 12,
+  },
+  // MW-117: always-on host for the in-group pill (top/right arrive inline
+  // from the live insets). Row-end aligned so the pill sits exactly where
+  // it did inside the chrome.
+  pillLayer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 0,
   },
   closeButton: {
     width: 44,

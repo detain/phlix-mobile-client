@@ -114,9 +114,37 @@ describe('AuthManager', () => {
 
     await authManager.logout();
 
-    expect(mockedClient.post).toHaveBeenCalledWith('https://login.example/auth/logout', {});
+    // MW-108 (review mobile__secnet #2): the leg must carry the bearer even
+    // when the interceptor cannot ride it automatically — the vault is wiped
+    // around this call, and an explicit header removes every ordering
+    // dependency on the host-binding interceptor.
+    expect(mockedClient.post).toHaveBeenCalledWith(
+      'https://login.example/auth/logout',
+      {},
+      { headers: { Authorization: 'Bearer acc' } }
+    );
     expect(await secureStorage.getAccessToken()).toBeNull();
     expect(await secureStorage.getRefreshToken()).toBeNull();
+  });
+
+  it('logout revokes at the MINTING origin even after the server URL moved (MW-108)', async () => {
+    // The pair is minted against the full API base (the saveCredentials
+    // shape), so the vault pins the raw issuing origin too. A change-server-
+    // then-logout used to POST the revoke at the NEW host — a no-op for the
+    // old one — while the refresh token stayed valid there.
+    await secureStorage.storeTokens('acc', 'ref', 'https://old.example/api/v1');
+    (absolutizeApiPath as jest.Mock).mockImplementation(
+      (p: string) => `https://new.example${p}`
+    );
+
+    await authManager.logout();
+
+    expect(mockedClient.post).toHaveBeenCalledWith(
+      'https://old.example/auth/logout',
+      {},
+      { headers: { Authorization: 'Bearer acc' } }
+    );
+    expect(await secureStorage.getAccessToken()).toBeNull();
   });
 
   it('logout still wipes the vault when the revoke leg fails (best-effort)', async () => {

@@ -44,6 +44,11 @@ import { ErrorView } from '../components/ui/ErrorView';
 import { LocalPlaceholder } from '../components/ui/LocalPlaceholder';
 import { firstUsableUri } from '../utils/mediaFallback';
 import { CastButton } from '../components/cast';
+// MW-117 (review mobile__gameux #2): the watch-party modal — same component
+// the player chrome mounts — gets a detail-page entry so the feature is
+// findable BEFORE playback (finding: a bare glyph in chrome that fades after
+// 3s was the only SyncPlay surface in the whole app).
+import { SyncPlayModal } from '../components/syncplay';
 import { RatingBadgeFromMediaRatings } from '../components/RatingBadge';
 // M-MOBILE-48: the UserRatingPicker import is gone with its duplicate-
 // rating section — one rating UI per screen (the inline row above).
@@ -82,6 +87,8 @@ const MediaDetailScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // E4: live download state for this item (undefined = not downloading/downloaded).
   const [downloadTask, setDownloadTask] = useState<DownloadTask | undefined>(undefined);
+  // MW-117: opens the shared SyncPlay modal from the detail-page entry row.
+  const [showWatchParty, setShowWatchParty] = useState(false);
   // E10 favorites: optimistic local state for THIS item's favorite/rating,
   // seeded from `item.user_data` once loaded. `userDataPresent` gates the whole
   // control — `user_data` is null when unauthenticated (no favorites for guests).
@@ -574,6 +581,21 @@ const MediaDetailScreen: React.FC = () => {
                 <Text style={styles.playButtonText}>{downloadButtonLabel()}</Text>
               </TouchableOpacity>
             )}
+
+            {/* MW-117 (review mobile__gameux #2): watch-party entry on the
+                detail page. Same auth gate as the favorite row (user_data is
+                null for guests) and the same playable-type gate as Cast —
+                SyncPlay is meaningless for photos/books. */}
+            {userDataPresent && isPlayableType(item.type) && (
+              <TouchableOpacity
+                style={styles.playButton}
+                onPress={() => setShowWatchParty(true)}
+                accessibilityLabel="Watch with friends"
+              >
+                <Text style={styles.playButtonIcon}>👥</Text>
+                <Text style={styles.playButtonText}>Watch with friends</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -707,6 +729,14 @@ const MediaDetailScreen: React.FC = () => {
       >
         <Text style={styles.backButtonText}>←</Text>
       </TouchableOpacity>
+
+      {/* MW-117: the SAME SyncPlay modal the player mounts (browse/create/join/
+          leave), opened from the detail-page entry row. */}
+      <SyncPlayModal
+        visible={showWatchParty}
+        onClose={() => setShowWatchParty(false)}
+        itemId={itemId}
+      />
     </View>
   );
 };

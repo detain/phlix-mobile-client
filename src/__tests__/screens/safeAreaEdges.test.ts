@@ -1,0 +1,50 @@
+/**
+ * Phlix Mobile client.
+ *
+ * @copyright 2026 Joe Huss <detain@interserver.net>
+ * @license   MIT
+ */
+
+// src/__tests__/screens/safeAreaEdges.test.ts
+//
+// MW-105 (review mobile__gameux #6): root-stack screens render WITHOUT the
+// tab bar, and M-MOBILE-36 only grew the TAB BAR for the home indicator —
+// so a stack screen that keeps the SafeContainer top-only default parks its
+// last row under the 34pt gesture strip. Stack screens must opt into
+// STACK_EDGES; tab screens must NOT (the bar already carries the inset —
+// doing both double-pads). Renderer-free source pins per the SeekBar.test
+// doctrine.
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+const read = (rel: string) =>
+  fs.readFileSync(path.resolve(__dirname, '../../..', rel), 'utf8');
+
+describe('MW-105 — bottom safe-area opt-in on stack screens', () => {
+  test('SafeContainer exports STACK_EDGES covering top AND bottom', () => {
+    expect(read('src/components/layout/SafeContainer.tsx')).toMatch(
+      /export const STACK_EDGES[\s\S]{0,80}\[[^\]]*'top'[^\]]*'bottom'[^\]]*\]/
+    );
+    // Reachable through the layout barrel the screens already import from.
+    expect(read('src/components/layout/index.ts')).toMatch(/STACK_EDGES/);
+  });
+
+  test('ProfileSelectScreen (named victim: the CTA parked under the home indicator) opts in', () => {
+    const source = read('src/screens/ProfileSelectScreen.tsx');
+    expect(source).toMatch(/STACK_EDGES/);
+    expect(source).toMatch(/edges=\{STACK_EDGES\}/);
+  });
+
+  const tabScreens = [
+    'src/screens/HomeScreen.tsx',
+    'src/screens/SearchScreen.tsx',
+    'src/screens/LibraryScreen.tsx',
+    'src/screens/DownloadsScreen.tsx',
+    'src/screens/SettingsScreen.tsx',
+  ];
+
+  test.each(tabScreens)('tab-bar screen %s never pads the bottom twice', (rel) => {
+    expect(read(rel)).not.toMatch(/edges=\{(?:\[[^\]]*bottom[^\]]*\]|STACK_EDGES)/);
+  });
+});

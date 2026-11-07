@@ -1428,19 +1428,41 @@ describe('PlayerScreen — M-MOBILE-14 narrow-screen top bar law', () => {
     expect(right.gap).toBe(8);
   });
 
-  it('the full six-target cluster renders, and every target keeps a pressable 44pt+ footprint', async () => {
+  // MW-117 (review mobile__gameux #2) rotated this pin: the in-group pill
+  // LEFT the cluster — it now rides an always-on layer (the chrome fade used
+  // to erase it, which was the finding). The crowded group row keeps its
+  // five INLINE targets, and the pill's pressable footprint is asserted at
+  // its new home instead of this one. Nothing about the non-shrink law or
+  // the press-handler law changed.
+  it('the crowded cluster renders five inline targets (pill on its layer, MW-117), each pressable 44pt+', async () => {
     const h = await bootMaxCrowding();
     const { close, cluster } = barParts(h.host.tree);
 
-    // All six members present in the tree (component-reference identity).
+    // All five inline members present (component-reference identity).
     const kids = (Array.isArray(cluster.props.children) ? cluster.props.children : [])
       .filter(isEl);
     expect(kids.some((k) => k.props.accessibilityLabel === 'Video quality')).toBe(true);
     expect(kids.some((k) => k.props.accessibilityLabel === 'Subtitles')).toBe(true);
     expect(kids.some((k) => k.props.accessibilityLabel === 'Audio tracks')).toBe(true);
-    expect(kids.some((k) => k.type === SyncPlayOverlay)).toBe(true);
     expect(kids.some((k) => k.type === SleepTimerDisplay)).toBe(true);
     expect(kids.some((k) => k.props.accessibilityLabel === 'Picture in picture')).toBe(true);
+    // The pill is NOT in the row any more — and the entry glyph must not
+    // appear while in a room either (exactly one SyncPlay surface per state).
+    expect(kids.some((k) => k.type === SyncPlayOverlay)).toBe(false);
+    expect(kids.some((k) => k.props.accessibilityLabel === 'SyncPlay')).toBe(false);
+
+    // …it lives on the always-on layer, rendered, pressable, and its own
+    // stylesheet carries the 80pt minWidth the M-MOBILE-14 note credits it —
+    // read at the component boundary (the element tree holds the FC CALL,
+    // not its return; same idiom as the never-squishes pin below).
+    const layer = findEl(h.host.tree, (el) => el.props.testID === 'syncPlayPillLayer');
+    expect(layer).toBeDefined();
+    const pill = findEl(layer!.props.children, (el) => el.type === SyncPlayOverlay);
+    expect(pill).toBeDefined();
+    expect(typeof (pill!.props.onPress as unknown)).toBe('function');
+    const pillStyle = flat((SyncPlayOverlay as unknown as (p: { onPress: () => void }) => { props: { style: unknown } })({ onPress: () => undefined }).props.style);
+    expect(pillStyle.minWidth).toBe(80);
+    expect(pillStyle.flexShrink).toBe(0);
 
     // Non-shrink law on the ✕ and every INLINE-styled target (the two pill
     // components enforce theirs in their own style sheets — asserted below).

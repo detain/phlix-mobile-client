@@ -19,6 +19,7 @@ import {
   Switch,
 } from 'react-native';
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
+import ModalSheet from '../ui/ModalSheet'; // MW-116
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
@@ -218,6 +219,10 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
           activeOpacity={1}
           onPress={onClose}
         >
+          {/* MW-116: the room panel is a sheet like every other — ModalSheet
+              keeps its TextInputs (Join/leave paths sit beside them) clear of
+              the keyboard with the repo's single-source padding behavior. */}
+          <ModalSheet centered={false}>
           <View style={styles.content} onStartShouldSetResponder={() => true}>
             <View style={styles.header}>
               <Text style={styles.title}>SyncPlay</Text>
@@ -274,6 +279,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
               </Text>
             </View>
           </View>
+          </ModalSheet>
         </TouchableOpacity>
       </Modal>
     );
@@ -293,6 +299,9 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         activeOpacity={1}
         onPress={onClose}
       >
+        {/* MW-116: bottom-anchored variant — Create/Join tab fields must
+            ride above the keyboard, not behind it. */}
+        <ModalSheet centered={false}>
         <View style={styles.content} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>SyncPlay</Text>
@@ -459,6 +468,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
           {error && <Text style={styles.errorText}>{error}</Text>}
         </View>
+        </ModalSheet>
       </TouchableOpacity>
     </Modal>
   );
