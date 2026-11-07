@@ -81,7 +81,7 @@ Recurring estate shorthand, defined once here:
   labeled "Watch with friends" row opening the shared room modal, so the
   feature is findable before playback.
 
-### Docs — correction: the w12 contrast entry quotes 2.97:1, not 2.98:1, for the retired meta ink — 2026-11-07
+### Docs — correction: the w12 contrast entry's 2.98:1 quote for the retired meta ink should read 2.97:1 — 2026-11-07
 
 - The previous wave's entry quotes 2.98:1 for `#666` on the darkest
   back-office ground. The repo's own assertion anchor and a fresh WCAG
