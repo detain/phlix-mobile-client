@@ -50,6 +50,11 @@ describe('describeDownloadFailure — the native failure inventory mapped to act
     ['A server with the specified hostname could not be found.', CONNECTIVITY],
     ['The request timed out.', CONNECTIVITY],
     ['The resource could not be found.', GONE],
+    // w09L1-fold: double-hit probe — this sentence matches BOTH shapes
+    // (CONNECTIVITY via "hostname", RESOURCE_GONE via "resource could not be
+    // found"). The ordering law decides it: connectivity is consulted first.
+    // At the parent arm-order this row mapped to GONE (red-first conviction).
+    ['The requested resource could not be found for the specified hostname.', CONNECTIVITY],
     ['No space left on device', DISK],
     ['The volume “Data” is full.', DISK],
     // Junk lanes: empty/whitespace and unmappable text never reach users raw.

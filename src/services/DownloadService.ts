@@ -51,9 +51,15 @@ const DOWNLOAD_EMPTY_BODY = 'The server sent no data — try again later.';
 const DOWNLOAD_GENERIC = 'The download failed — try again.';
 
 const DISK_FULL_SHAPE = /no space left|volume .*is full|not enough space|insufficient storage|ENOSPC/i;
-// Hostname/DNS wording must be tested BEFORE the "could not be found" item
-// lane: iOS prints "A server with the specified hostname could not be
-// found." for dead DNS — a connectivity event, not a vanished item.
+// ORDERING LAW (folded from the w09L1 review; the arm order below ENFORCES
+// it, not the narrowness of the gone pattern): connectivity/DNS wording is
+// tested BEFORE the "could not be found" item lane. iOS prints "A server
+// with the specified hostname could not be found." for dead DNS — a
+// connectivity event, not a vanished item — and any future widening of
+// RESOURCE_GONE_SHAPE toward a bare /could not be found/ keeps that sentence
+// on connectivity copy because CONNECTIVITY_SHAPE is consulted first. The
+// inventory pins both shapes matching one sentence to the CONNECTIVITY
+// answer (DownloadService.failureCopy suite).
 const CONNECTIVITY_SHAPE = /resolve host|hostname|connection|network|offline|timed out|timeout|socket|ECONNRESET|EAI_AGAIN/i;
 const RESOURCE_GONE_SHAPE = /resource could not be found|no longer available/i;
 
@@ -82,11 +88,11 @@ export const describeDownloadFailure = (raw: string): string => {
   if (text === 'Empty response body') {
     return DOWNLOAD_EMPTY_BODY;
   }
-  if (RESOURCE_GONE_SHAPE.test(text)) {
-    return DOWNLOAD_ITEM_GONE;
-  }
   if (CONNECTIVITY_SHAPE.test(text)) {
     return DOWNLOAD_CONNECTIVITY;
+  }
+  if (RESOURCE_GONE_SHAPE.test(text)) {
+    return DOWNLOAD_ITEM_GONE;
   }
   return DOWNLOAD_GENERIC;
 };

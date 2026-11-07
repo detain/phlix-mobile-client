@@ -32,6 +32,65 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w12 mobile L1: bootstrap hub-hydration memo, CI audit allowlist gate, SyncPlay liveness rail + membership notices, touch-target sizing, CloseGlyph law, meta-text contrast, download-copy arm order — 2026-11-06
+
+- Behavior (hub): the persisted-state restore of the hub store ran ONLY from
+  the Settings screen, so the relay consumer could boot against a
+  pre-hydration store. The restore is now an idempotent memo — one shared
+  round-trip per process; a swallowed error or a vault-deferred migration
+  re-arms it per the M-MOBILE-12 deferral law — and App.tsx hydrates at
+  bootstrap BEFORE the relay consumer starts; the Settings path remains a
+  belt. A `__resetHubHydrationForTests()` seam mirrors the relay
+  token-provider reset precedent; four new laws pin the memo, the re-arm and
+  the bootstrap order.
+- CI (security): a reviewed-allowlist audit gate (`scripts/audit-gate.mjs`,
+  mobile port of the windows design: subset law over advisory ids, exact
+  GHSA census, exit 0/1/2 taxonomy, anti-neutering — a broken audit can
+  never read clean) runs as its own test.yml leg, replacing the severity-
+  floor posture that hid 35 sub-high advisories and greened on garbage.
+  The committed package-lock.json IS the in-range re-resolve: 12 advisories
+  cleared (all six highs: body-parser, follow-redirects ×3, joi,
+  launch-editor ×3, qs, zod, image-size via the metro-family patch bump);
+  every package.json dependency RANGE untouched; react-native-reanimated
+  stays at 4.5.1 — inside its declared range — so the strict-peer `npm ci`
+  CI runs resolves clean (4.7.1's peer floor is react-native 0.86–0.88).
+  Exactly three dev-chain advisories cannot clear in-range and are
+  allowlisted with measured justifications, removal plans and a 2027-02-04
+  re-verify duty: glob (held by this repo's own `^13.0.6` test-tooling
+  override), minimatch (declaring parents cap below 11.0.1), deepmerge (4.3.1
+  is the last version ever published). Eight fixture-driven gate tests + the
+  census pin cover the exit taxonomy.
+- Behavior (SyncPlay): the overlay's member-count pill was a LIVENESS LIE —
+  it kept counting members while the socket was down. The pill now carries a
+  rail ("Disconnected" / "Reconnecting…", gray dot when offline) and
+  PlayerScreen surfaces membership notices ("X joined" / "X left" /
+  "host changed") for 4 s, with the pending timer cleared on unmount; the
+  service's snapshot diff now carries member NAMES on leave events (roster
+  is a name-carrying map, previously ids only).
+- Accessibility (touch targets): the 28pt collection-item remove control and
+  the 20pt blocked-tag × are widened by hitSlop to a 44pt effective box and
+  named to assistive tech; the direct/relay mode rail announces button +
+  selected state and its segments clear the 44pt floor.
+- Accessibility (close glyphs): new `ui/CloseGlyph` component — the 20pt ✕
+  with 10pt slop per side (44pt), mandatory `accessibilityLabel`,
+  `role="button"`, bounded `maxFontSizeMultiplier` — replaces the eight
+  bare un-governed close glyphs (SyncPlayModal ×2, ServerSwitcher, subtitles
+  / quality / audio / sleep-timer menus, the schedule-recording modal);
+  dead per-screen close styles deleted with the swaps.
+- Visual (contrast): the recurring 40% gray text token failed WCAG on BOTH
+  of this repo's dark grounds (2.98:1 / 2.33:1 against the 4.5:1 / 3.5:1
+  floors); 22 meta-text and placeholder sites across seven screens are
+  promoted to the 53% gray token (4.81:1 / 3.77:1 — clears both). The
+  contrast math itself is now code: `relativeLuminance` / `contrastRatio`
+  with named floors live in `textScalePolicy`, fail loud on bad hex, and a
+  census pin lists the nine back-office files whose residue is deliberately
+  out of this wave's scope.
+- Copy (fold, from the previous lane's review): the download-failure mapper
+  comment asserted "connectivity is tested BEFORE resource-gone" without
+  the code enforcing it; the arms are reordered so the comment is the law,
+  and a hostname-carrying "could not be found" message now lands in the
+  connectivity bucket (new inventory row pins the double-hit case).
+
 ### Fixed — wave w09 mobile L1: actionable download-failure copy; cast/detail error surfaces ride the apiErrorMessage door; writer doc-currency pass — 2026-11-06
 
 - Behavior (review mobile__casualgamer #2 / MW-045): a failed download
