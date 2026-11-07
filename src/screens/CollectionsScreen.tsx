@@ -227,7 +227,7 @@ const CollectionsScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="Collection name"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={newName}
               onChangeText={setNewName}
               autoFocus
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pickerEmpty: {
-    color: '#666',
+    color: '#888',
     fontSize: 14,
     marginBottom: 16,
   },

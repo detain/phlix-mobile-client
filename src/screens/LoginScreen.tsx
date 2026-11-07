@@ -246,7 +246,7 @@ const LoginScreen: React.FC = () => {
                 value={serverUrl}
                 onChangeText={setServerUrl}
                 placeholder="http://192.168.1.100:8096"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
@@ -275,7 +275,7 @@ const LoginScreen: React.FC = () => {
                 value={username}
                 onChangeText={setUsername}
                 placeholder="Enter your username"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
                 autoCapitalize="none"
                 autoCorrect={false}
                 ref={usernameRef}
@@ -293,7 +293,7 @@ const LoginScreen: React.FC = () => {
                   value={email}
                   onChangeText={setEmail}
                   placeholder="you@example.com"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#888"
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -312,7 +312,7 @@ const LoginScreen: React.FC = () => {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter your password"
-                placeholderTextColor="#666"
+                placeholderTextColor="#888"
                 secureTextEntry
                 ref={passwordRef}
                 returnKeyType="go"
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerText: {
-    color: '#666',
+    color: '#888',
     fontSize: 12,
     textAlign: 'center',
   },

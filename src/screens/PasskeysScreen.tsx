@@ -213,7 +213,7 @@ const PasskeysScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="Passkey name (optional)"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={newName}
               onChangeText={setNewName}
               autoCapitalize="none"

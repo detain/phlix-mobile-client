@@ -672,7 +672,7 @@ const SettingsScreen: React.FC = () => {
             <TextInput
               style={styles.hubInput}
               placeholder="Hub URL (e.g., https://hub.example.com)"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={hubSignInUrl}
               onChangeText={setHubSignInUrl}
               autoCapitalize="none"
@@ -683,7 +683,7 @@ const SettingsScreen: React.FC = () => {
             <TextInput
               style={styles.hubInput}
               placeholder="Username"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={hubUsername}
               onChangeText={setHubUsername}
               autoCapitalize="none"
@@ -693,7 +693,7 @@ const SettingsScreen: React.FC = () => {
             <TextInput
               style={styles.hubInput}
               placeholder="Password"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={hubPassword}
               onChangeText={setHubPassword}
               secureTextEntry
@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   serverVersion: {
-    color: '#666',
+    color: '#888',
     fontSize: 12,
     marginTop: 4,
   },
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
   },
   appName: {
-    color: '#666',
+    color: '#888',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -856,7 +856,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   hubSignInHint: {
-    color: '#666',
+    color: '#888',
     fontSize: 13,
     marginTop: 4,
   },

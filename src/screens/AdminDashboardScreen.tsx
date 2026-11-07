@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   emptyRow: {
-    color: '#666',
+    color: '#888',
     fontSize: 14,
     padding: 16,
   },

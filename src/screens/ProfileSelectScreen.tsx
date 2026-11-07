@@ -293,7 +293,7 @@ const ProfileSelectScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="Profile name"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={draftName}
               onChangeText={setDraftName}
               maxLength={50}
@@ -368,7 +368,7 @@ const ProfileSelectScreen: React.FC = () => {
             <TextInput
               style={[styles.input, styles.pinInput]}
               placeholder="••••"
-              placeholderTextColor="#666"
+              placeholderTextColor="#888"
               value={pinValue}
               onChangeText={(t) => setPinValue(t.replace(/\D/g, ''))}
               keyboardType="number-pad"
