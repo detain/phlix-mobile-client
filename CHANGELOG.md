@@ -32,6 +32,33 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — CP-022 doc-currency: name the hubRelay dial seam in the wsEndpoint carrier-law proof — 2026-11-09
+
+- The `:8097` `?token=` -> `['bearer', <jwt>]` two-entry subprotocol
+  migration (cookie program CP-022, COOKIE-DESIGN.md §4.5) had ALREADY
+  landed at `bdbe1e1` ("fix(syncplay): flip :8097 direct lane to
+  bearer-subprotocol carrier"), an ancestor of this entry's parent
+  `de4ceb5a`; the design doc's "wsEndpoint.ts still mints the `:8097`
+  `?token=` URL" premise is stale disk-wise. Verified this lane end to
+  end: the CP-006 premise is live (server `SyncPlayAuthMiddleware::
+  resolveHandshakeToken()` — bearer subprotocol priority-1 TARGET carrier,
+  echoed on the 101 — and hub `:8804` bearer-only via
+  `ClientRelayWorker::extractClientToken()`), both mobile lanes hand
+  `protocols: ['bearer', …]` to the two-value `WebSocket` constructor
+  (`resolveSyncPlayWsEndpoint` + `SyncPlayService` `openSocket` dial), no
+  `?token=` producer survives in `src/`, and planting the pre-migration
+  query shape into a scratch copy reddens exactly 8 law-pinning tests
+  (URL-equality, no-`token=`/no-`?` negatives, mock-WebSocket
+  `lastProtocols` captures on first dial and the reconnect ladder).
+- Delta shipped here: two stale raw-line coordinates in the
+  `wsEndpoint.ts` docblocks — the in-repo two-arg-constructor proof cited
+  `hubRelay.ts:256`, but that dial lives at `hubRelay.ts:454` inside
+  `connectHubRelaySocket()` — now cite the seam BY NAME (estate LW-037
+  rot-proof prose law). Comment-only; zero behavior change; relay lane
+  untouched and stays bearer-conformant. Battery parent-vs-post
+  identical: jest `--runInBand` 134 suites / 1944 pass + 1 skip (1945),
+  tsc 0, eslint 0 errors / 2 pre-existing held warnings.
+
 ### Changed — LW-089 re-pin cascade: @phlix/contracts #v0.5.6→#v0.5.7 + @phlix/syncplay #v0.1.7→#v0.1.8 — 2026-11-09
 
 - Tag-form pins bumped to `github:detain/phlix-contracts#v0.5.7` (tag object

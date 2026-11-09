@@ -29,8 +29,9 @@
  *   URLs also keeps them out of access/proxy logs and handshake diagnostics).
  *   The server echoes the `bearer` marker on the 101 (S355-style gate), so
  *   strict WHATWG-style clients complete the handshake. In-repo proof that
- *   RN's global WebSocket honours the 2-arg constructor: `hubRelay.ts:256`
- *   dials `:8804` with `['bearer', token]` against the real hub today.
+ *   RN's global WebSocket honours the 2-arg constructor:
+ *   `hubRelay.ts connectHubRelaySocket()` dials `:8804` with `['bearer',
+ *   token]` against the real hub today.
  * - **Relay** — the hub's `:8804/syncplay/{server_id}` relay
  *   (`SyncPlayRelayWorker`, S237): the token travels in the
  *   `Sec-WebSocket-Protocol: bearer, <token>` subprotocol and query-string
@@ -258,7 +259,7 @@ export async function resolveSyncPlayWsEndpoint(source: SyncPlayWsSource): Promi
 
   // Dual-carrier TARGET law (phlix-server 424c14d0): bearer subprotocol
   // carrier, never a query token — same offer shape the relay lane above and
-  // hubRelay.ts:256 already ship.
+  // `hubRelay.ts connectHubRelaySocket()` already ship.
   const url = buildDirectSyncPlayWsUrl(source.effectiveServerUrl);
   // M-MOBILE-51 (review mobile__secnet m3): the scheme here is purely
   // baseUrl-derived (m1/m2) — when it lands on plain `ws://`, the bearer JWT
