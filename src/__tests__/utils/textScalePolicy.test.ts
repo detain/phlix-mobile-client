@@ -195,7 +195,11 @@ describe('M-MOBILE-46 family / MW-104 contrast law', () => {
         'screens/AdminLibrariesScreen.tsx',
         'screens/AdminUsersScreen.tsx',
         'screens/ParentalControlsScreen.tsx',
-        'screens/PlayerScreen.tsx',
+        // 'screens/PlayerScreen.tsx' CURED in wave w20 L8 (MW-123): its
+        // placeholder ink rode the retired 666-gray; MW-104's own promoted
+        // token (#888, floor-clearing) replaced it — the survivor left the
+        // list by BEING cured, and the literal left with it (no token
+        // homes for convicted values: src/theme/tokens.ts carries none).
         'screens/admin/AdminBackupScreen.tsx',
         'screens/admin/AdminFsBrowseScreen.tsx',
         'screens/admin/AdminLogsScreen.tsx',

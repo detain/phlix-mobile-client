@@ -42,6 +42,17 @@
  *   primary case is a user with no room. Reconnects re-read the token every
  *   attempt because relay tokens expire (1h default); the ladder is capped and
  *   self-terminating.
+ * - **Liveness (MW-122, review mobile__crossfe #3)** — the SyncPlay lane's two
+ *   half-cures are mirrored here: an OS-background close (keep the intent,
+ *   tear down socket AND armed ladder) with foreground re-dial, and a
+ *   ping/pong watchdog so a zombie socket (peer silently dead, readyState
+ *   still OPEN) is declared dead and re-dialed instead of letting the hub
+ *   count this phone as an open app and burn every `pending_command` into a
+ *   dead TCP lane. The probe is the canonical `syncplay_time_ping`, which the
+ *   hub answers with `syncplay_time_pong` with NO room guard (its
+ *   `handleCanonicalTimePing`); sending it latches this connection's inbound
+ *   dialect to canonical, which the hub header states costs the
+ *   dialect-agnostic `pending_command` deliveries nothing.
  *
  * The module holds its connection in module-level state so the app boots it
  * once via `startHubRelayConsumer()` (see `HubRelayConsumer.ts`) and the store
@@ -102,9 +113,15 @@ export interface HubRelayConfig {
 // M-MOBILE-51 (review mobile__secnet m3): the one external binding this
 // dependency-free consumer carries — the dial seam reports its cleartext
 // verdict to the security store (write-gated; see the store's law header).
+// MW-122 adds a SECOND, deliberate binding: the canonical message constants
+// from @phlix/syncplay (already a pinned dep of this app and the SSOT of the
+// very frame types the liveness watchdog speaks). "Dependency-free" here
+// always meant *no parse/runtime machinery* — the type constants are the wire
+// contract itself, and re-typing them as string literals would fork the SSOT.
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
 import { isHttpsBase } from '../utils/serverHost';
+import { SYNCPLAY_MESSAGE_TYPES, PROTOCOL_VERSION } from '@phlix/syncplay';
 
 /** Maximum fast-ladder attempts before the low-frequency park re-arm takes
  * over (mirrors the SyncPlay socket — same shape as the hub Federation lane
@@ -120,6 +137,17 @@ const RECONNECT_MAX_DELAY_MS = 30_000;
 
 /** Park cadence after the fast budget is spent (mirrors SyncPlayService). */
 const RECONNECT_PARK_DELAY_MS = 60_000;
+
+/**
+ * MW-122: ping cadence of the liveness watchdog — same two numbers as the
+ * SyncPlay lane (SYNC_INTERVAL_MS / PONG_TIMEOUT_MS there): probe every 30s,
+ * declare dead anything unanswered past 10s (a tick is 30s apart, so the
+ * verdict lands on the NEXT tick: worst case ~40s of silence).
+ */
+export const RELAY_PING_INTERVAL_MS = 30_000;
+
+/** MW-122: pong answer window before the socket is declared a zombie. */
+export const RELAY_PONG_TIMEOUT_MS = 10_000;
 
 /**
  * Replay window for a delivered `pending_command`, in seconds
@@ -233,9 +261,97 @@ let hubWs: WebSocket | null = null;
 let hubConfig: HubRelayConfig | null = null;
 let hubReconnectAttempts = 0;
 let hubReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+// MW-122 watchdog state (mirrors SyncPlayService's pongPendingAt): the ping
+// leg timestamp awaiting a pong, and the interval driving the cadence.
+let hubPingTimer: ReturnType<typeof setInterval> | null = null;
+let hubPongPendingAt: number | null = null;
+// MW-122: the dial/cancel generation. Background/close/re-bind each bump it;
+// a connect leg parked on the token mint compares its snapshot after the
+// await — config identity alone cannot see a background that KEPT the intent
+// (the MW-010 lesson, relay edition).
+let hubConnectGeneration = 0;
 
 function setStatus(status: HubRelayStatus): void {
   hubConfig?.onStatusChange?.(status);
+}
+
+/** Stop the ping cadence (idempotent — every teardown path calls it). */
+function stopHubPingLoop(): void {
+  if (hubPingTimer !== null) {
+    clearInterval(hubPingTimer);
+    hubPingTimer = null;
+  }
+  hubPongPendingAt = null;
+}
+
+/**
+ * Send one canonical liveness probe. The hub answers `syncplay_time_ping`
+ * with `syncplay_time_pong` from `handleCanonicalTimePing` with NO room
+ * guard — clock/liveness outlives rooms on the relay exactly as on :8097.
+ */
+function requestHubPing(): void {
+  if (hubWs === null || hubWs.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  const now = Date.now();
+  try {
+    hubWs.send(
+      JSON.stringify({
+        type: SYNCPLAY_MESSAGE_TYPES.TIME_PING,
+        protocol_version: PROTOCOL_VERSION,
+        client_time: now,
+      })
+    );
+  } catch {
+    // A send failure on an OPEN-looking socket is the zombie symptom itself;
+    // stamping the pending time lets the next tick reach the verdict.
+  }
+  hubPongPendingAt = now;
+}
+
+/**
+ * Arm the cadence for a freshly-opened socket: probe NOW (the service lane
+ * fires its first sync immediately on open — a silent peer that dies at the
+ * handshake must not buy a full interval), then every RELAY_PING_INTERVAL_MS.
+ */
+function startHubPingLoop(): void {
+  stopHubPingLoop();
+  requestHubPing();
+  hubPingTimer = setInterval(() => {
+    if (hubPongPendingAt !== null && Date.now() - hubPongPendingAt > RELAY_PONG_TIMEOUT_MS) {
+      killZombieHubSocket();
+      return;
+    }
+    requestHubPing();
+  }, RELAY_PING_INTERVAL_MS);
+}
+
+/**
+ * MW-122: declare the socket dead on OUR terms — detach every handler FIRST
+ * so the close cannot double-drive the ladder through onclose, then let the
+ * existing ladder re-dial. Without this, a hub whose process died (or a
+ * silently-dropped route) leaves the phone in a fake "connected" state: the
+ * hub keeps counting an open app for a while longer, and every Alexa command
+ * is delivered into a dead TCP lane and lost.
+ */
+function killZombieHubSocket(): void {
+  console.warn(
+    `HubRelay: zombie socket declared dead — syncplay_time_ping unanswered past ${RELAY_PONG_TIMEOUT_MS}ms`
+  );
+  stopHubPingLoop();
+  if (hubWs !== null) {
+    hubWs.onopen = null;
+    hubWs.onmessage = null;
+    hubWs.onclose = null;
+    hubWs.onerror = null;
+    try {
+      hubWs.close();
+    } catch {
+      // close() on a dead socket throwing is the zombie being literal; nothing to do.
+    }
+    hubWs = null;
+  }
+  scheduleHubReconnect();
 }
 
 /**
@@ -271,11 +387,15 @@ export function openHubRelayConnection(config: HubRelayConfig): void {
   // and its onmessage closure reads the module-level hubConfig — leaving it
   // open would deliver the new config's frames to the old socket and leak it.
   if (hubWs) {
+    stopHubPingLoop(); // the superseded socket's watchdog dies with it
     hubWs.onclose = null;
     hubWs.close();
     hubWs = null;
   }
   hubConfig = config;
+  // MW-122: every NEW dial intent advances the generation — a connect leg
+  // already parked on the token mint belongs to a superseded intent.
+  hubConnectGeneration++;
   if (hubReconnectTimer !== null) {
     clearTimeout(hubReconnectTimer);
     hubReconnectTimer = null;
@@ -299,6 +419,10 @@ async function connectHubRelaySocket(): Promise<void> {
   // HTTP, and while it runs the consumer may close (sign-out) or re-bind
   // (server switch) — the resumed code must not read a nulled/rebound global.
   const config = hubConfig;
+  // MW-122: the generation alongside the config snapshot. Backgrounding KEEPS
+  // the config (the intent survives), so identity alone cannot cancel a leg
+  // that raced the OS lifecycle — the generation catches what identity misses.
+  const generation = hubConnectGeneration;
   let token: string | null;
   try {
     const maybeToken = config.tokenProvider();
@@ -312,8 +436,8 @@ async function connectHubRelaySocket(): Promise<void> {
     setStatus('closed');
     return;
   }
-  if (hubConfig !== config) {
-    return; // closed or re-bound while the token was being minted
+  if (hubConfig !== config || generation !== hubConnectGeneration) {
+    return; // closed, re-bound, or backgrounded while the token was being minted
   }
   const url = buildHubRelayUrl(config.hubBaseUrl, config.serverId);
   // M-MOBILE-51: report the resolved scheme BEFORE dialing — this bearer
@@ -337,6 +461,8 @@ async function connectHubRelaySocket(): Promise<void> {
   socket.onopen = () => {
     hubReconnectAttempts = 0;
     setStatus('open');
+    // MW-122: liveness cadence starts the moment the pipe is open.
+    startHubPingLoop();
   };
 
   socket.onmessage = (event) => {
@@ -357,6 +483,17 @@ async function connectHubRelaySocket(): Promise<void> {
       raw = JSON.parse(text);
     } catch {
       return; // malformed frame — ignore
+    }
+    // MW-122: the pong is consumed by the watchdog itself, BEFORE the pending
+    // command parse — it is liveness traffic, not a delivery, and must never
+    // reach the navigation seam.
+    if (
+      typeof raw === 'object' &&
+      raw !== null &&
+      (raw as { type?: unknown }).type === SYNCPLAY_MESSAGE_TYPES.TIME_PONG
+    ) {
+      hubPongPendingAt = null;
+      return;
     }
     const command = parsePendingCommandFrame(raw);
     if (!command) {
@@ -382,6 +519,10 @@ async function connectHubRelaySocket(): Promise<void> {
   };
 
   socket.onclose = () => {
+    // MW-122: the watchdog dies with the pipe — a reconnect's fresh socket
+    // arms its own cadence in onopen, and a parked ladder must not ping
+    // through a stale timer.
+    stopHubPingLoop();
     hubWs = null;
     scheduleHubReconnect();
   };
@@ -433,6 +574,11 @@ function scheduleHubReconnect(): void {
  * Close the hub relay socket and stop the reconnect ladder.
  */
 export function closeHubRelayConnection(): void {
+  // MW-122: a real close CANCELS the intent (contrast the background below,
+  // which keeps it) — the generation bump strands any in-flight mint leg and
+  // makes a later foreground re-dial a no-op.
+  hubConnectGeneration++;
+  stopHubPingLoop();
   if (hubReconnectTimer !== null) {
     clearTimeout(hubReconnectTimer);
     hubReconnectTimer = null;
@@ -445,6 +591,94 @@ export function closeHubRelayConnection(): void {
   hubReconnectAttempts = 0;
   hubConfig = null;
   setStatus('closed');
+}
+
+/**
+ * MW-122 (review mobile__crossfe #3): OS background on the relay lane.
+ *
+ * Mirrors `SyncPlayService.handleAppBackground`: iOS/Android kill silent
+ * sockets on their own schedule, and a phone dozing with a "live" relay
+ * socket is the hub's most misleading failure mode — it counts the app as
+ * open, dispatches pending_commands into the dead lane, and the honest Alexa
+ * answer ("no open app") never gets spoken. Closing on OUR terms while the
+ * process is certainly foregrounded is the only deterministic goodbye.
+ *
+ * The INTENT survives: the config stays (only `closeHubRelayConnection`
+ * cancels it), so the next background cannot starve, and the armed ladder —
+ * which would keep re-dialing the relay from the background (battery + hub
+ * load while the OS is asking us to be quiet) — is torn down. The generation
+ * bump strands a leg parked mid token-mint: no socket may materialise into a
+ * backgrounded process (the MW-010 lesson on this lane).
+ */
+export function handleHubRelayBackground(): void {
+  if (hubConfig === null && hubWs === null && hubReconnectTimer === null) {
+    return; // lane never opened — nothing to suspend
+  }
+  hubConnectGeneration++;
+  if (hubReconnectTimer !== null) {
+    clearTimeout(hubReconnectTimer);
+    hubReconnectTimer = null;
+  }
+  stopHubPingLoop();
+  if (hubWs !== null) {
+    // Detach FIRST: the close is OUR decision, the ladder must not read it
+    // as an unexpected drop and re-arm in the background.
+    hubWs.onopen = null;
+    hubWs.onmessage = null;
+    hubWs.onclose = null;
+    hubWs.onerror = null;
+    try {
+      hubWs.close();
+    } catch {
+      // Already-dead pipe: the goodbye we wanted anyway.
+    }
+    hubWs = null;
+  }
+  hubReconnectAttempts = 0; // the background gap is not the socket's fault
+  setStatus('closed'); // config kept — the owner of the intent still hears
+}
+
+/**
+ * MW-122: OS foreground on the relay lane.
+ *
+ * Mirrors `SyncPlayService.handleAppForeground`: if nothing is connected or
+ * dialing and an intent is still held, restart the FAST ladder immediately —
+ * the phone is back in the user's hand and "Alexa, play X" should land in
+ * seconds, not on the parked 60s cadence.
+ */
+export function handleHubRelayForeground(): void {
+  // MW-122 (rec b): validate before trusting. An OS that killed the pipe
+  // WITHOUT delivering a background event (Android aggressive doze) leaves a
+  // buried socket whose readyState says CLOSED while hubWs is non-null —
+  // without this check the early return below would keep reporting a dead
+  // lane as alive until the watchdog's next ping verdict (~40s). A socket
+  // still CONNECTING is NOT buried — a dial in flight is left alone.
+  if (
+    hubWs !== null &&
+    hubWs.readyState !== WebSocket.OPEN &&
+    hubWs.readyState !== WebSocket.CONNECTING
+  ) {
+    stopHubPingLoop();
+    hubWs.onopen = null;
+    hubWs.onmessage = null;
+    hubWs.onclose = null;
+    hubWs.onerror = null;
+    try {
+      hubWs.close();
+    } catch {
+      // Buried pipes throw on close; that is the verdict, not a problem.
+    }
+    hubWs = null;
+  }
+  if (hubWs !== null || hubReconnectTimer !== null) {
+    return; // already connected or already re-dialing
+  }
+  if (hubConfig === null) {
+    return; // closeHubRelayConnection cancelled the intent — stay silent
+  }
+  hubReconnectAttempts = 0;
+  // eslint-disable-next-line no-void -- fire-and-forget; the connect owns its errors
+  void connectHubRelaySocket();
 }
 
 /** The open socket, or null. Exported for tests / status UI. */

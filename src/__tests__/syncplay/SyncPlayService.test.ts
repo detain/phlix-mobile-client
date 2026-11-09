@@ -2046,3 +2046,145 @@ describe('SyncPlayService - Membership continuity (C1/C3/C4/M9/M10)', () => {
     syncPlayService.disconnect();
   });
 });
+
+// ── MW-125 (review mobile__crossfe #2): queue/chat rails + loud refusal ───────
+// The server really broadcasts `syncplay_playback_queue` (SyncPlayManager
+// :1296-era queue fan-out) and `syncplay_chat` (:1347-era chat fan-out); the
+// old switch had no arm for either, and its `default:` broke SILENTLY — every
+// unhandled frame evaporated without a log line. These tests pin the two new
+// typed rails and the refusal law: known-but-not-rendered (`syncplay_typing`,
+// a per-keystroke signal no mobile surface shows) gets its own documented
+// arm; anything else is dropped LOUD with its type named.
+describe('SyncPlayService - MW-125 queue/chat rails and the loud default arm', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    setupMocks();
+    MockWebSocket.reset();
+    syncPlayService.disconnect();
+  });
+
+  it('parses syncplay_playback_queue into typed entries, writes the store rail, emits onQueueUpdate', async () => {
+    const setPlaybackQueue = jest.fn();
+    setupMocks({}, { setPlaybackQueue });
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const queueUpdate = jest.fn();
+    syncPlayService.on('onQueueUpdate', queueUpdate as any);
+
+    // Wire truth (phlix-server Messages::playbackQueue): {group_id, queue:
+    // [{media_id, media_info?}]}. The trailing 7 is a hostile entry — the
+    // boundary parser drops it, the two good ones survive typed.
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_queue',
+      group_id: 'sp_room1',
+      queue: [
+        { media_id: 'm1', media_info: { name: 'Movie One' } },
+        { media_id: 'm2' },
+        7,
+      ],
+    });
+
+    expect(queueUpdate).toHaveBeenCalledTimes(1);
+    expect(queueUpdate.mock.calls[0][0]).toEqual([
+      { mediaId: 'm1', name: 'Movie One' },
+      { mediaId: 'm2', name: null },
+    ]);
+    // Store rail: the same entries reach setPlaybackQueue (single writer).
+    expect(setPlaybackQueue).toHaveBeenCalledWith([
+      { mediaId: 'm1', name: 'Movie One' },
+      { mediaId: 'm2', name: null },
+    ]);
+
+    syncPlayService.off('onQueueUpdate');
+    syncPlayService.disconnect();
+  });
+
+  it('drops a queue frame whose queue field is not an array — loudly, no partial write', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const setPlaybackQueue = jest.fn();
+    setupMocks({}, { setPlaybackQueue });
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const queueUpdate = jest.fn();
+    syncPlayService.on('onQueueUpdate', queueUpdate as any);
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_playback_queue',
+      group_id: 'sp_room1',
+      queue: { not: 'an array' },
+    });
+
+    expect(setPlaybackQueue).not.toHaveBeenCalled();
+    expect(queueUpdate).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('playback_queue'));
+
+    errorSpy.mockRestore();
+    syncPlayService.off('onQueueUpdate');
+    syncPlayService.disconnect();
+  });
+
+  it('emits onChatMessage with the parsed member id and text; malformed chats drop loudly', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    const chat = jest.fn();
+    syncPlayService.on('onChatMessage', chat as any);
+
+    // Wire truth (phlix-server Messages::chatMessage): top-level member_id + message.
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_chat',
+      group_id: 'sp_room1',
+      member_id: 'user-1',
+      message: 'hello everyone',
+    });
+    expect(chat).toHaveBeenCalledWith({ memberId: 'user-1', message: 'hello everyone' });
+
+    // A chat without text (or sender) is malformed — dropped, logged, NO event.
+    MockWebSocket.simulateMessage({ type: 'syncplay_chat', group_id: 'sp_room1', member_id: 'user-1' });
+    expect(chat).toHaveBeenCalledTimes(1);
+
+    chat.mockClear();
+    syncPlayService.off('onChatMessage');
+    warnSpy.mockRestore();
+    syncPlayService.disconnect();
+  });
+
+  it('syncplay_typing is refused by name (documented arm): no event, no warn spam', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    MockWebSocket.simulateMessage({
+      type: 'syncplay_typing',
+      group_id: 'sp_room1',
+      member_id: 'user-1',
+      is_typing: true,
+    });
+    // The whole point of the named arm: a per-keystroke signal must not
+    // produce log noise — silence here is BY DESIGN, documented, not the
+    // old silent break.
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+    syncPlayService.disconnect();
+  });
+
+  it('an unknown frame type is dropped LOUD with its name (the default arm no longer breaks silently)', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    syncPlayService.connect('member-123');
+    await pump();
+    MockWebSocket.simulateOpen();
+
+    MockWebSocket.simulateMessage({ type: 'syncplay_mystery_frame', foo: 1 });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('syncplay_mystery_frame'));
+
+    warnSpy.mockRestore();
+    syncPlayService.disconnect();
+  });
+});

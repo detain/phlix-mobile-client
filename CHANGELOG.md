@@ -32,6 +32,93 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — wave w20 mobile L8: relay-lane liveness (watchdog + OS suspend/resume), the player follows the group (media/queue/chat), design-token SSOT + raw-hex ratchet — 2026-11-09
+
+- Hub-relay liveness (MW-122, review mobile__crossfe #3):
+  `src/syncplay/hubRelay.ts` gained the two halves the SyncPlay lane
+  already carried. (1) A ping/pong watchdog: every opened relay socket
+  fires a canonical `syncplay_time_ping` immediately and then on a
+  30s cadence (`RELAY_PING_INTERVAL_MS` / `RELAY_PONG_TIMEOUT_MS`); an
+  answer older than the pong window declares the socket a zombie and
+  kills it on OUR terms (handlers detached before close, so the ladder
+  never double-drives), then re-dials. The hub answers this frame from
+  `SyncPlayRelayWorker::handleCanonicalTimePing` with NO room guard, so
+  liveness outlives rooms; the pong is consumed by the watchdog before
+  the pending-command parse and never reaches the navigation seam.
+  (2) OS lifecycle: `handleHubRelayBackground()` closes the socket
+  while KEEPING the dial intent (config survives; the armed ladder and
+  ping loop are torn down; the connect generation bumps so a leg parked
+  mid token-mint can never materialise a socket into a backgrounded
+  process — the MW-010 lesson, relay edition);
+  `handleHubRelayForeground()` re-dials from attempt 0, and VALIDATES
+  before trusting: a pipe the OS buried without an event (readyState
+  CLOSED) is dropped and re-dialed, while a CONNECTING dial in flight
+  is left alone. `HubRelayConsumer` subscribes the `AppState` `change`
+  rail for the relay half (background/active routed; `inactive`
+  deliberately NOT a teardown, matching the App.tsx SyncPlay law) —
+  App.tsx itself unchanged: it already owns the :8097 rail, and the
+  consumer owns the relay socket's whole lifecycle (one owner, one
+  teardown story). The review's rec (a) half was already disk-law for
+  the :8097 lane (single `connected` setter `handleOpen` arms
+  `startSyncInterval()` on every path); the register carries the proof.
+- Group media + queue/chat rails (MW-125, review mobile__crossfe #2):
+  the phone had been silently evaporating the server's
+  `syncplay_playback_queue` and `syncplay_chat` fan-outs for its whole
+  life — the message switch's `default:` arm broke without a sound.
+  Now: `syncplay_playback_queue` parses at the boundary into typed
+  `SyncPlayQueueEntry[]` (host's `media_info.name` optional → id
+  fallback; a non-array `queue` drops WHOLE and loud — no partial
+  snapshot), lands on the store's new `playbackQueue` rail (pairing
+  law: `setCurrentGroup(null)` clears it with the room; `reset()`
+  re-allocates the seed), and fires `onQueueUpdate`.
+  `syncplay_chat` decodes to `{memberId, message}` (either missing =
+  loud drop) and fires `onChatMessage`. `syncplay_typing` is refused
+  BY NAME in a documented arm (per-keystroke signal, no mobile
+  surface); any OTHER unroutable type now warns with its name — the
+  silent `break` is dead law. `PlayerScreen` finally acts on group
+  ownership: `onGroupStateUpdate` follows a genuinely-differing
+  `currentMediaId` through the same `replace()` seam autoplay-next
+  uses (null and already-there echoes do not re-navigate), anchoring
+  the new title at the room position in seconds (S441 — no
+  re-conversion); queue and chat ride the established overlay notice
+  rail (sender resolved from the roster at event time, MW-101 law),
+  the store rail keeps the FULL list for whoever mounts a surface
+  later. The review's `setWatchPartyActive` clause is a stale premise:
+  no such call exists anywhere in `src/` (zero grep hits, register).
+- Design tokens + raw-hex ratchet (MW-123, review mobile__gameux #8):
+  `src/theme/tokens.ts` names the color family the census convicted
+  (47 distinct raw hex values hand-copied 865 times across 66 files,
+  measured at this wave's parent) — including the two
+  near-identical-dark confusables (`appBackground` #0f0f1a vs
+  `sheetBackground` #1a1a2e, one value two roles each, finally
+  told apart by their names). Convicted retired inks get NO token
+  home: the 666-gray that MW-104 proved cannot clear either contrast
+  floor was not re-baptised as `textTertiary` — PlayerScreen's last
+  survivor site was PROMOTED to the floor-clearing #888 token
+  instead, the same cure the seven promoted screens already carry,
+  and the MW-104 `#666` census survivor list rotated in this commit
+  (measured red first — the rotation law the test itself states).
+  `PlayerScreen.tsx` and `SyncPlayModal.tsx` (42 sites: 34 literals +
+  8 JSX props) are fully tokenized, and `.eslintrc.js` gained the
+  grow-only ratchet: raw hex literals are ERRORS in the listed
+  converted files (rule teeth probed by planting one), new files join
+  by converting. rgba() alpha composites stay legal per the
+  documented scope note in tokens.ts.
+- Tests: 29 new (hubRelay watchdog + OS lifecycle + rec-b validation
+  12; HubRelayConsumer AppState rail 3; service queue/chat/typing/
+  loud-default boundary 5; store pairing law 4; playerGroupRails
+  source pins 5 — new suite file). Mutation-toothed: watchdog-arm
+  strip 3 reds, pong-consumption strip 1, queue-arm strip 2,
+  silent-default restore 1, typing-arm strip 1, foreground-validate
+  strip 1, planted raw hex 1 lint error.
+- Pins: none moved — `@phlix/syncplay` stays `#v0.1.7`, `@phlix/contracts`
+  untouched, zero new wire codes, `syncplayErrors.ts` not edited (no
+  TS2741 surface touched).
+- Battery: jest `--runInBand` 134 suites 1,944 passed + 1 skipped
+  (parent 9a599d7 measured baseline 1,915 + 1 skip; +29 exact);
+  tsc 0; eslint 0 errors / the two pre-existing era-held warnings
+  (era pins rotated ONLY from measured red: the #666 census above).
+
 ### Fixed — wave w13 mobile L9: stack bottom safe-area opt-in, vault read memo, inset-aware player chrome, issued-origin logout revoke, single-source modal keyboard sheet, watch-party entry surfaces — 2026-11-07
 
 - Behavior (review mobile__gameux #6): root-stack screens render WITHOUT the

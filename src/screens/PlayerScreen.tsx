@@ -57,8 +57,14 @@ import type { PlaybackEvent, PhlixPlayerViewProps } from '../native/types';
 import {
   syncPlayService,
   type PlaybackCommand,
+  type SyncPlayGroup,
   type SyncPlayMember,
+  type SyncPlayQueueEntry,
+  type SyncPlayChatMessage,
 } from '../syncplay/SyncPlayService';
+// MW-123: the StyleSheet in this file reads the token family (see
+// src/theme/tokens.ts for the law; ESLint pins it).
+import { colors } from '../theme/tokens';
 import { clampSeekSeconds, syncReanchorTargetSeconds } from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
@@ -519,11 +525,60 @@ const PlayerScreen: React.FC = () => {
       showMembershipNotice(host ? `${host.name} is now the host` : 'Host changed');
     };
 
+    // MW-125 (review mobile__crossfe #2): the autoplay guard below says out
+    // loud that "the SyncPlay group owns media selection, not this screen" —
+    // but until now nothing on the screen ACTED on that ownership. The host
+    // changing the party's title decoded into the store and fired
+    // onGroupStateUpdate into a void. The phone follows through the same
+    // replace() seam autoplay-next uses: Back does not stack one hop per
+    // media change, and the room's position anchors the new title.
+    const handleGroupMediaChange = (group: SyncPlayGroup) => {
+      // null = the room carries no media (server omitted the field — an
+      // empty room); equal = we are already watching it (the ~5s group echo
+      // is a re-broadcast, not a change). Only a genuine difference follows.
+      if (group.currentMediaId === null || group.currentMediaId === itemId) {
+        return;
+      }
+      const nav = navigation as {
+        replace?: (name: string, params: RootStackParamList['Player']) => void;
+      };
+      // S441: the store speaks SECONDS and the route param speaks SECONDS —
+      // the snapshot anchor is already decoded at the service boundary, so it
+      // threads through untouched; no re-conversion here.
+      nav.replace?.('Player', { itemId: group.currentMediaId, startPosition: group.playbackPosition });
+    };
+
+    // The queue snapshot rides the overlay notice rail — mobile has no queue
+    // surface yet; one replaced sentence on the MW-101 clock is the honest
+    // disclosure, and the store rail keeps the FULL list for whoever mounts
+    // one (the event→store write happened in the service before this fires).
+    const handleQueueUpdate = (entries: SyncPlayQueueEntry[]) => {
+      if (entries.length === 0) {
+        showMembershipNotice('Queue cleared');
+        return;
+      }
+      const next = entries[0];
+      const label = next.name ?? `${next.mediaId.slice(0, 8)}…`;
+      showMembershipNotice(`Queue updated — ${entries.length} items — next: ${label}`);
+    };
+
+    // Chat lines ride the same rail, sender resolved from the roster AT EVENT
+    // TIME — the MW-101/handleHostChanged law (the emitting snapshot is
+    // already in the store; the wire member_id is meaningless to a viewer).
+    const handleChatMessage = (chat: SyncPlayChatMessage) => {
+      const sender = useSyncplayStore.getState().currentGroup?.members.find((m) => m.id === chat.memberId);
+      const text = chat.message.length > 60 ? `${chat.message.slice(0, 59)}…` : chat.message;
+      showMembershipNotice(`${sender?.name ?? 'Unknown'}: ${text}`);
+    };
+
     syncPlayService.on('onPlaybackCommand', handleSyncPlayCommand);
     syncPlayService.on('onError', handleSyncPlayError);
     syncPlayService.on('onMemberJoined', handleMemberJoin);
     syncPlayService.on('onMemberLeft', handleMemberLeft);
     syncPlayService.on('onHostChanged', handleHostChanged);
+    syncPlayService.on('onGroupStateUpdate', handleGroupMediaChange);
+    syncPlayService.on('onQueueUpdate', handleQueueUpdate);
+    syncPlayService.on('onChatMessage', handleChatMessage);
 
     // Gate (audit M5): opening a player is not joining a group. The socket
     // must ONLY exist while a SyncPlay group is active — group join/create
@@ -545,6 +600,9 @@ const PlayerScreen: React.FC = () => {
       syncPlayService.off('onMemberJoined', handleMemberJoin);
       syncPlayService.off('onMemberLeft', handleMemberLeft);
       syncPlayService.off('onHostChanged', handleHostChanged);
+      syncPlayService.off('onGroupStateUpdate', handleGroupMediaChange);
+      syncPlayService.off('onQueueUpdate', handleQueueUpdate);
+      syncPlayService.off('onChatMessage', handleChatMessage);
       if (membershipNoticeTimerRef.current !== null) {
         clearTimeout(membershipNoticeTimerRef.current);
         membershipNoticeTimerRef.current = null;
@@ -1198,7 +1256,7 @@ const PlayerScreen: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#fff" />
+        <ActivityIndicator size="large" color={colors.textPrimary} />
       </View>
     );
   }
@@ -1255,7 +1313,7 @@ const PlayerScreen: React.FC = () => {
       {/* Transcode "Preparing…" overlay */}
       {preparingTranscode && (
         <View style={styles.preparingOverlay} pointerEvents="auto">
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color={colors.textPrimary} />
           <Text style={styles.preparingText}>Preparing…</Text>
           {transcodeProgress > 0 && (
             <Text style={styles.preparingProgressText}>
@@ -1588,38 +1646,42 @@ const PlayerScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.black,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: colors.black,
   },
   errorContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.black,
   },
   playerWrapper: {
     flex: 1,
   },
   player: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.black,
   },
   playerPlaceholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: colors.inputBackground,
   },
   playerPlaceholderText: {
-    color: '#666',
+    // MW-104 promotion: this was the retired 666-gray (2.97:1-class — below
+    // both floors). The census rotation of PlayerScreen off the survivor
+    // list is EARNED by this promotion, not by moving the literal into a
+    // token name.
+    color: colors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
   },
   streamUrlText: {
-    color: '#444',
+    color: colors.textMuted,
     fontSize: 12,
     marginTop: 10,
     textAlign: 'center',
@@ -1681,13 +1743,13 @@ const styles = StyleSheet.create({
   topBarTitle: {
     flex: 1,
     marginTop: 10,
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
   },
   closeButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 20,
   },
   topBarRight: {
@@ -1714,7 +1776,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,102,204,0.8)',
   },
   syncPlayButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 18,
   },
   qualityButton: {
@@ -1731,7 +1793,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,102,204,0.8)',
   },
   qualityButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -1745,7 +1807,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   offlineBadgeText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -1762,26 +1824,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   cellularBadgeText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
-  },
-  syncStatusIndicator: {
-    width: 12,
-    height: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  syncStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  syncStatusStable: {
-    backgroundColor: '#00cc66',
-  },
-  syncStatusUnstable: {
-    backgroundColor: '#ff9500',
   },
   centerControls: {
     flexDirection: 'row',
@@ -1798,7 +1843,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   seekButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1806,12 +1851,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#0066cc',
+    backgroundColor: colors.link,
     justifyContent: 'center',
     alignItems: 'center',
   },
   playPauseButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 32,
   },
   // M-MOBILE-44 r2: the persistent progress rail — the SeekBar's post-auto-hide
@@ -1839,109 +1884,6 @@ const styles = StyleSheet.create({
   bottomControlsSpacer: {
     height: 70,
   },
-  // SyncPlay Modal
-  syncPlayModalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  syncPlayModalContent: {
-    backgroundColor: '#1a1a2e',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  syncPlayModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  syncPlayModalTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  groupNameText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  groupInfoText: {
-    color: '#888',
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  memberList: {
-    maxHeight: 200,
-    marginBottom: 16,
-  },
-  memberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
-  },
-  memberName: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  leaveGroupButton: {
-    backgroundColor: '#cc3333',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  leaveGroupButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  noGroupText: {
-    color: '#888',
-    fontSize: 16,
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  createGroupButton: {
-    backgroundColor: '#0066cc',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  createGroupButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  syncPlayErrorText: {
-    color: '#ff6666',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  timeSyncStatus: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2d2d44',
-  },
-  timeSyncLabel: {
-    color: '#888',
-    fontSize: 14,
-  },
-  timeSyncValue: {
-    color: '#fff',
-    fontSize: 14,
-  },
   skipButtonsContainer: {
     position: 'absolute',
     top: 60,
@@ -1960,13 +1902,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.75)',
   },
   preparingText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
     marginTop: 16,
   },
   preparingProgressText: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 14,
     marginTop: 4,
   },

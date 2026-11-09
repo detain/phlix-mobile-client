@@ -26,6 +26,10 @@ import { syncPlayService } from '../../syncplay/SyncPlayService';
 import { hashGroupPassword } from '../../syncplay/sha256';
 import { describeSyncPlayRestError } from '../../syncplay/syncplayErrors';
 import { fireHaptic } from '../../utils/haptics';
+// MW-123: the StyleSheet in this file reads the token family (see
+// src/theme/tokens.ts for the law; the ESLint overrides in .eslintrc.js pin
+// this file converted — raw hex here is now an error, not a census entry).
+import { colors } from '../../theme/tokens';
 
 interface SyncPlayModalProps {
   visible: boolean;
@@ -340,7 +344,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
           {activeTab === 'browse' && (
             <View style={styles.tabContent}>
               {isLoadingRooms ? (
-                <ActivityIndicator size="large" color="#fff" />
+                <ActivityIndicator size="large" color={colors.textPrimary} />
               ) : publicRooms.length === 0 ? (
                 <Text style={styles.emptyText}>No public rooms available</Text>
               ) : (
@@ -387,7 +391,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={roomName}
                 onChangeText={setRoomName}
                 placeholder="Enter room name"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textSecondary}
               />
 
               <View style={styles.switchRow}>
@@ -395,8 +399,8 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 <Switch
                   value={isPublic}
                   onValueChange={setIsPublic}
-                  trackColor={{ false: '#2d2d44', true: '#0066cc' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: colors.cardSurface, true: colors.link }}
+                  thumbColor={colors.textPrimary}
                 />
               </View>
 
@@ -408,7 +412,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Enter password"
-                    placeholderTextColor="#888"
+                    placeholderTextColor={colors.textSecondary}
                     secureTextEntry
                   />
                 </>
@@ -420,7 +424,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 disabled={isCreating}
               >
                 {isCreating ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.textPrimary} />
                 ) : (
                   <Text style={styles.actionButtonText}>Create Room</Text>
                 )}
@@ -437,7 +441,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={joinRoomId}
                 onChangeText={setJoinRoomId}
                 placeholder="Enter room ID"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textSecondary}
               />
 
               {/* M4: gated rooms are exactly what a shared Room ID implies —
@@ -448,7 +452,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 value={joinPassword}
                 onChangeText={setJoinPassword}
                 placeholder="Enter password"
-                placeholderTextColor="#888"
+                placeholderTextColor={colors.textSecondary}
                 secureTextEntry
               />
 
@@ -458,7 +462,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
                 disabled={isJoining}
               >
                 {isJoining ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.textPrimary} />
                 ) : (
                   <Text style={styles.actionButtonText}>Join Room</Text>
                 )}
@@ -481,7 +485,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
   },
   content: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.sheetBackground,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -494,7 +498,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '600',
   },
@@ -502,7 +506,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
+    borderBottomColor: colors.cardSurface,
   },
   tab: {
     flex: 1,
@@ -511,14 +515,14 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: '#0066cc',
+    borderBottomColor: colors.link,
   },
   tabText: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   activeTabText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   tabContent: {
@@ -532,27 +536,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
+    borderBottomColor: colors.cardSurface,
   },
   roomInfo: {
     flex: 1,
   },
   roomName: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '500',
   },
   roomMeta: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 2,
   },
   joinIcon: {
-    color: '#0066cc',
+    color: colors.link,
     fontSize: 16,
   },
   emptyText: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
     marginVertical: 40,
@@ -563,21 +567,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   refreshButtonText: {
-    color: '#0066cc',
+    color: colors.link,
     fontSize: 14,
   },
   inputLabel: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 13,
     marginBottom: 6,
     marginTop: 12,
   },
   textInput: {
-    backgroundColor: '#2d2d44',
+    backgroundColor: colors.cardSurface,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
   },
   switchRow: {
@@ -588,11 +592,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   switchLabel: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
   },
   actionButton: {
-    backgroundColor: '#0066cc',
+    backgroundColor: colors.link,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -602,24 +606,24 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   actionButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
   errorText: {
-    color: '#ff6666',
+    color: colors.dangerText,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 12,
   },
   groupNameText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '500',
     marginBottom: 4,
   },
   groupInfoText: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 16,
   },
@@ -632,21 +636,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#2d2d44',
+    borderBottomColor: colors.cardSurface,
   },
   memberName: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
   },
   leaveButton: {
-    backgroundColor: '#cc3333',
+    backgroundColor: colors.danger,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 12,
   },
   leaveButtonText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -657,24 +661,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#2d2d44',
+    borderTopColor: colors.cardSurface,
   },
   timeSyncLabel: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 14,
   },
   timeSyncValue: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 14,
   },
   groupName: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '500',
     marginBottom: 4,
   },
   groupInfo: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 16,
   },
@@ -685,18 +689,18 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   roomIdLabel: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 13,
     marginRight: 8,
   },
   roomIdValue: {
-    color: '#0066cc',
+    color: colors.link,
     fontSize: 15,
     fontWeight: '600',
     flex: 1,
   },
   roomIdHint: {
-    color: '#888',
+    color: colors.textSecondary,
     fontSize: 12,
     marginBottom: 16,
   },

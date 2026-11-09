@@ -321,9 +321,34 @@ export type PlaybackCommand = {
   forceReanchor?: boolean;
 };
 
+/**
+ * MW-125 (review mobile__crossfe #2): one entry of the host's playback
+ * queue, parsed at the wire boundary from `syncplay_playback_queue`
+ * (phlix-server Messages::playbackQueue, src/Session/SyncPlay/Messages.php:500
+ * — `queue[].media_id` with a `media_info` projection the server normalizes
+ * to an object; the broadcaster chooses its contents, so a missing `name` is
+ * a normal wire shape, not a defect — consumers fall back to the id).
+ */
+export interface SyncPlayQueueEntry {
+  mediaId: string;
+  name: string | null;
+}
+
+/**
+ * MW-125: a chat line from `syncplay_chat`
+ * (phlix-server Messages::chatMessage (src/Session/SyncPlay/Messages.php) — {member_id, message}).
+ * Decoded here so the UI never touches raw wire keys.
+ */
+export interface SyncPlayChatMessage {
+  memberId: string;
+  message: string;
+}
+
 type WsMessage = {
   /** A SyncPlay wire message type (one of @phlix/syncplay's 19), or any other
-   * string the server may emit; unknown types are ignored by routeMessage. */
+   * string the server may emit; unknown types are named in a console warning
+   * by routeMessage — a silent drop is how MW-125 went unnoticed (the phone
+   * had been ignoring the server's queue/chat broadcasts for its whole life). */
   type: SyncPlayMessageType | string;
   [key: string]: unknown;
 };
@@ -412,6 +437,18 @@ interface SyncPlayServiceEvents {
    */
   onMemberLeft: (memberId: string, memberName: string) => void;
   onHostChanged: (newHostId: string) => void;
+  /**
+   * MW-125 (review mobile__crossfe #2): the host's queue snapshot, replaced
+   * wholesale on every `syncplay_playback_queue` frame (the wire carries the
+   * full list, not a delta — an empty array means the queue is empty).
+   */
+  onQueueUpdate: (entries: SyncPlayQueueEntry[]) => void;
+  /**
+   * MW-125: one decoded chat line. Membership resolution (which roster member
+   * sent it) belongs to the consumer — this lane only guarantees the
+   * {memberId, message} pair parsed from the wire.
+   */
+  onChatMessage: (chat: SyncPlayChatMessage) => void;
   onError: (code: string, message: string) => void;
   onTimeSyncUpdate: (status: { offset: number; latency: number; isStable: boolean }) => void;
 }
@@ -1257,7 +1294,29 @@ class SyncPlayService {
         this.handleTimePong(msg);
         break;
 
+      case MSG.PLAYBACK_QUEUE:
+        this.handlePlaybackQueue(msg);
+        break;
+
+      case MSG.CHAT:
+        this.handleChatMessage(msg);
+        break;
+
+      case MSG.TYPING:
+        // MW-125: refused BY NAME, not by silence. The typing indicator is a
+        // per-keystroke frame with no mobile surface (the phone shows no
+        // composer state), so there is nothing to render — but the refusal is
+        // a documented decision, and the server's broadcast genuinely
+        // reaches us here. Adding a chat composer later means handling this
+        // arm, tripping the reader's eye, not spelunking a dropped frame.
+        break;
+
       default:
+        // MW-125: the silent `break` that swallowed the queue/chat rails for
+        // the client's whole life. A frame we cannot route is a gap in this
+        // file — name it so the gap is loud in the console and the next
+        // register audit finds a statement, not an absence.
+        console.warn(`SyncPlay: frame type '${String(msg.type)}' has no mobile handler — dropped`);
         break;
     }
   }
@@ -1430,6 +1489,62 @@ class SyncPlayService {
       useSyncplayStore.getState().setIsHost(newHostId === you);
       this.events.onHostChanged?.(newHostId);
     }
+  }
+
+  /**
+   * MW-125 (review mobile__crossfe #2): `syncplay_playback_queue` carries the
+   * FULL queue (phlix-server Messages::playbackQueue,
+   * src/Session/SyncPlay/Messages.php:500 — an array
+   * of {media_id, media_info}, the projection's `name` optional); the wire
+   * sends snapshots, never deltas, so
+   * the store rail is replaced wholesale. A frame whose `queue` is not an
+   * array is dropped whole and loudly — half-parsing a corrupted snapshot
+   * would show members a queue the host never had.
+   */
+  private handlePlaybackQueue(msg: WsMessage): void {
+    const raw = msg.queue;
+    if (!Array.isArray(raw)) {
+      console.error('SyncPlay: syncplay_playback_queue frame carries a non-array `queue` — dropped whole');
+      return;
+    }
+    const entries: SyncPlayQueueEntry[] = [];
+    for (const item of raw as readonly unknown[]) {
+      // An entry without a media_id cannot be resolved or played — it is not
+      // a queue line, whatever the host's DB held when the frame was built.
+      if (typeof item !== 'object' || item === null) {
+        continue;
+      }
+      const record = item as { media_id?: unknown; media_info?: unknown };
+      const mediaId = wireString(record.media_id);
+      if (mediaId === undefined) {
+        continue;
+      }
+      const info = record.media_info;
+      const name =
+        typeof info === 'object' && info !== null
+          ? wireString((info as { name?: unknown }).name) ?? null
+          : null;
+      entries.push({ mediaId, name });
+    }
+    useSyncplayStore.getState().setPlaybackQueue(entries);
+    this.events.onQueueUpdate?.(entries);
+  }
+
+  /**
+   * MW-125: `syncplay_chat` (phlix-server Messages::chatMessage,
+   * src/Session/SyncPlay/Messages.php:562)
+   * carries {member_id, message}. Both parts are required for a renderable
+   * line — a frame missing either drops loudly rather than showing an
+   * anonymous orphan or an ownerless blob.
+   */
+  private handleChatMessage(msg: WsMessage): void {
+    const memberId = wireString(msg.member_id);
+    const message = wireString(msg.message);
+    if (memberId === undefined || message === undefined) {
+      console.error('SyncPlay: syncplay_chat frame without a usable member_id/message pair — dropped');
+      return;
+    }
+    this.events.onChatMessage?.({ memberId, message });
   }
 
   /**

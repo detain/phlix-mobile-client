@@ -10,7 +10,7 @@
  * App-level wiring for the hub-relay pending-command consumer (S298, mobile
  * half).
  *
- * Two subscriptions, both plain-function (no React renderer needed):
+ * Three subscriptions, all plain-function (no React renderer needed):
  *
  * 1. **Socket lifecycle ("open-whenever")** — watches the hub store and opens
  *    the `:8804` relay socket whenever hub auth exists (hubUrl + session +
@@ -27,16 +27,28 @@
  *    ONCE per unique command (`mediaId@issuedAt`); a repeat of the same frame
  *    is consumed but not re-routed.
  *
+ * 3. **OS lifecycle (MW-122, review mobile__crossfe #3)** — the `change`
+ *    AppState rail routes `background`/`active` to the relay lane's suspend/
+ *    resume pair. `inactive` is deliberately NOT a teardown — the App.tsx
+ *    SyncPlay law (an iOS control-center pull or notification shade is
+ *    'inactive', and tearing a dial over it churns the hub for nothing).
+ *    App.tsx keeps its own AppState effect for the SyncPlay `:8097` socket;
+ *    the relay half lives HERE because this consumer owns the relay socket's
+ *    whole lifecycle — one owner, one teardown story.
+ *
  * Mounted once from `App.tsx` at boot; `stopHubRelayConsumer()` tears both
  * subscriptions down.
  */
 
+import { AppState } from 'react-native';
 import { useHubStore } from '../store/hubStore';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { createHubRelayTokenProvider } from '../hub/RelayTokenProvider';
 import {
   openHubRelayConnection,
   closeHubRelayConnection,
+  handleHubRelayBackground,
+  handleHubRelayForeground,
 } from './hubRelay';
 
 export interface HubRelayConsumerOptions {
@@ -51,6 +63,7 @@ export interface HubRelayConsumerOptions {
 let started = false;
 let unsubscribeHub: (() => void) | null = null;
 let unsubscribeSyncplay: (() => void) | null = null;
+let unsubscribeAppState: { remove: () => void } | null = null;
 let lastRoutedCommandKey: string | null = null;
 
 /**
@@ -118,6 +131,23 @@ export function startHubRelayConsumer(options: HubRelayConsumerOptions): void {
       routePending();
     }
   });
+
+  // ── 3. OS lifecycle (MW-122) ──────────────────────────────────────────────
+  // The `started` guard is not theater: a stale handler can still be reached
+  // after remove() by anyone holding the reference (test 2 of the AppState
+  // describe proves the law by calling it), and the post-stop world must not
+  // revive a deliberately closed lane.
+  unsubscribeAppState = AppState.addEventListener('change', (status) => {
+    if (!started) {
+      return;
+    }
+    if (status === 'background') {
+      handleHubRelayBackground();
+    } else if (status === 'active') {
+      handleHubRelayForeground();
+    }
+    // 'inactive' / 'unknown': deliberately unrouted (docblock item 3).
+  });
 }
 
 /**
@@ -125,6 +155,8 @@ export function startHubRelayConsumer(options: HubRelayConsumerOptions): void {
  * and close the relay socket.
  */
 export function stopHubRelayConsumer(): void {
+  unsubscribeAppState?.remove();
+  unsubscribeAppState = null;
   unsubscribeHub?.();
   unsubscribeHub = null;
   unsubscribeSyncplay?.();

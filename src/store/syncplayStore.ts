@@ -7,7 +7,7 @@
 
 // src/store/syncplayStore.ts
 import { create } from 'zustand';
-import type { SyncPlayGroup, SyncPlayMember } from '../syncplay/SyncPlayService';
+import type { SyncPlayGroup, SyncPlayMember, SyncPlayQueueEntry } from '../syncplay/SyncPlayService';
 import type { PendingPlayMediaCommand } from '../syncplay/hubRelay';
 
 interface SyncplayState {
@@ -28,6 +28,15 @@ interface SyncplayState {
   // player's load-a-new-title path. Cleared by consumePendingPlayMedia.
   pendingPlayMedia: PendingPlayMediaCommand | null;
 
+  /**
+   * MW-125 (review mobile__crossfe #2): the host's playback queue, replaced
+   * wholesale by each `syncplay_playback_queue` snapshot. Lives HERE, beside
+   * the group that owns it — not in the player screen — so a member who
+   * opens the app mid-party sees the queue the moment the room does,
+   * whether or not a player is mounted.
+   */
+  playbackQueue: SyncPlayQueueEntry[];
+
   // UI state
   showMemberList: boolean;
   error: string | null;
@@ -46,6 +55,12 @@ interface SyncplayState {
   removeMember: (memberId: string) => void;
   applyPendingPlayMedia: (command: PendingPlayMediaCommand) => void;
   consumePendingPlayMedia: () => void;
+  /**
+   * MW-125: wholesale replacement of the queue rail — the wire sends full
+   * snapshots per broadcast, and every writer funnels through here so the
+   * "one rail, last snapshot wins" law holds.
+   */
+  setPlaybackQueue: (entries: SyncPlayQueueEntry[]) => void;
   /**
    * Throw away an unconsumed `pendingPlayMedia` on a server switch
    * (M-MOBILE-18). The command carries the OLD server's media id; on the new
@@ -67,6 +82,7 @@ const initialState = {
   timeSyncLatency: 0,
   timeSyncStable: false,
   pendingPlayMedia: null,
+  playbackQueue: [],
   showMemberList: false,
   error: null,
 };
@@ -74,7 +90,11 @@ const initialState = {
 export const useSyncplayStore = create<SyncplayState>((set, get) => ({
   ...initialState,
 
-  setCurrentGroup: (group) => set({ currentGroup: group }),
+  // MW-125 pairing law: the queue is the ROOM's, not the app's. Leaving (or
+  // being dropped from) the last group must not leave a ghost playlist on the
+  // rail — both fields move through this one choke so they can never diverge.
+  setCurrentGroup: (group) =>
+    set(group === null ? { currentGroup: null, playbackQueue: [] } : { currentGroup: group }),
 
   setIsHost: (isHost) => set({ isHost }),
 
@@ -157,6 +177,10 @@ export const useSyncplayStore = create<SyncplayState>((set, get) => ({
     set({ pendingPlayMedia: null });
   },
 
+  setPlaybackQueue: (entries) => {
+    set({ playbackQueue: entries });
+  },
+
   addMember: (member) => {
     const { currentGroup } = get();
     if (!currentGroup) {
@@ -191,7 +215,11 @@ export const useSyncplayStore = create<SyncplayState>((set, get) => ({
     });
   },
 
-  reset: () => set(initialState),
+  // The queue seed is re-allocated per reset: `initialState.playbackQueue` is
+  // one module-level array, and handing the same reference to every session
+  // would let one consumer's in-place sort bleed across rooms. Every writer
+  // replaces wholesale today — this keeps the law from becoming a trap.
+  reset: () => set({ ...initialState, playbackQueue: [] }),
 }));
 
 export default useSyncplayStore;

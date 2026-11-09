@@ -336,3 +336,55 @@ describe('useSyncplayStore — hub-relay pending_command consumer (S298)', () =>
     expect(useSyncplayStore.getState().pendingPlayMedia).toBeNull();
   });
 });
+
+// MW-125 (review mobile__crossfe #2): the server's `syncplay_playback_queue`
+// fan-out now lands on a real store rail. The pairing law: the queue belongs
+// to the room — leaving (setCurrentGroup(null)) must not leave a stale list
+// behind for the next session.
+describe('playbackQueue rail (MW-125)', () => {
+  const group: SyncPlayGroup = {
+    id: 'sp_pairing',
+    name: 'Pairing',
+    members: [],
+    currentMediaId: null,
+    playbackState: 'playing',
+    playbackPosition: 0,
+    hostId: '',
+    hasPassword: false,
+  };
+
+  beforeEach(() => {
+    useSyncplayStore.setState({ currentGroup: null, playbackQueue: [] });
+  });
+
+  it('setPlaybackQueue writes typed entries', () => {
+    useSyncplayStore.getState().setPlaybackQueue([
+      { mediaId: 'm1', name: 'One' },
+      { mediaId: 'm2', name: null },
+    ]);
+    expect(useSyncplayStore.getState().playbackQueue).toEqual([
+      { mediaId: 'm1', name: 'One' },
+      { mediaId: 'm2', name: null },
+    ]);
+  });
+
+  it('setCurrentGroup(null) clears the queue — the room owns it', () => {
+    useSyncplayStore.getState().setCurrentGroup(group);
+    useSyncplayStore.getState().setPlaybackQueue([{ mediaId: 'm1', name: 'One' }]);
+    useSyncplayStore.getState().setCurrentGroup(null);
+    expect(useSyncplayStore.getState().currentGroup).toBeNull();
+    expect(useSyncplayStore.getState().playbackQueue).toEqual([]);
+  });
+
+  it('a group switch REPLACES the queue wholesale (no carry-over append)', () => {
+    useSyncplayStore.getState().setPlaybackQueue([{ mediaId: 'old', name: null }]);
+    useSyncplayStore.getState().setPlaybackQueue([{ mediaId: 'new', name: 'N' }]);
+    expect(useSyncplayStore.getState().playbackQueue).toEqual([{ mediaId: 'new', name: 'N' }]);
+  });
+
+  it('reset returns the rail to empty', () => {
+    useSyncplayStore.getState().setPlaybackQueue([{ mediaId: 'm1', name: null }]);
+    useSyncplayStore.getState().reset();
+    expect(useSyncplayStore.getState().playbackQueue).toEqual([]);
+  });
+});

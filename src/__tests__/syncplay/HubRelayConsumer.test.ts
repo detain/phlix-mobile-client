@@ -255,3 +255,85 @@ describe('startHubRelayConsumer — command router (load-a-new-title path)', () 
     expect(navigateToPlayer).not.toHaveBeenCalled();
   });
 });
+// ── MW-122 (review mobile__crossfe #3): the consumer owns the OS rail ────────
+// App.tsx routes AppState change to the :8097 SyncPlay lane; the relay lane's
+// lifecycle lives HERE (this module is the app-level wiring seam for the
+// consumer — keeping the subscription next to the hub-store subscription makes
+// the whole lifecycle testable, which a one-line add to App.tsx's effect
+// would not be). The law is the sibling lane's: close-on-background keeping
+// the dial intent, re-dial-on-foreground, 'inactive' deliberately NOT a
+// teardown trigger.
+describe('MW-122 — AppState routing', () => {
+  // Imported lazily so the module identity matches what the consumer binds.
+  const { AppState } = require('react-native') as typeof import('react-native');
+  const hubRelayModule = require('../../syncplay/hubRelay');
+
+  let changeHandler: ((status: string) => void) | null = null;
+  let removeSpy: jest.Mock;
+  let addSpy: jest.SpyInstance;
+  let bgSpy: jest.SpyInstance;
+  let fgSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    changeHandler = null;
+    removeSpy = jest.fn();
+    addSpy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation(((type: string, handler: (status: string) => void) => {
+        if (type === 'change') {
+          changeHandler = handler;
+        }
+        return { remove: removeSpy };
+      }) as unknown as typeof AppState.addEventListener);
+    bgSpy = jest
+      .spyOn(hubRelayModule, 'handleHubRelayBackground')
+      .mockImplementation(() => undefined);
+    fgSpy = jest
+      .spyOn(hubRelayModule, 'handleHubRelayForeground')
+      .mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    addSpy.mockRestore();
+    bgSpy.mockRestore();
+    fgSpy.mockRestore();
+  });
+
+  it('subscribes on start, routes background/active to the relay lane, unsubscribes on stop', () => {
+    useHubStore.setState(HUB_STATE);
+    startHubRelayConsumer({ navigateToPlayer: jest.fn() });
+    expect(addSpy).toHaveBeenCalledWith('change', expect.any(Function));
+
+    changeHandler?.('background');
+    expect(bgSpy).toHaveBeenCalledTimes(1);
+    expect(fgSpy).not.toHaveBeenCalled();
+
+    changeHandler?.('active');
+    expect(fgSpy).toHaveBeenCalledTimes(1);
+
+    // 'inactive' is transient interruption (shade, permission dialog) — the
+    // sibling lane's law: NEVER a teardown trigger.
+    changeHandler?.('inactive');
+    expect(bgSpy).toHaveBeenCalledTimes(1);
+    expect(fgSpy).toHaveBeenCalledTimes(1);
+
+    stopHubRelayConsumer();
+    expect(removeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stopped consumer no longer reacts to state changes', () => {
+    startHubRelayConsumer({ navigateToPlayer: jest.fn() });
+    const handler = changeHandler;
+    stopHubRelayConsumer();
+    handler?.('background');
+    handler?.('active');
+    expect(bgSpy).not.toHaveBeenCalled();
+    expect(fgSpy).not.toHaveBeenCalled();
+  });
+
+  it('start is idempotent — a second start does not double-subscribe the OS rail', () => {
+    startHubRelayConsumer({ navigateToPlayer: jest.fn() });
+    startHubRelayConsumer({ navigateToPlayer: jest.fn() });
+    expect(addSpy).toHaveBeenCalledTimes(1);
+  });
+});
