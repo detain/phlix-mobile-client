@@ -8,7 +8,7 @@
 // src/stores/__tests__/usePlayerStore.test.ts
 import { usePlayerStore } from '../usePlayerStore';
 import type { MediaItem } from '../../types/media';
-import type { StreamInfo, PlaybackSession } from '../../types/playback';
+import type { StreamInfo, PlaybackSession, SubtitleTrack } from '../../types/playback';
 
 const item = (id: string): MediaItem => ({ id, name: 'Test', type: 'movie' });
 
@@ -122,10 +122,10 @@ describe('usePlayerStore', () => {
 
   describe('subtitle track setters', () => {
     it('setSubtitleTracks', () => {
-      // S404: full playback-info WIRE rows (contracts v0.4.5 =
+      // S404: full playback-info WIRE rows (contracts v0.5.7 =
       // StreamTrackShaper keys; the old `display_title` fixture pinned a key
       // the server never emitted — rewritten honestly).
-      const tracks = [
+      const tracks: SubtitleTrack[] = [
         {
           id: 'sub1',
           index: 0,
@@ -134,6 +134,7 @@ describe('usePlayerStore', () => {
           label: 'English',
           codec: 'srt',
           source: null,
+          delivery: 'external',
           hearing_impaired: false,
           url: '/api/v1/media/m1/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
         },

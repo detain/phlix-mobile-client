@@ -37,8 +37,9 @@ function findAll(node: unknown, pred: (el: El) => boolean): El[] {
   return out;
 }
 
-// Golden rows — contracts test/fixtures/stream-track-vectors.json @ 068d5e86
-// (provenance server 01340633), audio case
+// Golden rows — contracts test/fixtures/stream-track-vectors.json @ da8c1e3
+// (provenance server a63dc0db; audio rows byte-held across the v0.5.7
+// wire-truth rewrite), audio case
 // `stored-default-on-second-nullables-passthrough`: a titleless 5.1 row with a
 // real bitrate and a titled stereo default.
 const TRACKS: AudioTrack[] = [

@@ -810,7 +810,8 @@ const PlayerScreen: React.FC = () => {
    *
    * S407: the SAME response carries `audio_tracks`/`subtitle_tracks` (the
    * server always emits both keys — MediaItemController::getPlaybackInfo
-   * verified at 01340633), so this is the direct-play rails' ONE feeder —
+   * verified at 01340633, re-verified at the v0.5.7-era server a63dc0db), so
+   * this is the direct-play rails' ONE feeder —
    * consume it here, do not re-fetch elsewhere. Precedence: a transcode rail
    * (synth rows from the job's VTT set, see startTranscodeFallback) OWNS the
    * subtitle list once the job started — a late playback-info response must not
@@ -889,13 +890,16 @@ const PlayerScreen: React.FC = () => {
       setPlayerStreamInfo(hlsStreamInfo);
 
       // Expose the signed VTT tracks from the transcode response as a picker.
-      // S404: rows carry the honest wire `SubtitleTrack` shape (contracts
-      // v0.4.5 = the StreamTrackShaper emission). These particular rows are
-      // client-synthesised from the transcode `subtitles[]` envelope
-      // (`{language,url}`): ordinals are positional, `label` takes the
-      // server's display-string slot (exactly what the old fictional
-      // `display_title` held — display behavior unchanged), and `source`
-      // marks the client-side provenance.
+      // S404: rows carry the honest wire `SubtitleTrack` shape (the
+      // StreamTrackShaper emission; re-verified at contracts v0.5.7's
+      // wire-truth rewrite — every subtitle row the server shapes carries
+      // `delivery: 'external'` (S507/AD-8: subtitles reach the player as
+      // signed sidecar URLs, never muxed), so these rows do too).
+      // These particular rows are client-synthesised from the transcode
+      // `subtitles[]` envelope (`{language,url}`): ordinals are positional,
+      // `label` takes the server's display-string slot (exactly what the old
+      // fictional `display_title` held — display behavior unchanged), and
+      // `source` marks the client-side provenance.
       // S407 reconciliation (the handoff note above is now resolved): a
       // transcode REPLACES the playback-info subtitle rail, it does not merge
       // with it — the playable source is now the HLS master and only THESE
@@ -909,6 +913,7 @@ const PlayerScreen: React.FC = () => {
         label: s.language,
         codec: 'vtt',
         source: 'transcode',
+        delivery: 'external',
         hearing_impaired: false,
         url: s.url,
       }));

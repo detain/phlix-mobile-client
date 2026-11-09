@@ -206,13 +206,18 @@ describe('S280 route gate — vendored manifest integrity', () => {
     // Byte-for-byte copy of @phlix/contracts v0.5.6 dist/server-route-manifest.json
     // (md5 90b79e355055307d5ba2cc0ef98e2300 — regen #36: 415 tuples @ serverSha
     // 58530ec2), re-vendored at the v0.5.6 pin bump (2026-11-04), cmp-verified
-    // tag blob → codeload payload → installed package → this file. The prior
+    // tag blob → codeload payload → installed package → this file; at the
+    // #v0.5.7 re-pin (2026-11-09 LW-089 cascade) the vendored file stayed
+    // UNTOUCHED — v0.5.7's dist/server-route-manifest.json is byte-identical
+    // to this file's (md5 compared tag-vs-tag and tag-vs-installed: all three
+    // at 90b79e355055307d5ba2cc0ef98e2300), an honest-zero re-vendor. The prior
     // era's bytes (412 tuples @ 758f9149, md5 915796837d38a77733c169996d97640c,
     // v0.5.3 re-vendor 2026-10-01) had held byte-identical through v0.5.4 and
     // v0.5.5; v0.5.6's delta over v0.5.5 is this manifest regen ONLY — the
     // error-codes registry (md5 5d1783a71a3c4e128b2021327cad3717, 205 codes)
     // and mcp-scopes (md5 8c92c0703eae8a429c509ff16e0d185d) stayed byte-held,
-    // so the trio did NOT move together and no catalog count pin rotated.
+    // so the trio did NOT move together and no catalog count pin rotated —
+    // the same trio-hold is measured again at v0.5.7.
     // Provenance below is the artifact's own, never re-derived here.
     expect(manifest.provenance.serverSha).toBe('58530ec207b0d40c3386ed10215d5bda3eaf54af');
     expect(manifest.provenance.total).toBe(415);

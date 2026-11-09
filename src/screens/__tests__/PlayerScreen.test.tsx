@@ -414,7 +414,10 @@ const findButton = (tree: unknown, label: string): El | null =>
 
 // ── S407 fake-transport payload ───────────────────────────────────────────
 // Golden values copied from contracts `test/fixtures/stream-track-vectors.json`
-// @ 068d5e86 (provenance: phlix-server 01340633, StreamTrackShaper dump).
+// @ da8c1e3 (provenance: phlix-server a63dc0db, StreamTrackShaper dump;
+// re-vendored at the contracts #v0.5.7 pin — audio rows byte-held across the
+// rewrite, subtitle rows gained the `delivery: 'external'` key the server has
+// emitted since S507).
 // Audio: case `stored-default-on-second-nullables-passthrough`.
 // Subtitle: case `embedded-text-codecs-bitmap-skipped-but-counted` — the
 // fixture stores PATH-ONLY urls (the signer's `?exp=<digits>&sig=<base64url>`
@@ -453,6 +456,7 @@ const GOLDEN_SUBTITLE_TRACKS: SubtitleTrack[] = [
     label: 'eng',
     codec: 'subrip',
     source: null,
+    delivery: 'external',
     hearing_impaired: true,
     url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
   },
@@ -464,6 +468,7 @@ const GOLDEN_SUBTITLE_TRACKS: SubtitleTrack[] = [
     label: 'Español (Forzada)',
     codec: 'mov_text',
     source: null,
+    delivery: 'external',
     hearing_impaired: false,
     url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
   },

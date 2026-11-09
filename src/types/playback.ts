@@ -46,7 +46,9 @@ export interface StreamInfo {
  * mirror is retired and the wire types are re-exported verbatim — audio rows
  * carry `id, index, stream_index, codec, language, channels,
  * bitrate (always, nullable), title (nullable), default`; subtitle rows carry
- * `id, index, stream_index, language, label, codec, source, hearing_impaired,
+ * `id, index, stream_index, language, label, codec, source, delivery
+ * (`'external'` — every subtitle is a signed sidecar, S507/AD-8; required in
+ * the DTO since the contracts v0.5.7 wire-truth rewrite), hearing_impaired,
  * url (signed path, null without itemId)`. Consumers that display a track
  * read `label` (subtitle) / `title ?? language` (audio) — never a key the
  * wire does not emit. The PlayerScreen transcode picker builds its rows in
@@ -84,9 +86,10 @@ export interface Chapter {
  * the item has no detected intro/outro. All positions are SECONDS.
  *
  * S407: the track rails are REQUIRED members because the server ALWAYS emits
- * both keys (`MediaItemController::getPlaybackInfo()` json at :340-341, rows
+ * both keys (`MediaItemController::getPlaybackInfo()` json at :373-374, rows
  * shaped by `StreamTrackShaper::audioTracks()/subtitleTracks()` — verified at
- * server `01340633`). An absent key is a wire bug, not an option — same
+ * server `01340633`, re-verified at the contracts v0.5.7 wire-truth rewrite
+ * server `a63dc0db`). An absent key is a wire bug, not an option — same
  * required-if-server-sends logic as the `dash_url` presence pin below, pinned
  * in both directions in `src/types/__tests__/playback.test.ts`. The row types
  * are the playback.ts WIRE pair (S404 ruling), never the `Stream*` DB mirror.

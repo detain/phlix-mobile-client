@@ -32,6 +32,57 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — LW-089 re-pin cascade: @phlix/contracts #v0.5.6→#v0.5.7 + @phlix/syncplay #v0.1.7→#v0.1.8 — 2026-11-09
+
+- Tag-form pins bumped to `github:detain/phlix-contracts#v0.5.7` (tag object
+  `eee7e776…`, peel `bedfe69b…`) + `github:detain/phlix-syncplay#v0.1.8`
+  (tag object `b150e236…`, peel `d3cbfc7a…`), both ls-remote-verified.
+  `package-lock.json` moved EXACTLY 6 lines (+6/−6: root-echo pair + each
+  node entry's version/resolved pair, resolved SHAs = the tag peels) — hand
+  applied, no `npm install` churn; `npm ci` (npm 11, `--userconfig=/dev/null`)
+  exits 0 against the hand-edited lock and re-materializes byte-identical
+  dist payloads (contracts `dist/phlix-contracts.js` md5 `2bde36ad…`,
+  syncplay `dist/phlix-syncplay.js` md5 `f7e19892…`, each cmp-equal to its
+  tag blob) — the idempotency + supply-chain proof (CI re-runs the same form).
+- Incident-law procedure (the .23-era crown) EXECUTED for the behavioral
+  `#v0.1.7→#v0.1.8` bump: parent baseline measured FIRST (jest --runInBand
+  134 suites / 1945 tests, 1944 pass + 1 sanctioned skip — the dispatch
+  card's 121/1720 era figures were stale; measure-at-red governs), then the
+  bump, then the re-run: EXACT parent figures, suite list identical, every
+  syncplay decode/law suite green — zero inbound-decode reds, zero law-test
+  adaptations. v0.1.8 lands clean on this client.
+- contracts v0.5.7 (the LW-001..071 docs-currency + wire-truth DTO rewrite
+  wave) moved one type surface onto mobile: `SubtitleTrack` now REQUIRES
+  `delivery: 'external'` — verified wire truth at server
+  `StreamTrackShaper.php:165/:198` (S507/AD-8: every subtitle is a signed
+  sidecar, none muxed; vectors provenance re-verified at server `a63dc0db`).
+  12 compile sites (TS2741/TS2345, measured from red) fixed honestly: the
+  production transcode-synthesised picker rows (`PlayerScreen.tsx`) carry
+  the key the server would emit, and every `SubtitleTrack` fixture row —
+  the golden ones RE-VENDORED from the tag's
+  `test/fixtures/stream-track-vectors.json` @ `da8c1e3` (its subtitle rows
+  gained `delivery`; the audio rows are byte-held and untouched), plus the
+  wire-shape exemplars in `playback.test.ts`/`usePlayerStore.test.ts`.
+  Golden provenance stamps rotated to the tag era with the delta disclosed;
+  S404/S407 historical narration kept verbatim.
+- S280 re-vendor: HONEST-ZERO, measured — the route-manifest trio is
+  byte-held across v0.5.6→v0.5.7 (tag-vs-tag-vs-installed-vs-vendored all at
+  md5 `90b79e35…` / registry `5d1783a7…` / scopes `8c92c070…`), so
+  `src/api/test/server-route-manifest.json` was NOT re-vendored; only the
+  integrity comment records the v0.5.7 measurement.
+- Union hazard probe: `error-codes.json` is byte-identical across the tag
+  pair, so `SyncPlayErrorCode` stands UNMOVED at 20 (12 legacy + 8 twins) —
+  zero `syncplayErrors.ts` catalog rows, zero count-pin rotations, zero
+  union TS2741 (the delivery cohort above is a DTO surface, not the
+  registry). Live pin-era stamps in `syncplayErrors.ts`/`.test.ts` and the
+  two playback-info era cites (`playback.ts`, `PlayerScreen.tsx`) rotated to
+  #v0.5.7/`a63dc0db` truth; the pin-scoped `serverTimeToMs` mirror-retirement
+  follow-up stays open (export verified live at v0.1.8).
+- Gates: `jest --runInBand` 134 suites / 1945 tests (1944 pass + the
+  sanctioned skip) — EXACT vs the measured-at-parent baseline, zero
+  suite/test drift; `tsc --noEmit` clean (0); eslint 0 errors / the 2
+  pre-existing warnings held; copyright `--check` 179/179; `npm ci` rc 0.
+
 ### Fixed — wave w20 mobile L8: relay-lane liveness (watchdog + OS suspend/resume), the player follows the group (media/queue/chat), design-token SSOT + raw-hex ratchet — 2026-11-09
 
 - Hub-relay liveness (MW-122, review mobile__crossfe #3):

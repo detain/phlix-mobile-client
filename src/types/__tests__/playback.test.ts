@@ -95,8 +95,10 @@ describe('playback types', () => {
   });
 
   // S404: the local `SubtitleTrack`/`AudioTrack` mirror is RETIRED — these
-  // names now re-export `@phlix/contracts` v0.4.5's playback.ts pair, which
-  // declares the REAL `StreamTrackShaper` wire (verified at server 01340633).
+  // names now re-export the `@phlix/contracts` playback.ts pair, which
+  // declares the REAL `StreamTrackShaper` wire (re-verified through the
+  // contracts v0.5.7 wire-truth rewrite at server a63dc0db; every subtitle
+  // row carries `delivery: 'external'` — S507/AD-8).
   // The old fixtures pinned the `display_title` fiction the server never
   // emitted; they are rewritten honestly (not deleted), and the compile-time
   // `HasKey`/`assertExact` absences below are the anti-re-add gate — the
@@ -111,6 +113,7 @@ describe('playback types', () => {
         label: 'eng',
         codec: 'subrip',
         source: null,
+        delivery: 'external',
         hearing_impaired: true,
         url: '/api/v1/media/m1/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
       };
@@ -125,6 +128,7 @@ describe('playback types', () => {
         label: 'Español (Forzada)',
         codec: 'mov_text',
         source: null,
+        delivery: 'external',
         hearing_impaired: false,
         url: '/api/v1/media/m1/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
       };
@@ -140,6 +144,7 @@ describe('playback types', () => {
         label: 'pt',
         codec: 'ass',
         source: null,
+        delivery: 'external',
         hearing_impaired: false,
         url: null,
       };
@@ -155,6 +160,7 @@ describe('playback types', () => {
         label: 'Subtitle 1',
         codec: 'webvtt',
         source: 'opensubtitles',
+        delivery: 'external',
         hearing_impaired: true,
         url: '/api/v1/media/m1/subtitles/external/ss-ext?exp=1800000000&sig=dGVzdC1zaWc',
       };
@@ -293,7 +299,8 @@ describe('playback types', () => {
           { start_seconds: 301, end_seconds: 600, title: 'Chapter 2' },
         ],
         // Golden values: contracts test/fixtures/stream-track-vectors.json @
-        // 068d5e86 (provenance server 01340633), audio case
+        // da8c1e3 (provenance server a63dc0db; audio rows byte-held across the
+        // v0.5.7 rewrite), audio case
         // `stored-default-on-second-nullables-passthrough`.
         audio_tracks: [
           {
@@ -331,6 +338,7 @@ describe('playback types', () => {
             label: 'eng',
             codec: 'subrip',
             source: null,
+            delivery: 'external',
             hearing_impaired: true,
             url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
           },
@@ -342,6 +350,7 @@ describe('playback types', () => {
             label: 'Español (Forzada)',
             codec: 'mov_text',
             source: null,
+            delivery: 'external',
             hearing_impaired: false,
             url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
           },

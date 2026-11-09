@@ -41,10 +41,12 @@ function findAll(node: unknown, pred: (el: El) => boolean): El[] {
   return out;
 }
 
-// Golden rows — contracts test/fixtures/stream-track-vectors.json @ 068d5e86
-// (provenance server 01340633), subtitle case
+// Golden rows — contracts test/fixtures/stream-track-vectors.json @ da8c1e3
+// (provenance server a63dc0db), subtitle case
 // `embedded-text-codecs-bitmap-skipped-but-counted`. `label` is the DISPLAY
-// string; there is NO `title` key on the wire.
+// string; there is NO `title` key on the wire. Every subtitle row carries
+// `delivery: 'external'` — the contracts v0.5.7 wire-truth rewrite added the
+// key the server has emitted since S507 (rows re-vendored from that tag).
 const TRACKS: SubtitleTrack[] = [
   {
     id: 'ss-1',
@@ -54,6 +56,7 @@ const TRACKS: SubtitleTrack[] = [
     label: 'eng',
     codec: 'subrip',
     source: null,
+    delivery: 'external',
     hearing_impaired: true,
     url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/0?exp=1800000000&sig=dGVzdC1zaWc',
   },
@@ -65,6 +68,7 @@ const TRACKS: SubtitleTrack[] = [
     label: 'Español (Forzada)',
     codec: 'mov_text',
     source: null,
+    delivery: 'external',
     hearing_impaired: false,
     url: '/api/v1/media/11111111-2222-3333-4444-555555555555/subtitles/2?exp=1800000000&sig=dGVzdC1zaWc',
   },

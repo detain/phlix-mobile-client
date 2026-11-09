@@ -32,12 +32,17 @@ describe('syncplayErrors — registry coverage', () => {
     // 5d1783a71a3c4e128b2021327cad3717 (the old `40c1da48` stamp is history:
     // that wave itself minted `common.not_found`) — but the mint lives in the
     // `common` domain, so the union stood UNMOVED at 20. At THIS pin
-    // (#v0.5.6, 2026-11-04 wave-5 cascade) the registry is BYTE-HELD at that
-    // same md5 — this wave's contracts delta is route-manifest regen #36
-    // only, and the errors.ts/errors.d.ts churn was measured comment-only
-    // (zero non-comment diff lines) — so `SyncPlayErrorCode` is UNMOVED at 20
-    // again: zero catalog rows rotated, zero TS2741, MEASURED green at this
-    // pin, not assumed. A union bump moves these counts — and the loop
+    // (#v0.5.7, 2026-11-09 LW-089 cascade) the registry is BYTE-HELD at that
+    // same md5 — MEASURED, not assumed: dist/error-codes.json is byte-identical
+    // between v0.5.6 and v0.5.7 (md5 5d1783a71a3c4e128b2021327cad3717 on both
+    // tags); the v0.5.6→v0.5.7 delta is docs-currency plus the wire-truth DTO
+    // rewrite (a playback.ts/StreamSession.ts surface, not the registry) — so
+    // `SyncPlayErrorCode` is UNMOVED at 20 again: zero catalog rows rotated,
+    // zero union TS2741, re-measured green at this pin. (The pin DID land one
+    // consumer-side TS2741 cohort — `SubtitleTrack.delivery: 'external'`, the
+    // S507 key the rewritten DTO now declares; those fixture rows were
+    // re-vendored from the tag's vectors file — a type-surface truth, not a
+    // registry move.) A union bump moves these counts — and the loop
     // below only goes green once syncplayErrors.ts grows the missing sentence
     // (Record<SyncPlayErrorCode, string> makes omission a compile error too;
     // the v0.5.3 pin arrived exactly that way, TS2741 measured).
