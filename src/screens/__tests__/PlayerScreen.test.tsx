@@ -2220,3 +2220,195 @@ describe('PlayerScreen — M14 playback notification is Android-only (review Maj
     expect(notifeePlayback().displayNotification).not.toHaveBeenCalled();
   });
 });
+
+// ── w36L4-MAJOR-1: access/stream-limit Alerts key on the wire CODE ─────────
+// The P5-S5 arms in PlayerScreen.detectAccessStreamError are the friendly
+// Alert paths for the server's playback-lane denials. Born-broken defect (audit
+// w36L4-MAJOR-1): the 403 arm strict-matched `error === 'AccessSchedule'`, but
+// the server has NEVER emitted that byte string — AccessScheduleMiddleware.php
+// :112/:122/:130 emit error(403, 'access.scheduled', 'AccessScheduled', …), and
+// Response::error (src/Server/Http/Response.php:212-215) renders the body as
+// {error: <message>, code: <code>, …extra}. Cure law (mirrors @phlix/ui
+// src/pages/playerErrors.ts): the frozen registered CODE is the primary key;
+// the exact legacy text survives only as the code-less-server fallback.
+// Doctrine note: mirrors this file's W5 code-primary law (:1034-1041).
+describe('PlayerScreen — P5-S5 w36L4: denials surface a code-keyed Alert', () => {
+  let alertSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+
+  // Faithful server-shaped payloads. Byte provenance is pinned by the premise
+  // tests below, so a fixture that drifts from the quoted emitter goes red.
+  const SERVER_403_BODY = {
+    error: 'AccessScheduled',
+    code: 'access.scheduled',
+    // AccessScheduleMiddleware::NO_PROFILE_MESSAGE (verbatim).
+    message: 'No member profile is active on this device.',
+  };
+  const SERVER_429_BODY = {
+    // StreamLimitMiddleware.php:139 / PreRouterFastPaths.php:599-606 (verbatim 5 keys).
+    error: 'StreamLimitExceeded',
+    code: 'stream.limit_exceeded',
+    denial_type: 'stream_limit_exceeded',
+    message: 'This member profile is already streaming on the maximum number of devices',
+    profile_id: '11111111-2222-3333-4444-555555555555',
+  };
+  const axiosLike = (status: number, data: unknown) => ({ response: { status, data } });
+
+  beforeEach(() => {
+    alertSpy = jest.spyOn(RNAlert, 'alert').mockImplementation(() => {});
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    alertSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  // The direct-play lane: loadVideo's getStreamUrl rejection hits the shared
+  // detectAccessStreamError at the PlayerScreen catch (~:792 era coords).
+  async function bootWithStreamUrlFailure(status: number, data: unknown) {
+    mockPlaybackManager.getStreamUrl.mockRejectedValue(axiosLike(status, data));
+    await bootDirectPlay();
+    await flush();
+  }
+
+  // The transcode-fallback lane: prepare()'s rejection hits the second call
+  // site (~:922), proving BOTH Alert arms share the cured detector.
+  async function bootWithPrepareFailure(status: number, data: unknown) {
+    const h = await bootDirectPlay();
+    mockTranscodeManager.prepare.mockReturnValue({
+      promise: Promise.reject(axiosLike(status, data)),
+      cancel: jest.fn(),
+    });
+    await triggerTranscode(h);
+    await flush();
+    return h;
+  }
+
+  const ACCESS_ALERT_ARGS = [
+    'Playback error',
+    'Playback blocked by access schedule. Try again during allowed hours.',
+    [{ text: 'OK', onPress: expect.any(Function) }],
+  ] as const;
+  const LIMIT_ALERT_ARGS = [
+    'Playback error',
+    'Stream limit reached. Stop another stream to continue watching.',
+    [{ text: 'OK', onPress: expect.any(Function) }],
+  ] as const;
+
+  // ── premise pins: fixture bytes == quoted emitter bytes ──────────────────
+
+  it('premise: the 403 fixture is byte-faithful to AccessScheduleMiddleware + Response::error', () => {
+    // {error: <message-arg>, code: <code-arg>} + ['message' => …] extra, per
+    // Response::error (:212-215). Exactly three keys — no invented fields.
+    expect(Object.keys(SERVER_403_BODY)).toEqual(['error', 'code', 'message']);
+    expect(SERVER_403_BODY).toEqual({
+      error: 'AccessScheduled',
+      code: 'access.scheduled',
+      message: 'No member profile is active on this device.',
+    });
+    // The audit's core fact: the emitter ships the trailing 'd'.
+    expect(SERVER_403_BODY.error).toBe('AccessScheduled');
+    expect(SERVER_403_BODY.error).not.toBe('AccessSchedule');
+  });
+
+  it('premise: the 429 fixture is byte-faithful to StreamLimitMiddleware:139 / PreRouterFastPaths:599-606', () => {
+    expect(Object.keys(SERVER_429_BODY)).toEqual([
+      'error',
+      'code',
+      'denial_type',
+      'message',
+      'profile_id',
+    ]);
+    expect(SERVER_429_BODY.error).toBe('StreamLimitExceeded');
+    expect(SERVER_429_BODY.code).toBe('stream.limit_exceeded');
+    expect(SERVER_429_BODY.denial_type).toBe('stream_limit_exceeded');
+    expect(SERVER_429_BODY.message).toBe(
+      'This member profile is already streaming on the maximum number of devices'
+    );
+  });
+
+  // ── 403 access-schedule arm (direct-play call site) ──────────────────────
+
+  it('403 faithful server body fires the friendly access Alert (RED at parent: born-broken literal)', async () => {
+    await bootWithStreamUrlFailure(403, SERVER_403_BODY);
+    expect(alertSpy).toHaveBeenCalledWith(...ACCESS_ALERT_ARGS);
+  });
+
+  it('403 correct code + DRIFTED message text still fires — no strict-message dependency (RED at parent)', async () => {
+    await bootWithStreamUrlFailure(403, {
+      error: 'Some future server prose nobody has shipped yet',
+      code: 'access.scheduled',
+      message: 'WINDOW MOVED',
+    });
+    expect(alertSpy).toHaveBeenCalledWith(...ACCESS_ALERT_ARGS);
+  });
+
+  it('403 legacy text-only payload (no code field at all) still fires via fallback', async () => {
+    await bootWithStreamUrlFailure(403, {
+      error: 'AccessScheduled',
+      message: 'No member profile is active on this device.',
+    });
+    expect(alertSpy).toHaveBeenCalledWith(...ACCESS_ALERT_ARGS);
+  });
+
+  it('403 unrelated code + unrelated text does NOT fire the access Alert', async () => {
+    await bootWithStreamUrlFailure(403, { error: 'Forbidden', code: 'auth.forbidden' });
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(mockNavigation.goBack).not.toHaveBeenCalled();
+  });
+
+  it('the born-broken bare word AccessSchedule (no code) must NOT fire — fallback keeps only the exact server bytes', async () => {
+    await bootWithStreamUrlFailure(403, { error: 'AccessSchedule' });
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('OK on the access Alert navigates back (real handler invoked through screen wiring)', async () => {
+    await bootWithStreamUrlFailure(403, SERVER_403_BODY);
+    expect(alertSpy).toHaveBeenCalledWith(...ACCESS_ALERT_ARGS);
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress: () => void }[];
+    buttons[0].onPress();
+    expect(mockNavigation.goBack).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 429 stream-limit arm (transcode-fallback call site) ──────────────────
+
+  it('429 faithful server body fires the friendly stream-limit Alert via prepare rejection', async () => {
+    await bootWithPrepareFailure(429, SERVER_429_BODY);
+    expect(alertSpy).toHaveBeenCalledWith(...LIMIT_ALERT_ARGS);
+  });
+
+  it('429 correct code + DRIFTED message text still fires — no strict-message dependency (RED at parent)', async () => {
+    await bootWithPrepareFailure(429, {
+      error: 'Renamed denial prose',
+      code: 'stream.limit_exceeded',
+      denial_type: 'stream_limit_exceeded',
+      message: 'capped elsewhere now',
+      profile_id: '11111111-2222-3333-4444-555555555555',
+    });
+    expect(alertSpy).toHaveBeenCalledWith(...LIMIT_ALERT_ARGS);
+  });
+
+  it('429 legacy text-only payload (no code field) still fires via fallback', async () => {
+    await bootWithPrepareFailure(429, { error: 'StreamLimitExceeded' });
+    expect(alertSpy).toHaveBeenCalledWith(...LIMIT_ALERT_ARGS);
+  });
+
+  it('429 unrelated code + unrelated text does NOT fire the limit Alert', async () => {
+    await bootWithPrepareFailure(429, { error: 'Too Many Requests', code: 'rate.limited' });
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(mockNavigation.goBack).not.toHaveBeenCalled();
+  });
+
+  it('status gating holds: access.scheduled under a 429 status fires nothing', async () => {
+    await bootWithStreamUrlFailure(429, { error: 'whatever', code: 'access.scheduled' });
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it('status gating holds: stream.limit_exceeded under a 403 status fires nothing', async () => {
+    await bootWithStreamUrlFailure(403, { error: 'whatever', code: 'stream.limit_exceeded' });
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+});

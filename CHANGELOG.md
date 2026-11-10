@@ -32,6 +32,37 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — w36L4-MAJOR-1: key the access/stream-limit Alerts on the wire code; cure the born-broken AccessSchedule matcher — 2026-11-10
+
+- The friendly `Playback error` Alert for server playback-lane denials was
+  dead on arrival: `PlayerScreen`'s 403 arm strict-matched
+  `data.error === 'AccessSchedule'`, but the server has never emitted that
+  byte string — `AccessScheduleMiddleware.php` (:112/:122/:130) emits
+  `error(403, 'access.scheduled', 'AccessScheduled', …)`, and `Response::error`
+  renders the body as `{error: <message>, code: <code>, …}`. The arm shipped in
+  mobile `10a3cb2` AFTER the server string had already landed (server
+  `982d94ad`), so the matcher never had a chance to fire.
+- Cure (wire-contract law: the error CODE is the frozen contract surface,
+  English messages drift): BOTH arms — the 403 access-schedule and the 429
+  stream-limit — now key primarily on the registered codes
+  `access.scheduled` / `stream.limit_exceeded` (present in the
+  `@phlix/contracts` error-code registry; zero new codes), with the EXACT
+  legacy texts `AccessScheduled` / `StreamLimitExceeded` kept only as the
+  fallback for code-less payloads from pre-code servers. This mirrors the
+  in-estate template `@phlix/ui` `src/pages/playerErrors.ts` (code-primary,
+  legacy-text fallback) and this repo's own W5 code-primary Alert doctrine.
+- Tests: a new `PlayerScreen.test.tsx` describe drives the REAL Alerts through
+  both screen call sites (direct-play `getStreamUrl` rejection and the
+  transcode-fallback `prepare()` rejection). It pins the premise — each
+  fixture asserts byte-faithfulness to the quoted server emitter — then, per
+  arm: a faithful server body fires the friendly Alert (red at the parent for
+  the born-broken 403 arm), a correct code with DRIFTED message text still
+  fires (proving no strict-message dependency survives in the primary path),
+  a legacy text-only payload still fires via the fallback, unrelated codes and
+  wrong statuses fire nothing, and the bare word `AccessSchedule` (no code)
+  must NOT fire — the broken literal is gone, not kept as a fallback. OK on
+  the Alert navigates back through the real handler.
+
 ### Fixed — CP-022 doc-currency: name the hubRelay dial seam in the wsEndpoint carrier-law proof — 2026-11-09
 
 - The `:8097` `?token=` -> `['bearer', <jwt>]` two-entry subprotocol

@@ -134,15 +134,44 @@ const toSyncPlayPositionMs = (seconds: number): number => seconds * 1000;
 export const AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE =
   'Choosing a track here remembers it as your preference — it does NOT change the audio you are hearing. The native player exposes no track-switching command yet, so the choice cannot reach the live stream; it will apply once the player supports switching.';
 
-// P5-S5: Detect AccessSchedule (403) / StreamLimitExceeded (429) errors from API calls.
-// Returns { isAccessError: boolean, message: string } when detected, otherwise null.
+/**
+ * P5-S5 (w36L4-MAJOR-1 cure): detect the server's playback-lane access denials —
+ * 403 `access.scheduled` and 429 `stream.limit_exceeded` — and map them to a
+ * friendly Alert sentence. Returns { isAccessError, message } when detected,
+ * otherwise null.
+ *
+ * Wire-contract law: the STABLE registered error CODE (phlix-contracts
+ * dist/error-codes.json) is the primary key; the server's English `error`
+ * text is a legacy fallback for pre-code servers only. Same code-primary /
+ * text-fallback shape as @phlix/ui's src/pages/playerErrors.ts.
+ *
+ * Provenance of the frozen bytes (server, at this wave's tips):
+ *  - 403: src/Server/Http/Middleware/AccessScheduleMiddleware.php :112/:122/:130
+ *    ->error(403, 'access.scheduled', 'AccessScheduled', ['message' => …])
+ *    (Response::error renders {error: <message>, code: <code>, …extra}).
+ *  - 429: src/Server/Http/Middleware/StreamLimitMiddleware.php :139 and
+ *    src/Server/Http/FastPath/PreRouterFastPaths.php :599-606 both emit
+ *    {error:'StreamLimitExceeded', code:'stream.limit_exceeded', …}.
+ *
+ * History: the original arm strict-matched `error === 'AccessSchedule'` — a
+ * byte string NO server ever emitted (the middleware ships 'AccessScheduled'),
+ * so the friendly access-denied Alert was a born-broken dead branch. The cure
+ * keys on the code and keeps the EXACT server text as the only legacy match.
+ */
 function detectAccessStreamError(error: unknown): { isAccessError: boolean; message: string } | null {
   if (error && typeof error === 'object' && 'response' in error) {
-    const axiosError = error as { response?: { status?: number; data?: { error?: string } } };
-    if (axiosError.response?.status === 403 && axiosError.response?.data?.error === 'AccessSchedule') {
+    const axiosError = error as {
+      response?: { status?: number; data?: { error?: string; code?: string } };
+    };
+    const status = axiosError.response?.status;
+    const data = axiosError.response?.data;
+    // 403 access schedule — code is the contract; 'AccessScheduled' is the
+    // server's exact legacy message text (fallback for payloads without code).
+    if (status === 403 && (data?.code === 'access.scheduled' || data?.error === 'AccessScheduled')) {
       return { isAccessError: true, message: 'Playback blocked by access schedule. Try again during allowed hours.' };
     }
-    if (axiosError.response?.status === 429 && axiosError.response?.data?.error === 'StreamLimitExceeded') {
+    // 429 stream limit — same code-primary / legacy-text-fallback law.
+    if (status === 429 && (data?.code === 'stream.limit_exceeded' || data?.error === 'StreamLimitExceeded')) {
       return { isAccessError: true, message: 'Stream limit reached. Stop another stream to continue watching.' };
     }
   }
