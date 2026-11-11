@@ -77,6 +77,20 @@
  *             The same three ids then required the allowlist because their
  *             patched lines sit BEYOND the declared parent ranges.
  *
+ * 2026-11-11  The glob entry DIED by its own removal ritual (latest-secure
+ *             dep lane): the package.json override moved "^13.0.6" ->
+ *             "^14.0.5" (glob @latest, advisory-free; engines node
+ *             18/20/22+ — CI runs 24.x) with the FULL jest battery green on
+ *             the bumped tree. The v8-provider law in jest.config.js held
+ *             untouched — test-exclude@6's promisify(require('glob')) shape
+ *             never executes under coverageProvider 'v8' (and never did
+ *             under the ^13 pin either; the battery is the proof). glob's own
+ *             minimatch line now resolves clean 11.0.8 nested under glob; the
+ *             MINIMATCH ENTRY REMAINS because its sole surviving declaring
+ *             parent, typescript-estree, still caps at ^10.2.2. The entry +
+ *             its mirror fixture + the census row dropped in the SAME commit
+ *             (ritual above); deepmerge stays — true no-patch.
+ *
  * ADDING AN ENTRY (only on an owner-adjudicated decision, never to un-redden
  * a build casually) — ALL mandatory:
  *   1. the advisory must be UNFIXABLE without a major version change (dev
@@ -114,72 +128,34 @@ export const EXIT_STRUCTURE_ERROR = 2;
 export const ALLOWED_ADVISORIES = new Map([
   [
     // MEASURED 2026-11-08 (w12 L10, review w07L4 DD #3 / MW-100):
-    // GHSA-3g3m-2fjr-6pw4 — glob '>=9.0.0 <=14.0.1' (MODERATE, CWE-400):
-    // post-timeout filesystem traversal when a glob run is cancelled via an
-    // AbortSignal that fires after the timeout. FLAGGED COPY: hoisted
-    // glob@13.0.7, dev=true — EVERY glob node in the resolved tree is a dev
-    // node (jest/test-exclude/@react-native-community/cli chain); nothing
-    // ships in the app bundle. The 13.x line is held by THIS REPO'S OWN
-    // package.json override "glob": "^13.0.6" — a load-bearing CI choice:
-    // jest.config.js documents why the glob line and the v8 coverage
-    // provider must move together (test-exclude@6's promisify(require('glob'))
-    // shape; glob >= 9 exports an object, not a callable), so bumping across
-    // a major is a battery-verification project, not an in-range clear —
-    // and npm's own fixAvailable for this advisory is a react-native@0.88.1
-    // MAJOR (rejected lineage: estate precedent — no major cascades for
-    // dev-chain advisories).
-    // UNFIXABLE-WITHIN-RANGE MEASURED: `npm update --legacy-peer-deps` on a
-    // probe clone at b029b694 reproduced this exact residual (the override
-    // cannot move within ^13.0.6; 14.0.2+ lives above it); patched 14.0.4
-    // EXISTS on the registry — this entry is a range-coupling allow, not a
-    // no-patch allow, and the removal plan is a bump ritual.
-    // DEV-CHAIN-ONLY EXPOSURE: test/glob tooling; the advisory's trigger is a
-    // cancelled glob run on the developer/CI filesystem — the shapes globbed
-    // here are repo-authored test patterns, no attacker input surface.
-    // REMOVAL PLAN: deliberately test-bump the override to ^14.0.3+ with the
-    // FULL jest battery + the v8-provider comment law in its own commit
-    // (the CJS-require era is exactly what justified the 13.x pin — never
-    // move it silently); when green, drop this entry + its fixture + the
-    // census row together.
-    // RE-VERIFY BY: 2027-02-04 (the bump ritual above).
-    'GHSA-3g3m-2fjr-6pw4',
-    {
-      package: 'glob',
-      justification:
-        'dev-chain only (hoisted glob@13.0.7, every glob node dev=true; test/glob tooling, ships nothing in the app bundle); held on this repo\'s own override "glob": "^13.0.6" (jest.config.js documents the coupled v8-provider/require-shape reason) — patched 14.0.2+ exists but crossing that major untested is NOT an in-range clear (npm update MEASURED to reproduce this residual); npm fixAvailable is a react-native@0.88.1 major (rejected lineage); removal = dedicated override-bump commit with the full battery green',
-    },
-  ],
-  [
-    // MEASURED 2026-11-08 (w12 L10, review w07L4 DD #3 / MW-100):
     // GHSA-g3hv-75wg-m249 — minimatch '>=7.0.0 <11.0.1' (MODERATE, CWE-405):
     // resource-consumption DoS via crafted brace-heavy patterns amplified
     // across repeated expansion (minimatch 9/10 lack the optimisation added
-    // in 11.0.1). FLAGGED COPY: hoisted minimatch@10.2.6, dev=true — the
-    // LEGACY 3.1.x line is NOT in the advisory range, so the flagged copies
-    // are precisely the 10.x+ materialisations (declared parents:
-    // @typescript-eslint/typescript-estree "^10.2.2" and glob@13 "^10.2.2").
-    // UNFIXABLE-WITHIN-RANGE MEASURED: patched 11.0.1 sits ABOVE every
-    // declaring parent's range; npm update reproduced this exact residual.
-    // Coupling law: patched glob@14.0.4 itself declares minimatch ^11 — so
-    // the 3g3m bump above clears glob's copy of the advisory set, but
-    // typescript-estree's ^10.2.2 declaration would still materialise a
-    // nested flagged 10.x until ITS range admits >=11.0.1; both parents must
-    // move. npm's fixAvailable is again a react-native@0.88.1 major (rejected
-    // lineage).
+    // in 11.0.1). FLAGGED COPY (re-anchored 2026-11-11): hoisted
+    // minimatch@10.2.6, dev=true — the LEGACY 3.1.x line is NOT in the
+    // advisory range, so the flagged copies are precisely the 10.x+
+    // materialisations, and since the 2026-11-11 override bump exactly ONE
+    // declaring parent remains: @typescript-eslint/typescript-estree
+    // "^10.2.2" (its nested 10.2.6 is the hoisted flagged copy). The former
+    // coupling partner glob moved to 14.0.5, which declares minimatch
+    // "^11.0.5" and materialises a clean 11.0.8 NESTED under glob.
+    // UNFIXABLE-WITHIN-RANGE MEASURED 2026-11-11 on the bumped tree: patched
+    // 11.0.1+ sits ABOVE typescript-estree's declared range (@latest release
+    // still caps at ^10.2.2); npm's fixAvailable for the flagged copy is a
+    // react-native@0.88.1 major (rejected lineage).
     // DEV-CHAIN-ONLY EXPOSURE: lint/typecheck/test tooling matching
     // repo-authored patterns; no production surface, no attacker input.
-    // REMOVAL PLAN: when BOTH declaring parents admit minimatch >=11.0.1
-    // (typescript-estree range bump — follow @typescript-eslint releases —
-    // and the glob override bump above lands), re-run the gate; it reports
-    // CLEARED; drop this entry IN THAT COMMIT together with its fixture and
-    // the census row — the 3g3m bump alone is NOT sufficient while
-    // typescript-estree caps below 11.
+    // REMOVAL PLAN: when @typescript-eslint/typescript-estree's declared
+    // minimatch range admits >=11.0.1 (follow @typescript-eslint releases —
+    // the glob half of the former two-parent coupling was cured 2026-11-11),
+    // re-run the gate; it reports CLEARED; drop this entry IN THAT COMMIT
+    // together with its fixture and the census row.
     // RE-VERIFY BY: 2027-02-04 (the parent-range probe above).
     'GHSA-g3hv-75wg-m249',
     {
       package: 'minimatch',
       justification:
-        'dev-chain only (hoisted minimatch@10.2.6, dev=true; lint/typecheck tooling matches repo-authored patterns — the 3.1.x legacy copies are outside the advisory range); patched 11.0.1 above EVERY declaring parent (@typescript-eslint/typescript-estree ^10.2.2 + glob@13 ^10.2.2); in-range clear MEASURED impossible (npm update reproduces the residual); fixAvailable is a react-native@0.88.1 major (rejected lineage); removal requires BOTH parents to admit >=11.0.1 — same-advisory family the windows gate adjudicated 2026-11-06',
+        'dev-chain only (hoisted minimatch@10.2.6 = @typescript-eslint/typescript-estree\'s nested copy, dev=true; lint/typecheck tooling matches repo-authored patterns — the 3.1.x legacy copies are outside the advisory range); patched 11.0.1 above the remaining declaring parent\'s range (@typescript-eslint/typescript-estree ^10.2.2; the glob half was cured 2026-11-11 by the override bump to ^14.0.5, whose own minimatch resolves clean 11.0.8 nested); in-range clear MEASURED impossible on the bumped tree; fixAvailable is a react-native@0.88.1 major (rejected lineage); removal requires typescript-estree to admit >=11.0.1 — same-advisory family the windows gate adjudicated 2026-11-06',
     },
   ],
   [

@@ -32,6 +32,62 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — latest-secure dependency wave: glob override ^13.0.6 → ^14.0.5, one allowlist entry retired by its removal ritual — 2026-11-11
+
+- Owner ruling 2026-11-11 (estate latest-secure dependency wave): for every
+  open dependabot item, do NOT take the PR's version — find the LATEST of
+  each related library, advisory-check it, take latest-SECURE, and close the
+  PR as superseded. At dispatch this repo carried ZERO open dependabot PRs
+  (every in-range fix had already landed via the 2026-11-08 group PRs; all
+  three residuals are beyond declared ranges, so dependabot opens none) — the
+  wave's real work here was the three standing ALERTS: adjudicated below.
+- glob advisory 3g3m (dev-chain, hoisted copy held by THIS repo's own
+  override "glob": "^13.0.6"): CURE EXECUTED. The gate entry's own removal
+  ritual was run verbatim — override bumped to "^14.0.5" (registry @latest,
+  clean of both known glob advisories: the 3g3m line ends at 14.0.1; the
+  11.x-only 5j98 CLI-injection line is below it; engines node
+  18/20/22-compatible with CI's 24.x), FULL jest battery re-run green on the
+  bumped tree, then the allowlist entry + its mirror fixture + the census row
+  dropped IN THE SAME commit. The v8-provider law in `jest.config.js` held
+  untouched (the test-exclude@6 `promisify(require('glob'))` shape never
+  executes under `coverageProvider: 'v8'` — it didn't under the ^13 pin
+  either; the battery is the executed proof).
+- minimatch advisory g3hv (`>=7.0.0 <11.0.1`): NO-CHANGE adjudication —
+  latest-secure (11.0.8) was TAKEN where reachable: glob@14 declares
+  minimatch ^11.0.5 and now materialises a CLEAN 11.0.8 nested under glob.
+  The flagged hoisted copy stays 10.2.6 because its ONLY remaining declaring
+  parent, @typescript-eslint/typescript-estree, caps at ^10.2.2 (@latest
+  still declares it — probe-measured); the entry's docblock/justification
+  were truth-rotated from the two-parent coupling law to the single-parent
+  reality same-commit. Alert stays open (dependabot can't PR it either);
+  re-verify duty 2027-02-04. The three HIGH minimatch advisories (7r86,
+  23c5, 3ppc) sit below the 10.2.x patch lines — 10.2.6 is not in any of
+  their ranges.
+- deepmerge advisory gcqx: NO-CHANGE, TRUE no-patch — registry version list
+  ends at 4.3.1, which IS the vulnerable copy (first_patched null, upstream
+  dormant since 2023; dependabot opened no PR — no remedy to supersede).
+  Entry + fixture + census row stay; re-verify 2027-02-04.
+- @phlix curated pins (contracts #v0.5.7, syncplay #v0.1.8) untouched per
+  estate law; react/react-native EXACT pins untouched (0.88.x is the
+  rejected-major lineage per the 11-08 adjudication — no RN major in a deps
+  wave).
+- Lock mechanics: the bump re-resolves 398 lock lines — glob/path-scurry/
+  minimatch/nested-@isaacs-subtree moves, a root picomatch hoist inversion
+  (root 2.3.2 → 4.0.7, prod-reachable both eras; 2.x consumers keep nested
+  2.3.2 — npm's correct re-dedupe), and 149 dev/devOptional/prod marker-only
+  flips. All five workflow install legs run bare `npm ci --allow-git=all`
+  with no `--omit` flag, so markers cannot change any CI installed set; the
+  output is accepted verbatim rather than hand-reverted (a hand-edit would
+  diverge from what npm regenerates and re-churn later). Strict
+  `npm ci --allow-git=all` re-clone proof green on the final lock.
+- Files: `package.json` (the glob override line is the only dependency edit),
+  `package-lock.json`, `scripts/audit-gate.mjs` (entry deleted, minimatch
+  record truth-rotated, HISTORY gained the 2026-11-11 line),
+  `src/__tests__/workflowInstalls.gate.test.ts` (census 3→2),
+  `src/__tests__/fixtures/audit-gate/{allowed-mirror,allowed-subset,unknown-id}.json`
+  (glob block dropped / anchor rotated to the minimatch copy),
+  `jest.config.js` (comment `^13`→`^14` wording only).
+
 ### Fixed — w36L4-MAJOR-1: key the access/stream-limit Alerts on the wire code; cure the born-broken AccessSchedule matcher — 2026-11-10
 
 - The friendly `Playback error` Alert for server playback-lane denials was

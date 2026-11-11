@@ -1,28 +1,28 @@
 {
   "auditReportVersion": 3,
   "vulnerabilities": {
-    "glob": {
-      "name": "glob",
+    "minimatch": {
+      "name": "minimatch",
       "severity": "moderate",
       "via": [
         {
           "source": 1,
-          "name": "glob",
+          "name": "minimatch",
           "dependencyPath": [
             0,
             1
           ],
-          "title": "Advisory GHSA-3g3m-2fjr-6pw4",
-          "url": "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4",
+          "title": "Advisory GHSA-g3hv-75wg-m249",
+          "url": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
           "severity": "moderate",
           "cwe": [
             "CWE-400"
           ],
-          "range": ">=9.0.0 <=14.0.1"
+          "range": ">=7.0.0 <11.0.1"
         }
       ],
       "effects": [
-        "glob"
+        "minimatch"
       ],
       "fixAvailable": false
     },

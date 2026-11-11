@@ -120,15 +120,16 @@ describe('CI audit gate honors the reviewed-allowlist design (MW-100)', () => {
 
   it('the allowlist carries EXACTLY the reviewed advisory set (rotate deliberately)', () => {
     // Measured residuals after the in-range clears landed (w12 L10, 2026-11-08):
-    // the 6 highs + every other moderate cleared in-range; these three sit
-    // beyond their declaring parents' ranges (glob/minimatch coupling +
-    // deepmerge no-patch). The ids' justifications/removal plans live in the
+    // the 6 highs + every other moderate cleared in-range; these two sit
+    // beyond their declaring parents' ranges (typescript-estree's minimatch
+    // cap + deepmerge no-patch). The glob row dropped 2026-11-11 by its own
+    // removal ritual — override bumped to ^14.0.5 with the full battery green.
+    // The ids' justifications/removal plans live in the
     // gate header records — a silent add or silent drop both redden this pin.
     const gate = fs.readFileSync(GATE, 'utf8');
     const ids = Array.from(new Set(gate.match(/GHSA-[0-9a-z]+(-[0-9a-z]+){2,3}/g) ?? [])).sort();
     expect(ids).toEqual([
-      'GHSA-3g3m-2fjr-6pw4', // glob  (moderate, dev-chain, override-coupled)
-      'GHSA-g3hv-75wg-m249', // minimatch (moderate, dev-chain, parent-capped)
+      'GHSA-g3hv-75wg-m249', // minimatch (moderate, dev-chain, typescript-estree-capped)
       'GHSA-gcqx-w48m-w2h4', // deepmerge (low, dev-chain, no-patch-ever)
     ]);
   });

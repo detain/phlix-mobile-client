@@ -19,7 +19,7 @@ module.exports = {
   // The provider MUST stay 'v8'. The default 'babel' provider loads
   // babel-plugin-istanbul, which requires test-exclude@6, whose very first
   // statements are `promisify(require('glob'))`. This package pins
-  // `overrides: { glob: "^13" }`, and glob >= 9 exports an *object*, not a
+  // `overrides: { glob: "^14" }`, and glob >= 9 exports an *object*, not a
   // callable — so promisify throws and EVERY suite fails to compile with
   // `TypeError: [BABEL]: The "original" argument must be of type function`.
   // The v8 provider uses V8's built-in coverage and never loads
