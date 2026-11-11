@@ -202,26 +202,31 @@ const TOTAL_SITES = Object.values(PER_MODULE_COVERAGE).reduce((a, b) => a + b, 0
 export const CS46_CURRENCY_TOKEN = 'CS46CURRENCYPINX9X1';
 
 describe('S280 route gate — vendored manifest integrity', () => {
-  it('is the contracts artifact derived from phlix-server 58530ec2', () => {
-    // Byte-for-byte copy of @phlix/contracts v0.5.6 dist/server-route-manifest.json
-    // (md5 90b79e355055307d5ba2cc0ef98e2300 — regen #36: 415 tuples @ serverSha
-    // 58530ec2), re-vendored at the v0.5.6 pin bump (2026-11-04), cmp-verified
+  it('is the contracts artifact derived from phlix-server 413765b6', () => {
+    // Byte-for-byte copy of @phlix/contracts dist/server-route-manifest.json
+    // at UNTAGGED master `6335d818…` (md5 c2111cd37f2d1f3148c7ff741e214570 —
+    // regen @ serverSha 413765b6: 418 tuples), taken by the 5-client lag cure
+    // (2026-11-11, off-kit). The prior era: 415 tuples @ serverSha 58530ec2
+    // (md5 90b79e355055307d5ba2cc0ef98e2300 — regen #36), re-vendored at the
+    // v0.5.6 pin bump (2026-11-04), cmp-verified
     // tag blob → codeload payload → installed package → this file; at the
     // #v0.5.7 re-pin (2026-11-09 LW-089 cascade) the vendored file stayed
     // UNTOUCHED — v0.5.7's dist/server-route-manifest.json is byte-identical
-    // to this file's (md5 compared tag-vs-tag and tag-vs-installed: all three
+    // to that file's (md5 compared tag-vs-tag and tag-vs-installed: all three
     // at 90b79e355055307d5ba2cc0ef98e2300), an honest-zero re-vendor. The prior
     // era's bytes (412 tuples @ 758f9149, md5 915796837d38a77733c169996d97640c,
     // v0.5.3 re-vendor 2026-10-01) had held byte-identical through v0.5.4 and
-    // v0.5.5; v0.5.6's delta over v0.5.5 is this manifest regen ONLY — the
+    // v0.5.5; v0.5.6's delta over v0.5.5 is that manifest regen ONLY — the
     // error-codes registry (md5 5d1783a71a3c4e128b2021327cad3717, 205 codes)
     // and mcp-scopes (md5 8c92c0703eae8a429c509ff16e0d185d) stayed byte-held,
     // so the trio did NOT move together and no catalog count pin rotated —
-    // the same trio-hold is measured again at v0.5.7.
+    // the same trio-hold is measured again at v0.5.7. The cure's +3 tuples
+    // (POST /auth/logout, GET/DELETE /auth/sessions) are never issued from
+    // this tree: additions-only, every other leg of this gate unchanged.
     // Provenance below is the artifact's own, never re-derived here.
-    expect(manifest.provenance.serverSha).toBe('58530ec207b0d40c3386ed10215d5bda3eaf54af');
-    expect(manifest.provenance.total).toBe(415);
-    expect(manifest.routes).toHaveLength(415);
+    expect(manifest.provenance.serverSha).toBe('413765b6d4385a3445ac1dddbc4ced16e0e281f6');
+    expect(manifest.provenance.total).toBe(418);
+    expect(manifest.routes).toHaveLength(418);
     expect(manifest.provenance.generator).toBe('scripts/generate-server-route-manifest.mjs');
   });
 });
@@ -242,7 +247,7 @@ describe('S280 route gate — every URL mobile issues is tuple-exact served', ()
     const uniqueTuples = new Set(sites.map((s) => `${s.method} ${s.path}`));
     console.log(
       `[S280 route gate] mobile: ${sites.length} request sites / ${uniqueTuples.size} distinct [method, pathTemplate] tuples ` +
-        `across ${perFile.size} modules — all tuple-exact against the vendored 415-route manifest @ ${manifest.provenance.serverSha}`,
+        `across ${perFile.size} modules — all tuple-exact against the vendored ${manifest.provenance.total}-route manifest @ ${manifest.provenance.serverSha}`,
     );
     for (const [file, count] of [...perFile.entries()].sort()) {
       console.log(`  ${file}: ${count}`);
