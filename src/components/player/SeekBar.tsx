@@ -40,6 +40,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
+import { fireHaptic } from '../../utils/haptics';
 
 interface SeekBarProps {
   /** Live playback clock in SECONDS (fed by the native progress ticker). */
@@ -111,6 +112,8 @@ export const SeekBar: React.FC<SeekBarProps> = ({
   const handleResponderRelease = (event: GestureResponderEvent): void => {
     const targetSeconds = secondsFromEvent(event);
     setDragSeconds(null);
+    // MOB-53: light tick on scrub commit (Android; iOS no-op per haptics.ts).
+    fireHaptic('light');
     onSeek(targetSeconds);
   };
 

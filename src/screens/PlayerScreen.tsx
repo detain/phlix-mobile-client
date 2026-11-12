@@ -6,6 +6,7 @@
  */
 
 // src/screens/PlayerScreen.tsx
+import { fireHaptic } from '../utils/haptics';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -1193,6 +1194,8 @@ const PlayerScreen: React.FC = () => {
   }, [isLiveStream, startTranscodeFallback, streamInfo?.protocol]);
 
   const handlePlayPause = () => {
+    // MOB-53: light tick on play/pause toggle (Android; iOS no-op per haptics.ts).
+    fireHaptic('light');
     if (isHost) {
       // Host controls directly and broadcasts to group
       if (isPlaying) {
