@@ -135,6 +135,10 @@ const toSyncPlayPositionMs = (seconds: number): number => seconds * 1000;
  * the picker instead. `src/screens/__tests__/NativeAudioSelectionBoundary.test.ts`
  * pins the real bridge surface — if a native audio API ever lands, that test
  * goes RED and this constant must be retired with it.
+ *
+ * ROADMAP (MOB-40): a real fix needs a native track-switch command on both
+ * platforms (iOS AVMediaSelectionGroup, Android ExoPlayer track selection) plus
+ * a JS bridge method; until then this honest copy stays. Not built here.
  */
 export const AUDIO_TRACK_APPLY_UNSUPPORTED_NATIVE =
   'Choosing a track here remembers it as your preference — it does NOT change the audio you are hearing. The native player exposes no track-switching command yet, so the choice cannot reach the live stream; it will apply once the player supports switching.';
