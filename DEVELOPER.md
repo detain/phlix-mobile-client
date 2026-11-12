@@ -17,7 +17,6 @@ src/
 ├── services/      # Business logic services (storage, downloads, progress)
 ├── store/         # Zustand modules WITHOUT the use* convention (see trap below)
 ├── stores/        # Zustand hooks (use*Store.ts) — the main state layer
-├── stubs/         # Test/dev stubs for native Turbo modules (reanimated)
 ├── syncplay/      # SyncPlay wire client (service, relay, endpoints, catalog)
 ├── types/         # TypeScript type definitions
 ├── utils/         # Utility functions
@@ -40,9 +39,9 @@ src/
 | `navigation/` | React Navigation setup, root navigator, deep-link routing |
 | `screens/` | Full-screen views, screen-specific logic |
 | `services/` | Secure vault, downloads, notifications, playback progress |
+| _(jest mocks)_ | Native/JS-only modules are mocked in `jest.setup.js` (reanimated via `react-native-reanimated/mock`, notifee inline) — there is no `src/stubs/` |
 | `store/` | Non-hook Zustand modules (hub session, syncplay, downloads, server scope) |
 | `stores/` | Hook-style application state (`use*Store.ts`) |
-| `stubs/` | JS stubs so native-only modules load under Jest |
 | `syncplay/` | SyncPlay protocol client: direct WS + hub relay, error catalog |
 | `types/` | TypeScript interfaces and types |
 | `utils/` | Formatting, storage helpers, endpoint parsing |
@@ -182,6 +181,7 @@ The Android player is implemented as a React Native native module:
 ```
 android/.../player/
 ├── PhlixPlayerView.kt         # Native view component
+├── PhlixPlayerViewManager.kt  # ViewManager: bridge props + play/pause/seekTo commands
 └── PhlixPlayerPackage.kt     # React Native package
 ```
 
@@ -278,7 +278,7 @@ const DOWNLOAD_EVENTS = {                 // native event NAME strings
 
 Where the **track** types actually live: the `SubtitleTrack`/`AudioTrack`
 that `usePlayerStore` carries are re-exported VERBATIM from
-`@phlix/contracts` by `src/types/playback.ts:55` — the local mirror that once
+`@phlix/contracts` by `src/types/playback.ts:57` — the local mirror that once
 existed here was deleted deliberately (the file's header records why), and
 the pinned tag (`github:detain/phlix-contracts#v0.5.7`) is the wire source
 of truth. Don't re-declare track shapes in this repo.
@@ -648,7 +648,6 @@ phlix-mobile/
 │   │   ├── useLibraryStore.ts
 │   │   ├── useSettingsStore.ts
 │   │   └── … (16 use*Store.ts modules total)
-│   ├── stubs/               # Jest-safe native module stubs
 │   ├── syncplay/            # Wire client: SyncPlayService, hubRelay,
 │   │                        # wsEndpoint, sha256, syncplayErrors catalog
 │   ├── hub/                 # HubAuthService, RelayTokenProvider
