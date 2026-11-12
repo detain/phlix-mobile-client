@@ -193,6 +193,11 @@ const PhotoViewerScreen: React.FC = () => {
         source={{ uri: item.full_url }}
         style={[styles.image, { width, height }]}
         resizeMode="contain"
+        // M-MOBILE-75 downscale law (fix-plan MOB-S5 / MOB-6): `full_url` is
+        // the ORIGINAL photo — a 24MP camera JPEG decodes to ~96MB of ARGB.
+        // Android's default resizeMethod ("auto") may full-decode it before
+        // scaling; "resize" decodes at the page's on-screen size instead.
+        resizeMethod="resize"
       />
     </TouchableOpacity>
   );
@@ -248,6 +253,14 @@ const PhotoViewerScreen: React.FC = () => {
         }}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        // Pager window caps (M-MOBILE-75 / MOB-S5): each page is a full-screen
+        // decoded photo, so FlatList's defaults (windowSize 21, 10 initial,
+        // 10 per batch) would keep ~21 full-screen bitmaps mounted. Keep the
+        // focused page plus one neighbour either side, and mount one page up
+        // front (getItemLayout + initialScrollIndex place it directly).
+        windowSize={3}
+        initialNumToRender={1}
+        maxToRenderPerBatch={1}
       />
 
       {/* Top bar: counter + slideshow toggle */}
