@@ -1357,8 +1357,22 @@ const PlayerScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Skip Intro / Skip Outro overlay (positions in SECONDS) */}
-      <SafeAreaView style={styles.skipButtonsContainer} pointerEvents="box-none">
+      {/* Skip Intro / Skip Outro overlay (positions in SECONDS).
+          MOB-29: geometry from the LIVE insets (MW-107 law), not a
+          SafeAreaView. A SafeAreaView pads by the insets of its OWN frame,
+          so an absolute box parked at top 60 under a 47-59pt cutout got
+          ~0 top padding and the pills landed on the top-bar row; in
+          landscape the trailing cutout was only honoured by accident.
+          Crown = top inset + 8 + 44pt bar row + 8 gap; trailing edge =
+          right inset + 20, matching the top bar's own side padding. */}
+      <View
+        testID="skipButtonsLayer"
+        style={[
+          styles.skipButtonsContainer,
+          { top: insets.top + 60, right: insets.right + 20 },
+        ]}
+        pointerEvents="box-none"
+      >
         <SkipButton
           type="intro"
           marker={
@@ -1379,7 +1393,7 @@ const PlayerScreen: React.FC = () => {
           currentTime={currentTime}
           onSkip={handleSeek}
         />
-      </SafeAreaView>
+      </View>
 
       {/* Overlay Controls */}
       {showControls && (
@@ -1918,11 +1932,14 @@ const styles = StyleSheet.create({
   bottomControlsSpacer: {
     height: 70,
   },
+  // MOB-29: top/right are FALLBACKS only — the live insets override inline
+  // (top = insets.top + 60, right = insets.right + 20).
   skipButtonsContainer: {
     position: 'absolute',
     top: 60,
     right: 20,
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   preparingOverlay: {

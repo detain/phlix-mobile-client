@@ -47,8 +47,9 @@
 	     http://192.168.x.x:8096 or http://phlix.local:8096). Local networking
 	     exempts exactly that class from ATS (IP-address literals, .local
 	     hosts, unqualified single-label names) while every fully-qualified
-	     internet hostname keeps ATS enforcement, so a WAN connection can never
-	     ride plaintext. Consequence, ratified as the WAN-refusal posture: a
+	     internet hostname keeps ATS enforcement, so a WAN hostname can never
+	     ride plaintext (a raw public-IP literal is still exempt; the banner
+	     flags it). Consequence, ratified as the WAN-refusal posture: a
 	     user-typed http://<FQDN> address (e.g. http://media.example.com:8096,
 	     even when it resolves to a LAN box) is refused by iOS — use https, the
 	     raw IP, or the .local name. The RN layer still defaults scheme-less

@@ -58,11 +58,18 @@ export const SkipButton: React.FC<SkipButtonProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // MOB-28: the pill clears the 44pt platform touch floor. 8pt padding on
+  // 14pt ink measured ~33pt — a thumb-hostile target on the one control the
+  // viewer reaches for mid-scene. minHeight carries the floor; the ink is
+  // centred in it so the pill's look is unchanged apart from height.
   button: {
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },

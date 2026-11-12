@@ -39,7 +39,8 @@ Recurring estate shorthand, defined once here:
   Arbitrary loads let ANY internet hostname ride plaintext http; local
   networking exempts only the LAN class (IP-address literals, `.local`
   hosts, unqualified single-label names), so every fully-qualified
-  internet host keeps ATS enforcement. Supersedes the M-MOBILE-12 rationale
+  internet host keeps ATS enforcement (a raw public-IP literal is still
+  exempt; the connection-security banner flags it). Supersedes the M-MOBILE-12 rationale
   ("per-domain exceptions are not expressible") — the local-networking key
   expresses the LAN set without enumerating domains. The M-MOBILE-03
   comment beside `NSLocalNetworkUsageDescription` is reworded to match

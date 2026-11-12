@@ -224,11 +224,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // MOB-28: the running-timer badge sits in the player top bar beside the
+  // 44x44 circle controls and is itself a button (tap to change). 6pt
+  // padding on 13pt ink measured ~28pt — under the 44pt floor and visibly
+  // shorter than its row-mates. minHeight 44 + centred ink matches the
+  // row geometry; flexShrink 0 keeps a wrapping bar from squeezing it.
   displayBadge: {
     backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 10,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 14,
+    minHeight: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   displayBadgeText: {
     color: '#fff',

@@ -67,3 +67,34 @@ describe('connection-mode rail (MW-102)', () => {
     expect(source).toMatch(/modeButton: \{[^}]*minHeight: 44,/s);
   });
 });
+
+describe('player pills clear the 44pt floor (MOB-28)', () => {
+  it('Skip Intro/Outro pill carries minHeight 44 with centred ink', () => {
+    const source = read('src/components/player/SkipButton.tsx');
+    expect(source).toMatch(/button: \{[^}]*minHeight: 44,/s);
+    expect(source).toMatch(/button: \{[^}]*justifyContent: 'center',/s);
+  });
+
+  it('running sleep-timer badge matches the 44pt top-bar row', () => {
+    const source = read('src/components/player/SleepTimer.tsx');
+    expect(source).toMatch(/displayBadge: \{[^}]*minHeight: 44,/s);
+    expect(source).toMatch(/displayBadge: \{[^}]*justifyContent: 'center',/s);
+    expect(source).toMatch(/displayBadge: \{[^}]*flexShrink: 0,/s);
+  });
+});
+
+describe('skip-pill layer geometry rides the live insets (MOB-29)', () => {
+  const source = read('src/screens/PlayerScreen.tsx');
+
+  it('the skip layer is a plain View, not a self-measuring SafeAreaView', () => {
+    expect(source).not.toMatch(/<SafeAreaView style=\{styles\.skipButtonsContainer\}/);
+    expect(source).toContain('testID="skipButtonsLayer"');
+  });
+
+  it('crown and trailing edge come from insets.top / insets.right', () => {
+    const siteAt = source.indexOf('testID="skipButtonsLayer"');
+    expect(siteAt).toBeGreaterThan(-1);
+    const window = source.slice(siteAt, siteAt + 300);
+    expect(window).toContain('{ top: insets.top + 60, right: insets.right + 20 }');
+  });
+});
