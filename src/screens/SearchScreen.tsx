@@ -137,9 +137,13 @@ const SearchScreen: React.FC = () => {
     resetStore();
   };
 
-  const handleMediaPress = (item: MediaItem) => {
-    navigation.navigate('MediaDetail', { itemId: item.id });
-  };
+  // M-MOBILE-69: stable handler so the memoized MediaCard can bail out.
+  const handleMediaPress = useCallback(
+    (item: MediaItem) => {
+      navigation.navigate('MediaDetail', { itemId: item.id });
+    },
+    [navigation]
+  );
 
   const handleLoadMore = () => {
     if (!loading && results.length < total) {
@@ -209,8 +213,16 @@ const SearchScreen: React.FC = () => {
 
   const filtersActive = hasActiveFilters(filters);
 
-  const renderItem = ({ item }: { item: MediaItem }) => (
-    <MediaCard item={item} onPress={() => handleMediaPress(item)} />
+  // M-MOBILE-69 (review mobile__crossfe Major 15; LibraryScreen precedent):
+  // hoisted + unbound seam — a per-cell `() => handleMediaPress(item)` arrow
+  // minted a fresh onPress on every screen render (each keystroke, each
+  // page landing), defeating MediaCard's React.memo across the whole grid.
+  // The memo-law pin in SearchScreen.test.tsx reddens if this drifts back.
+  const renderItem = useCallback(
+    ({ item }: { item: MediaItem }) => (
+      <MediaCard item={item} onPressItem={handleMediaPress} />
+    ),
+    [handleMediaPress]
   );
 
   // Touch-target law (M-MOBILE-19): each letter occupies a full 44x44pt laid-

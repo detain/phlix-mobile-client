@@ -37,6 +37,14 @@
 //
 // All I/O collaborators (store, navigation, leaf components) are inert stubs;
 // the geometry, gating and hooks run for real.
+//
+// Second law pinned here (M-MOBILE-69 memo law, fix-plan MOB-S3): the results
+// grid's renderItem is HOISTED (useCallback, identity-stable across renders
+// whose deps are unchanged) and hands MediaCard the UNBOUND `onPressItem`
+// handler — never a per-cell `onPress={() => …(item)}` arrow, which defeats
+// MediaCard's React.memo on every keystroke. The hook host's useCallback is
+// a real deps-honouring memo slot (not identity), so reverting to an inline
+// render fn or a bound arrow turns this file red.
 
 // ── controlled hook host (ported from PlayerScreen.test.tsx) ─────────────
 interface EffectSlot {
@@ -68,6 +76,22 @@ class HookHost {
     const i = this.cursor++;
     if (this.slots[i] === undefined) this.slots[i] = { ref: { current: init } };
     return (this.slots[i] as { ref: { current: T } }).ref;
+  }
+
+  // Deps-honouring memo slot (React semantics): the SAME function identity is
+  // returned while every dep is Object.is-equal to the previous render's.
+  useCallback<F>(fn: F, deps?: unknown[]): F {
+    const i = this.cursor++;
+    const prev = this.slots[i] as { fn: F; deps?: unknown[] } | undefined;
+    const same =
+      !!prev &&
+      !!deps &&
+      !!prev.deps &&
+      deps.length === prev.deps.length &&
+      deps.every((d, j) => Object.is(d, (prev.deps as unknown[])[j]));
+    if (same) return prev!.fn;
+    this.slots[i] = { fn, deps };
+    return fn;
   }
 
   useEffect(fn: () => void | (() => void), deps?: unknown[]): void {
@@ -125,7 +149,8 @@ jest.mock('react', () => {
     ...actual,
     useState: (init: unknown) => mockHost.current!.useState(init as never),
     useRef: (init: unknown) => mockHost.current!.useRef(init),
-    useCallback: (fn: unknown) => fn,
+    useCallback: (fn: unknown, deps?: unknown[]) =>
+      mockHost.current!.useCallback(fn, deps),
     useMemo: (fn: () => unknown) => fn(),
     useEffect: (fn: () => void | (() => void), deps?: unknown[]) =>
       mockHost.current!.useEffect(fn, deps),
@@ -186,8 +211,11 @@ jest.mock('../../stores/useSearchStore', () => ({
   useSearchStore: (sel: (s: unknown) => unknown) => sel(mockSearchState),
 }));
 
+// One navigation object for the life of the screen — react-navigation's
+// useNavigation() is referentially stable, and the memo law depends on it.
+const mockNavigation = { navigate: jest.fn() };
 jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ navigate: jest.fn() }),
+  useNavigation: () => mockNavigation,
 }));
 
 // Leaf components: the hook host keeps them as unrendered element types, so
@@ -219,6 +247,9 @@ import { railLetterTouchRect, RAIL_LETTERS } from '../search/searchScreenHelpers
 const SearchBarStub = (
   jest.requireMock('../../components/ui/SearchBar') as { SearchBar: unknown }
 ).SearchBar;
+const MediaCardStub = (
+  jest.requireMock('../../components/media/MediaCard') as { MediaCard: unknown }
+).MediaCard;
 
 // The platform floor as a LITERAL (never the imported constant): the law this
 // file exists for is pinned against the platform, not against itself.
@@ -415,5 +446,62 @@ describe('SearchScreen A–Z rail — screen-level law (M-MOBILE-19 r2 / MAJOR-1
     // minimum width — the same seam output that sizes the letters.
     expect(flat(rail.props.style).width).toBe(railLetterTouchRect().width);
     expect(flat(rail.props.style).width).toBe(PLATFORM_MIN_TOUCH_PT);
+  });
+});
+
+describe('SearchScreen results grid — memo law (M-MOBILE-69 / MOB-S3)', () => {
+  type RenderItem = (info: { item: { id: string } }) => El;
+  const resultsList = (tree: unknown): El => {
+    const list = findEl(tree, (el) => el.type === FlatList);
+    expect(list).not.toBeNull();
+    return list!;
+  };
+
+  it('keeps renderItem identity-stable across re-renders (hoisted, not re-minted)', async () => {
+    const h = await bootBrowseWithResults();
+    const first = resultsList(h.host.tree).props.renderItem;
+    expect(typeof first).toBe('function');
+    h.rerender();
+    h.rerender();
+    expect(resultsList(h.host.tree).props.renderItem).toBe(first);
+  });
+
+  it('hands MediaCard the UNBOUND onPressItem seam — no per-cell onPress arrow', async () => {
+    const h = await bootBrowseWithResults();
+    const renderItem = resultsList(h.host.tree).props.renderItem as RenderItem;
+    const a = renderItem({ item: { id: 'm1' } });
+    const b = renderItem({ item: { id: 'm2' } });
+
+    expect(a.type).toBe(MediaCardStub);
+    expect(a.props.onPress).toBeUndefined();
+    expect(typeof a.props.onPressItem).toBe('function');
+    // One handler for every cell: no closure over `item`.
+    expect(b.props.onPressItem).toBe(a.props.onPressItem);
+
+    // …and it stays the same function across screen re-renders, so every
+    // MediaCard prop is Object.is-equal and React.memo bails out.
+    h.rerender();
+    const again = (resultsList(h.host.tree).props.renderItem as RenderItem)({
+      item: { id: 'm1' },
+    });
+    expect(again.props.onPressItem).toBe(a.props.onPressItem);
+  });
+
+  it('routes the unbound handler to MediaDetail for the pressed item', async () => {
+    const h = await bootBrowseWithResults();
+    const cell = (resultsList(h.host.tree).props.renderItem as RenderItem)({
+      item: { id: 'm1' },
+    });
+    (cell.props.onPressItem as (item: { id: string }) => void)({ id: 'm42' });
+    expect(mockNavigation.navigate).toHaveBeenCalledWith('MediaDetail', {
+      itemId: 'm42',
+    });
+  });
+
+  it('relies on a MediaCard that is actually memoized (React.memo on the named export)', () => {
+    const actual = jest.requireActual('../../components/media/MediaCard') as {
+      MediaCard: { $$typeof?: symbol };
+    };
+    expect(actual.MediaCard.$$typeof).toBe(Symbol.for('react.memo'));
   });
 });
