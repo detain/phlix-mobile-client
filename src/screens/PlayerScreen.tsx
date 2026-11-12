@@ -1197,6 +1197,17 @@ const PlayerScreen: React.FC = () => {
     setError(errorMessage || 'Playback error');
   }, [isLiveStream, startTranscodeFallback, streamInfo?.protocol]);
 
+  // MOB-15: a grouped member's pause/play is LOCAL only; say so at the
+  // button (mirrors the seek bar's member hint) for a few seconds.
+  const [memberPauseHint, setMemberPauseHint] = useState(false);
+  const memberPauseHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (memberPauseHintTimer.current) clearTimeout(memberPauseHintTimer.current);
+    },
+    [],
+  );
+
   const handlePlayPause = () => {
     // MOB-53: light tick on play/pause toggle (Android; iOS no-op per haptics.ts).
     fireHaptic('light');
@@ -1215,6 +1226,11 @@ const PlayerScreen: React.FC = () => {
       }
     } else {
       // Non-hosts just control locally (playback is controlled by host)
+      if (currentGroup !== null) {
+        setMemberPauseHint(true);
+        if (memberPauseHintTimer.current) clearTimeout(memberPauseHintTimer.current);
+        memberPauseHintTimer.current = setTimeout(() => setMemberPauseHint(false), 4000);
+      }
       if (isPlaying) {
         dispatchPlayerCommand(playerRef, 'pause');
         setIsPlaying(false);
@@ -1571,6 +1587,11 @@ const PlayerScreen: React.FC = () => {
               <Text style={styles.seekButtonText}>+15</Text>
             </TouchableOpacity>
           </View>
+          {memberPauseHint && currentGroup !== null && !isHost && (
+            <Text testID="memberPauseHint" style={styles.memberTimelineHint}>
+              The host controls playback — this only pauses your own screen
+            </Text>
+          )}
 
           {/* The SeekBar row used to live here, inside the auto-hiding
               overlay — M-MOBILE-44 r2 moved it to the persistent rail below

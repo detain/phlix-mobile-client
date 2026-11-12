@@ -1307,6 +1307,38 @@ describe('PlayerScreen — M-MOBILE-13 syncplay-aware seek routing', () => {
     expect(mockSyncPlaySvc().sendSeek).not.toHaveBeenCalled();
     expect(findSeekBar(h.host.tree)!.props.currentTime).toBe(480);
   });
+
+  // MOB-15: member pause/play is local-only; the control says so.
+  const findMemberPauseHint = (tree: unknown) =>
+    findEl(tree, (el) => el.props.testID === 'memberPauseHint');
+
+  it('grouped MEMBER: pressing play/pause shows the host-controlled hint, no wire traffic', async () => {
+    const h = await bootGroupedAt42_5s({ grouped: true, isHost: false });
+    expect(findMemberPauseHint(h.host.tree)).toBeNull();
+
+    pressPlayPause(h.host.tree);
+    h.rerender();
+
+    expect(findMemberPauseHint(h.host.tree)).not.toBeNull();
+    expect(mockSyncPlaySvc().sendPause).not.toHaveBeenCalled();
+    expect(mockSyncPlaySvc().sendPlay).not.toHaveBeenCalled();
+    mountedHost?.unmount();
+    mountedHost = null;
+  });
+
+  it('grouped HOST and UNGROUPED viewers never see the member pause hint', async () => {
+    for (const g of [
+      { grouped: true, isHost: true },
+      { grouped: false, isHost: false },
+    ]) {
+      const h = await bootGroupedAt42_5s(g);
+      pressPlayPause(h.host.tree);
+      h.rerender();
+      expect(findMemberPauseHint(h.host.tree)).toBeNull();
+      mountedHost?.unmount();
+      mountedHost = null;
+    }
+  });
 });
 
 // ── M-MOBILE-14 (review mobile__gameux): the top bar survives 320–390pt ───
