@@ -32,6 +32,17 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Docs — MOB-9 follow-up: ATS comment qualifies the WAN claim (raw public-IP literals stay exempt; banner flags them) — 2026-11-12
+
+- `ios/PhlixMobile/Info.plist`: the comment above the
+  `NSAppTransportSecurity` dict now says a WAN *hostname* can never ride
+  plaintext, and adds that a raw public-IP literal is still exempt under
+  `NSAllowsLocalNetworking` (the insecure-connection banner,
+  `src/components/ui/InsecureConnectionBanner.tsx`, flags it). Comment-only:
+  no key or value changes, `iosInfoPlist.gate.test.ts` unchanged. Qualifies
+  the "every fully-qualified internet host keeps ATS enforcement" wording of
+  the MOB-9 entry below, which stays verbatim.
+
 ### Security — MOB-9: iOS ATS swaps NSAllowsArbitraryLoads for NSAllowsLocalNetworking — 2026-11-12
 
 - `ios/PhlixMobile/Info.plist`: the `NSAppTransportSecurity` dict now carries
@@ -39,8 +50,7 @@ Recurring estate shorthand, defined once here:
   Arbitrary loads let ANY internet hostname ride plaintext http; local
   networking exempts only the LAN class (IP-address literals, `.local`
   hosts, unqualified single-label names), so every fully-qualified
-  internet host keeps ATS enforcement (a raw public-IP literal is still
-  exempt; the connection-security banner flags it). Supersedes the M-MOBILE-12 rationale
+  internet host keeps ATS enforcement. Supersedes the M-MOBILE-12 rationale
   ("per-domain exceptions are not expressible") — the local-networking key
   expresses the LAN set without enumerating domains. The M-MOBILE-03
   comment beside `NSLocalNetworkUsageDescription` is reworded to match
