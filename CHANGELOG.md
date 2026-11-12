@@ -32,6 +32,22 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — MOB-35: server-unreachable copy single-sourced — 2026-11-12
+
+- New `src/utils/serverUnreachableCopy.ts` exports `SERVER_UNREACHABLE_STEM`
+  ("Can't reach your Phlix server. Check that it's running and that this
+  device is on the same network."), dependency-free so the pure Home policy
+  need not import the axios client graph.
+- `SERVER_UNREACHABLE_MESSAGE` (`src/api/client.ts`) and
+  `HOME_SERVER_BLACKOUT_MESSAGE` (`src/screens/homeFailurePolicy.ts`) now
+  build on that stem; the two copies had drifted ("you're" vs "this device
+  is", `;` vs `.`). Each keeps its own remedy tail because the remedies are
+  genuinely different: the transport lane also fires at sign-in, so it keeps
+  the full-address hint (`http://192.168.1.100:8096`); the Home blackout only
+  fires with an address already stored, so it keeps sign out → sign in at
+  the new address.
+- New pin `src/utils/__tests__/serverUnreachableCopy.test.ts`.
+
 ### Docs — MOB-9 follow-up: ATS comment qualifies the WAN claim (raw public-IP literals stay exempt; banner flags them) — 2026-11-12
 
 - `ios/PhlixMobile/Info.plist`: the comment above the

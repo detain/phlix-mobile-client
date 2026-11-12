@@ -19,6 +19,8 @@
 // actually issued failed — means "you cannot reach the server", because no
 // data path survived to contradict it. The signed-out guest asks for fewer
 // rails, and the decision counts only the attempted ones.
+import { SERVER_UNREACHABLE_STEM } from '../utils/serverUnreachableCopy';
+
 export interface HomeRailFailures {
   /** `getRecentlyAdded` rejected. */
   recentlyAdded: boolean;
@@ -32,10 +34,11 @@ export interface HomeRailFailures {
  * The blackout copy — app-owned, actionable, and honest about the recovery
  * path (the Settings server card is display-only; re-pointing means signing
  * out and signing in at the new address, one clean flow since the M-10
- * vault teardown).
+ * vault teardown). The stem is single-sourced (MOB-35) in
+ * `utils/serverUnreachableCopy.ts`; only this remedy tail is lane-owned.
  */
 export const HOME_SERVER_BLACKOUT_MESSAGE =
-  "Can't reach your Phlix server. Check that it's running and you're on the same network. " +
+  `${SERVER_UNREACHABLE_STEM} ` +
   'If its address changed, sign out and sign in again with the new address.';
 
 /** True when every rail Home attempted actually failed — server blackout. */

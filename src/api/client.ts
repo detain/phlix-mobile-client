@@ -14,6 +14,7 @@ import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore
 import { secureStorage } from '../services/SecureStorage';
 import { hostOf } from '../utils/serverHost';
 import { quarantineServerProse } from '../utils/quarantineProse';
+import { SERVER_UNREACHABLE_STEM } from '../utils/serverUnreachableCopy';
 import {
   buildPhlixHeaders,
   type DeviceType,
@@ -174,10 +175,11 @@ const TRANSPORT_ERROR_CODES = new Set(['ERR_NETWORK', 'ETIMEDOUT', 'ECONNABORTED
 /** Transport-failure guidance, including the explicit http:// LAN path:
  * scheme-less input defaults to https (audit-M6 law), and home servers on
  * :8096 usually have no TLS — the hint untwists the most common first-
- * evening mistake. */
+ * evening mistake. The stem is single-sourced (MOB-35) in
+ * `utils/serverUnreachableCopy.ts`; only this remedy tail is lane-owned. */
 export const SERVER_UNREACHABLE_MESSAGE =
-  "Can't reach your Phlix server. Check that it's running and that this device is on the same network; " +
-  'for a local server use the full address, e.g. http://192.168.1.100:8096.';
+  `${SERVER_UNREACHABLE_STEM} ` +
+  'For a local server use the full address, e.g. http://192.168.1.100:8096.';
 
 /**
  * M-MOBILE-34/52 quarantine lifted to `utils/quarantineProse.ts` (review
