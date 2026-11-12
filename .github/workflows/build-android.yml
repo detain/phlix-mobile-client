@@ -8,8 +8,12 @@ on:
   workflow_dispatch:
 
 # Supersede in-flight runs on the same ref (review M-MOBILE-22); master/main are
-# exempt because release-latest republishes a tag and a mid-flight cancel can
-# leave `latest` deleted with no replacement until the next push.
+# exempt so a queued master push never cancels a release-latest mid-publish.
+# The old delete-then-publish shape made such a cancel fatal (`latest` deleted
+# with no replacement until the next push); release-latest is now
+# publish-first (MOB-22 — see its step comment), so a mid-flight death leaves
+# the previous `latest` standing. The exemption stays as belt-and-braces: it
+# keeps the asset/tag/notes trio from being left half-advanced.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/main' }}
@@ -155,31 +159,55 @@ jobs:
           name: android-release-apk
           path: artifacts
 
-      - name: Reset "latest" release + tag
-        run: gh release delete latest --yes --cleanup-tag || true
+      # MOB-22: publish-first. The old shape ran `gh release delete latest
+      # --cleanup-tag` and only THEN published — a runner death, cancel or
+      # publish failure between the two left the repo with NO `latest`
+      # release and NO tag until the next master push (the delete-then-die
+      # class). CURED here: nothing is ever deleted up front. If `latest`
+      # exists, the new APK is uploaded over the old asset (--clobber), the
+      # tag ref is force-moved to this commit, then the release metadata is
+      # edited; `gh release create` is only the fallback for a repo with no
+      # `latest` yet (first run, or one deleted by hand). A death at any point
+      # leaves the previous release standing. Residual, narrower window:
+      # --clobber swaps the asset by name, so the APK can be absent for the
+      # seconds of the upload itself — the release and tag never are.
+      - name: Publish "latest" prerelease (publish-first)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish "latest" prerelease
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228
-        with:
-          tag_name: latest
-          name: Latest (master)
-          body: |
-            Rolling build of the latest `master` commit (${{ github.sha }}).
-            - **`app-release.apk`** — Android release build, **debug-signed**
-              (CI has no release keystore), download + install directly (no
-              zip); fine for sideload and testing, not for a store. Because
-              each CI runner auto-generates its own debug key, consecutive
-              builds can carry different signing identities — if Android
-              rejects an update with a signature mismatch
-              (INSTALL_FAILED_UPDATE_INCOMPATIBLE), uninstall the old build
-              first. iOS isn't published here: App Store / device installs
-              need Apple code signing, which CI builds without
-              (`CODE_SIGNING_ALLOWED=NO`).
-          prerelease: true
-          make_latest: false
-          target_commitish: ${{ github.sha }}
-          files: artifacts/app-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/latest-notes.md"
+          {
+            printf 'Rolling build of the latest `master` commit (%s).\n' "$GITHUB_SHA"
+            cat <<'NOTES'
+          - **`app-release.apk`** — Android release build, **debug-signed**
+            (CI has no release keystore), download + install directly (no
+            zip); fine for sideload and testing, not for a store. Because
+            each CI runner auto-generates its own debug key, consecutive
+            builds can carry different signing identities — if Android
+            rejects an update with a signature mismatch
+            (INSTALL_FAILED_UPDATE_INCOMPATIBLE), uninstall the old build
+            first. iOS isn't published here: App Store / device installs
+            need Apple code signing, which CI builds without
+            (`CODE_SIGNING_ALLOWED=NO`).
+          NOTES
+          } > "$notes"
+          # Idempotency guard: the existence probe must not trip `set -e`
+          # (a missing release is the fallback path, not a failure).
+          existing="$(gh release view latest --json tagName --jq .tagName 2>/dev/null || true)"
+          if [ "$existing" = "latest" ]; then
+            gh release upload latest artifacts/app-release.apk --clobber
+            # target_commitish is ignored by the API once the tag exists, so
+            # `edit --target` alone would leave the tag on the old commit:
+            # move the ref itself first, then record the target on the release.
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/latest" \
+              -f sha="$GITHUB_SHA" -F force=true > /dev/null
+            gh release edit latest --target "$GITHUB_SHA" \
+              --title "Latest (master)" --notes-file "$notes" \
+              --prerelease --latest=false
+          else
+            gh release create latest artifacts/app-release.apk \
+              --target "$GITHUB_SHA" --title "Latest (master)" \
+              --notes-file "$notes" --prerelease --latest=false
+          fi
