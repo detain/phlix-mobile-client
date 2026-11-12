@@ -32,6 +32,25 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — MOB-32, MOB-33, MOB-34: user-facing string sweep (Hub caps, role term, error punctuation) — 2026-11-12
+
+- Hub is written with a capital H everywhere a user reads it, matching the
+  existing "Sign in to Hub" button and README Hub Mode section. Changed:
+  the sign-in success alert, the sign-out confirm title and body, the
+  sign-in modal intro, and the `hubStore` fallback/thrown messages
+  ("Failed to sign in to Hub.", "Not signed in to Hub.").
+- LoginScreen names the server-side role the same way in all three places,
+  using "server administrator" like the rest of the app (admin screens,
+  `auth.not_admin` copy). It replaces "its administrator", "household admin"
+  and "server admin".
+- Full-sentence validation and fallback errors now end with a period, as the
+  REST and SyncPlay catalogs already do: LoginScreen, SettingsScreen Hub
+  sign-in, SyncPlayModal ("Room name is required.", "Room ID is required.")
+  and the `hubStore` `apiErrorMessage` fallbacks. The SyncPlayModal
+  malformed-row errors say "room ID" to match the Room ID label.
+- Updated copy pins: `src/__tests__/hub/hubStore.test.ts` (2) and
+  `src/__tests__/components/syncplay/SyncPlayModal.inflight.test.tsx` (2).
+
 ### Changed — MOB-35: server-unreachable copy single-sourced — 2026-11-12
 
 - New `src/utils/serverUnreachableCopy.ts` exports `SERVER_UNREACHABLE_STEM`

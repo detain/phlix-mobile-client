@@ -175,7 +175,7 @@ const SettingsScreen: React.FC = () => {
 
   const handleHubSignIn = async () => {
     if (!hubSignInUrl || !hubUsername || !hubPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', 'Please fill in all fields.');
       return;
     }
 
@@ -183,7 +183,7 @@ const SettingsScreen: React.FC = () => {
       await signInToHub(hubSignInUrl, hubUsername, hubPassword);
       setShowHubSignIn(false);
       setHubPassword('');
-      Alert.alert('Success', 'Signed in to hub');
+      Alert.alert('Success', 'Signed in to Hub.');
     } catch (err) {
       Alert.alert(
         'Sign-in failed',
@@ -191,15 +191,15 @@ const SettingsScreen: React.FC = () => {
         // parse the contract envelope through the same code-first, quarantined
         // lane the server-session login uses, instead of rendering `err.message`
         // (transport prose or unquarantined server text) raw.
-        apiErrorMessage(err, 'Failed to sign in')
+        apiErrorMessage(err, 'Failed to sign in to Hub.')
       );
     }
   };
 
   const handleHubSignOut = () => {
     Alert.alert(
-      'Sign out of hub',
-      'Are you sure you want to sign out of the hub?',
+      'Sign out of Hub',
+      'Are you sure you want to sign out of the Hub?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -668,9 +668,9 @@ const SettingsScreen: React.FC = () => {
                 optional remote-access service, address supplied by your
                 hub operator (there is no default hub to point at). */}
             <Text style={styles.hubSignInIntro}>
-              A hub is the optional service that lets this app reach your
-              Phlix servers from outside your home network. Enter the hub
-              address your hub operator gave you.
+              The Hub is the optional service that lets this app reach your
+              Phlix servers from outside your home network. Enter the Hub
+              address your Hub operator gave you.
             </Text>
 
             <TextInput

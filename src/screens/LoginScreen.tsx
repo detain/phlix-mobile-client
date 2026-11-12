@@ -125,7 +125,7 @@ const LoginScreen: React.FC = () => {
   const handlePasskeyLogin = async () => {
     const name = cleanUsername(username);
     if (!name) {
-      setError('Enter your username to sign in with a passkey');
+      setError('Enter your username to sign in with a passkey.');
       return;
     }
 
@@ -152,7 +152,7 @@ const LoginScreen: React.FC = () => {
     // built-in default" (client.ts tier 3), so only the identity fields are
     // required here any more.
     if (!username.trim() || !password.trim()) {
-      setError('Please fill in all fields');
+      setError('Please fill in all fields.');
       return;
     }
 
@@ -173,7 +173,7 @@ const LoginScreen: React.FC = () => {
       // read it through the SAME parser here (audit M2) so the viewer sees the
       // real reason ("Invalid credentials (auth.invalid_credentials)") instead
       // of axios' transport string.
-      setError(apiErrorMessage(err, 'Sign-in failed'));
+      setError(apiErrorMessage(err, 'Sign-in failed.'));
     }
   };
 
@@ -183,11 +183,11 @@ const LoginScreen: React.FC = () => {
   const handleSignup = async () => {
     // MW-024: same optional-server law as sign-in (see handleLogin).
     if (!username.trim() || !password.trim()) {
-      setError('Please fill in all fields');
+      setError('Please fill in all fields.');
       return;
     }
     if (!email.trim()) {
-      setError('Email is required to create an account');
+      setError('Email is required to create an account.');
       return;
     }
 
@@ -204,7 +204,7 @@ const LoginScreen: React.FC = () => {
       }
       // 'authenticated' → the auth gate navigates on the store state change.
     } catch (err) {
-      setError(apiErrorMessage(err, 'Account creation failed'));
+      setError(apiErrorMessage(err, 'Account creation failed.'));
     }
   };
 
@@ -263,7 +263,7 @@ const LoginScreen: React.FC = () => {
               <Text style={styles.inputHelp}>
                 No prefix connects over https — for a server on your network,
                 use the full http:// address. This app connects to your own
-                Phlix server: ask its administrator for the address. Leave the
+                Phlix server: ask its server administrator for the address. Leave the
                 field blank to use the app's built-in default server instead.
               </Text>
             </View>
@@ -355,7 +355,7 @@ const LoginScreen: React.FC = () => {
             {mode === 'signup' && (
               <Text style={styles.signupHint}>
                 Whether accounts can be created here is decided by your server —
-                some require a household admin to approve new accounts first.
+                some require a server administrator to approve new accounts first.
               </Text>
             )}
 
@@ -388,7 +388,7 @@ const LoginScreen: React.FC = () => {
                 own server. */}
             <Text style={styles.footerText}>
               You sign in to your own Phlix server; its access terms are set
-              by your server admin.
+              by your server administrator.
             </Text>
           </View>
         </ScrollView>

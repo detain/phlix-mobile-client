@@ -181,7 +181,7 @@ export const useHubStore = create<HubState>((set, get) => {
       set({
         // M-MOBILE-34: hub failures ride the same `{ error, code }` contract —
         // parse it code-first instead of surfacing transport prose raw.
-        error: apiErrorMessage(err, 'Failed to sign in to hub'),
+        error: apiErrorMessage(err, 'Failed to sign in to Hub.'),
         isLoading: false,
       });
       throw err;
@@ -220,7 +220,7 @@ export const useHubStore = create<HubState>((set, get) => {
   refreshHubSession: async () => {
     const { hubUrl, session } = get();
     if (!hubUrl || !session) {
-      throw new Error('Not signed in to hub');
+      throw new Error('Not signed in to Hub.');
     }
 
     try {
@@ -245,7 +245,7 @@ export const useHubStore = create<HubState>((set, get) => {
   fetchServers: async () => {
     const { hubUrl, session } = get();
     if (!hubUrl || !session) {
-      throw new Error('Not signed in to hub');
+      throw new Error('Not signed in to Hub.');
     }
 
     set({ isLoading: true, error: null });
@@ -258,7 +258,7 @@ export const useHubStore = create<HubState>((set, get) => {
         // `{ error, code }` contract as every other lane — route through the
         // code-first `apiErrorMessage` choke point (what signInToHub already
         // does) instead of surfacing raw axios protocol prose.
-        error: apiErrorMessage(err, 'Failed to fetch servers'),
+        error: apiErrorMessage(err, 'Failed to fetch servers.'),
         isLoading: false,
       });
       throw err;

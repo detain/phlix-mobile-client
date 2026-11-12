@@ -296,7 +296,7 @@ describe('SyncPlayModal — MW-026 refuse the dial with no group id', () => {
     await pressCreateRoom();
 
     expect(mockConnectWithRoom).not.toHaveBeenCalled();
-    expect(textLabels(render()).join(' ')).toContain('returned no room id');
+    expect(textLabels(render()).join(' ')).toContain('returned no room ID');
   });
 
   it('a well-formed create still dials (positive control)', async () => {
@@ -323,6 +323,6 @@ describe('SyncPlayModal — MW-026 refuse the dial with no group id', () => {
     await flush();
 
     expect(mockJoinRoom).not.toHaveBeenCalled();
-    expect(textLabels(render()).join(' ')).toContain('no room id');
+    expect(textLabels(render()).join(' ')).toContain('no room ID');
   });
 });

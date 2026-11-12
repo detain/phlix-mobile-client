@@ -353,7 +353,7 @@ describe('hubStore', () => {
 
     it('should throw when not signed in', async () => {
       await expect(useHubStore.getState().fetchServers()).rejects.toThrow(
-        'Not signed in to hub'
+        'Not signed in to Hub.'
       );
     });
   });
@@ -480,7 +480,7 @@ describe('hubStore', () => {
   describe('refreshHubSession edge cases', () => {
     it('should throw when not signed in', async () => {
       await expect(useHubStore.getState().refreshHubSession()).rejects.toThrow(
-        'Not signed in to hub'
+        'Not signed in to Hub.'
       );
     });
   });

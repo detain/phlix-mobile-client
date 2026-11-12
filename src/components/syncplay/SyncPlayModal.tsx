@@ -94,7 +94,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
   const handleCreateRoom = async () => {
     if (!roomName.trim()) {
-      setError('Room name is required');
+      setError('Room name is required.');
       return;
     }
 
@@ -114,7 +114,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
       // party. Refuse the dial and fail loud instead.
       if (result.roomId === '') {
         setError(
-          'The server created the room but returned no room id — nothing to join. Try again or check the server version.'
+          'The server created the room but returned no room ID — nothing to join. Try again or check the server version.'
         );
         return;
       }
@@ -149,7 +149,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
     // group row with no id to '' (it must, to keep the row honest), so the
     // join dial needs its own refuse-loud gate before any REST/socket leg.
     if (roomId === '') {
-      setError('That room row carries no room id — the server response is malformed; refresh the list and try again.');
+      setError('That room row carries no room ID — the server response is malformed; refresh the list and try again.');
       return;
     }
     setIsJoining(true);
@@ -189,7 +189,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
 
   const handleJoinById = async () => {
     if (!joinRoomId.trim()) {
-      setError('Room ID is required');
+      setError('Room ID is required.');
       return;
     }
     // M4 (review mobile__gameux): the Join tab had no password field even
