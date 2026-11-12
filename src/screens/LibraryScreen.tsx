@@ -6,7 +6,7 @@
  */
 
 // src/screens/LibraryScreen.tsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -18,6 +18,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { libraryManager } from '../api/LibraryManager';
+import { apiErrorMessage } from '../api/client';
 import { MediaItem, Library } from '../types/media';
 import { SafeContainer } from '../components/layout';
 import { useFocusRefetch } from '../utils/useFocusRefetch';
@@ -40,6 +41,24 @@ const LibraryScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // A failed items page: its copy plus WHICH load failed (page 1 / refresh
+  // vs a later page), so Retry re-runs exactly the request that failed.
+  const [pageError, setPageError] = useState<{
+    message: string;
+    reset: boolean;
+  } | null>(null);
+
+  // MOB-7: FlatList fires onEndReached more than once per scroll gesture, and
+  // React state (isLoadingItems) only flips on the NEXT render — so two
+  // events in the same tick both passed the old state-based guard and fetched
+  // the SAME offset twice (duplicate cards, then a skipped page). This ref is
+  // the synchronous in-flight latch: set BEFORE the await, cleared in finally.
+  const loadMoreInFlightRef = useRef(false);
+  // Every reset (library switch, pull-to-refresh, focus refetch) opens a new
+  // generation; a page that resolves under an older generation is dropped so
+  // library A's page can never be appended to library B's grid.
+  const itemsGenerationRef = useRef(0);
 
   const LIMIT = 20;
 
@@ -81,20 +100,34 @@ const LibraryScreen: React.FC = () => {
     if (!selectedLibrary) {
       return;
     }
+    if (!reset) {
+      if (loadMoreInFlightRef.current) {
+        return;
+      }
+      loadMoreInFlightRef.current = true; // latch BEFORE the await
+    }
+    const generation = reset
+      ? ++itemsGenerationRef.current
+      : itemsGenerationRef.current;
 
     try {
       if (reset) {
         setIsLoadingItems(true);
         setOffset(0);
       } else {
-        // continue with current offset
+        setIsLoadingMore(true);
       }
+      setPageError(null);
 
       const newOffset = reset ? 0 : offset;
       const response = await libraryManager.getLibraryItems(selectedLibrary.id, {
         limit: LIMIT,
         offset: newOffset,
       });
+
+      if (generation !== itemsGenerationRef.current) {
+        return; // superseded by a newer reset — never append a stale page
+      }
 
       if (reset) {
         setItems(response.items);
@@ -107,8 +140,26 @@ const LibraryScreen: React.FC = () => {
       setOffset(newOffset + response.items.length);
     } catch (err) {
       console.error('Failed to load library items:', err);
+      if (generation === itemsGenerationRef.current) {
+        // MOB-7: a failed page used to vanish into console.error — the grid
+        // just stopped growing. Surface it with an inline retry instead.
+        setPageError({
+          message: apiErrorMessage(
+            err,
+            reset ? 'Could not load this library' : 'Could not load more items'
+          ),
+          reset,
+        });
+      }
     } finally {
-      setIsLoadingItems(false);
+      if (reset) {
+        if (generation === itemsGenerationRef.current) {
+          setIsLoadingItems(false);
+        }
+      } else {
+        loadMoreInFlightRef.current = false; // finally-clear, success or not
+        setIsLoadingMore(false);
+      }
     }
   };
 
@@ -126,10 +177,23 @@ const LibraryScreen: React.FC = () => {
     return loadLibraryItems(true);
   });
 
+  // onEndReached auto-pager. After a page failure it stays quiet (no retry
+  // storm on every scroll nudge) — the footer's Retry is the explicit door.
   const handleLoadMore = () => {
-    if (!isLoadingItems && hasMore) {
+    if (
+      !isLoadingItems &&
+      hasMore &&
+      !pageError &&
+      !loadMoreInFlightRef.current
+    ) {
       loadLibraryItems(false);
     }
+  };
+
+  // Inline retry for a failed page: page-1/refresh failures re-run the reset
+  // load, later pages re-request the page that failed (offset never advanced).
+  const handleRetryItems = () => {
+    loadLibraryItems(pageError?.reset ?? items.length === 0);
   };
 
   // M-MOBILE-69: stable handler so the memoized MediaCard can bail out.
@@ -258,16 +322,32 @@ const LibraryScreen: React.FC = () => {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          isLoadingItems ? <LoadingSpinner size="small" /> : null
+          isLoadingItems || isLoadingMore ? (
+            <LoadingSpinner size="small" />
+          ) : pageError && items.length > 0 ? (
+            <View style={styles.pageError}>
+              <Text style={styles.pageErrorText}>{pageError.message}</Text>
+              <TouchableOpacity
+                style={styles.pageRetryButton}
+                onPress={handleRetryItems}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading library items"
+              >
+                <Text style={styles.pageRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
-          !isLoadingItems ? (
+          isLoadingItems ? null : pageError ? (
+            <ErrorView message={pageError.message} onRetry={handleRetryItems} />
+          ) : (
             <EmptyState
               icon="🎬"
               title="No Items"
               message="This library is empty."
             />
-          ) : null
+          )
         }
       />
       )}
@@ -305,6 +385,29 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: 'space-between',
+  },
+  pageError: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  pageErrorText: {
+    color: '#ccc',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  pageRetryButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: '#0066cc',
+    borderRadius: 8,
+  },
+  pageRetryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
