@@ -16,6 +16,7 @@ import { readFileSync } from 'fs';
 import * as path from 'path';
 import {
   clampSeekSeconds,
+  stepSeekSeconds,
   serverTimeToMs,
   wireMsToSeconds,
   syncReanchorTargetSeconds,
@@ -78,6 +79,49 @@ describe('clampSeekSeconds (M-MOBILE-27)', () => {
     expect(clampSeekSeconds(NaN, 600)).toBe(0);
     expect(clampSeekSeconds(Number.POSITIVE_INFINITY, 600)).toBe(0);
     expect(clampSeekSeconds(Number.MAX_VALUE, 600)).toBe(600);
+  });
+});
+
+// ── MOB-30: the ±15s skip buttons before the duration is known ─────────────
+// `Math.min(duration, currentTime + 15)` with duration 0 (metadata loading;
+// permanently on live streams) jumped "+15" to the START. Decision pinned
+// here: unknown duration => the step seeks unclamped by duration (24h sanity
+// ceiling only); known duration => caps at it; backward floors at 0.
+describe('stepSeekSeconds (MOB-30)', () => {
+  it('forward with duration 0 advances instead of jumping to zero', () => {
+    expect(stepSeekSeconds(120, 15, 0)).toBe(135);
+    expect(stepSeekSeconds(0, 15, 0)).toBe(15);
+    expect(stepSeekSeconds(120, 15, NaN)).toBe(135);
+  });
+
+  it('live streams (duration permanently 0) keep seeking unclamped both ways', () => {
+    expect(stepSeekSeconds(3600, 15, 0)).toBe(3615);
+    expect(stepSeekSeconds(3600, -15, 0)).toBe(3585);
+    // only the shared 24h sanity ceiling bounds it
+    expect(stepSeekSeconds(SEEK_UNKNOWN_DURATION_CEILING_SECONDS, 15, 0)).toBe(
+      SEEK_UNKNOWN_DURATION_CEILING_SECONDS
+    );
+  });
+
+  it('caps forward at a known duration', () => {
+    expect(stepSeekSeconds(590, 15, 600)).toBe(600);
+    expect(stepSeekSeconds(100, 15, 600)).toBe(115);
+  });
+
+  it('floors backward at zero', () => {
+    expect(stepSeekSeconds(10, -15, 600)).toBe(0);
+    expect(stepSeekSeconds(10, -15, 0)).toBe(0);
+    expect(stepSeekSeconds(NaN, -15, 600)).toBe(0);
+  });
+
+  it('PlayerScreen skip buttons route through stepSeekSeconds, not Math.min(duration, …)', () => {
+    const source = readFileSync(
+      path.resolve(__dirname, '../../screens/PlayerScreen.tsx'),
+      'utf8'
+    );
+    expect(source).toMatch(/handleSeek\(stepSeekSeconds\(currentTime, 15, duration\)\)/);
+    expect(source).toMatch(/handleSeek\(stepSeekSeconds\(currentTime, -15, duration\)\)/);
+    expect(source).not.toMatch(/Math\.min\(duration, currentTime \+ 15\)/);
   });
 });
 

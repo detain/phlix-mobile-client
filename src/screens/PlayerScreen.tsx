@@ -65,7 +65,11 @@ import {
 // MW-123: the StyleSheet in this file reads the token family (see
 // src/theme/tokens.ts for the law; ESLint pins it).
 import { colors } from '../theme/tokens';
-import { clampSeekSeconds, syncReanchorTargetSeconds } from '../syncplay/wireUnits';
+import {
+  clampSeekSeconds,
+  stepSeekSeconds,
+  syncReanchorTargetSeconds,
+} from '../syncplay/wireUnits';
 import { describeSyncPlayError } from '../syncplay/syncplayErrors';
 import { useSyncplayStore } from '../store/syncplayStore';
 import { resolveNextEpisodeId } from '../utils/autoplayNextEpisode';
@@ -1267,14 +1271,15 @@ const PlayerScreen: React.FC = () => {
     }
   };
 
+  // MOB-30: both skip legs go through stepSeekSeconds (the clampSeekSeconds
+  // arm). The old forward `Math.min(duration, …)` jumped to 0 while the
+  // duration was still unknown (0) — and always on live streams.
   const handleSeekBackward = () => {
-    const newPosition = Math.max(0, currentTime - 15);
-    handleSeek(newPosition);
+    handleSeek(stepSeekSeconds(currentTime, -15, duration));
   };
 
   const handleSeekForward = () => {
-    const newPosition = Math.min(duration, currentTime + 15);
-    handleSeek(newPosition);
+    handleSeek(stepSeekSeconds(currentTime, 15, duration));
   };
 
   // Resolve the absolute signed VTT URL for the selected subtitle track ('' = off).

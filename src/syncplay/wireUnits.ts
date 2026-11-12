@@ -95,6 +95,27 @@ export function clampSeekSeconds(
 }
 
 /**
+ * The local ±N-second skip-button target (MOB-30), routed through the same
+ * {@link clampSeekSeconds} arm the SyncPlay seek legs use.
+ *
+ * The old forward leg was `Math.min(duration, currentTime + 15)`: while the
+ * duration is still 0 (metadata loading) — and permanently for a live stream,
+ * which never reports one — that evaluated to 0 and "+15" jumped the viewer
+ * to the START. Decision (pinned in wireUnits.test.ts): with an unknown /
+ * non-positive duration the step seeks UNCLAMPED by duration (only the
+ * 24-hour sanity ceiling applies), so live streams can still skip; with a
+ * known duration it caps AT the duration; a backward step floors at 0.
+ */
+export function stepSeekSeconds(
+  currentSeconds: number,
+  deltaSeconds: number,
+  durationSeconds: number
+): number {
+  const base = Number.isFinite(currentSeconds) ? currentSeconds : 0;
+  return clampSeekSeconds(base + deltaSeconds, durationSeconds);
+}
+
+/**
  * The mobile re-anchor tolerance, in SECONDS (MW-118).
  *
  * A `playback_sync` / group play-pause command carries the room's
