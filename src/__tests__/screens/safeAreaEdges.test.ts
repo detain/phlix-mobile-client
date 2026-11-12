@@ -48,3 +48,21 @@ describe('MW-105 — bottom safe-area opt-in on stack screens', () => {
     expect(read(rel)).not.toMatch(/edges=\{(?:\[[^\]]*bottom[^\]]*\]|STACK_EDGES)/);
   });
 });
+
+describe('MOB-54 — SafeContainer pads landscape horizontal cutouts', () => {
+  const src = read('src/components/layout/SafeContainer.tsx');
+
+  test('reads window dimensions to detect landscape', () => {
+    expect(src).toMatch(/useWindowDimensions/);
+    expect(src).toMatch(/isLandscape\s*=\s*width\s*>\s*height/);
+  });
+
+  test('left/right insets apply in landscape regardless of edges', () => {
+    expect(src).toMatch(/paddingLeft:\s*isLandscape \|\| edges\.includes\('left'\)/);
+    expect(src).toMatch(/paddingRight:\s*isLandscape \|\| edges\.includes\('right'\)/);
+  });
+
+  test('player chrome (MW-107 geometry) does not route through SafeContainer', () => {
+    expect(read('src/screens/PlayerScreen.tsx')).not.toMatch(/SafeContainer/);
+  });
+});

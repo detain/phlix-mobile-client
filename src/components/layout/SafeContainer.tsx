@@ -7,7 +7,7 @@
 
 // src/components/layout/SafeContainer.tsx
 import React from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet, StatusBar, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface SafeContainerProps {
@@ -32,12 +32,16 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
   edges = ['top'],
 }) => {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  // MOB-54: in landscape the notch/cutout moves to a horizontal edge, so
+  // left/right insets apply even when the caller did not list those edges.
+  const isLandscape = width > height;
 
   const paddingStyle = {
     paddingTop: edges.includes('top') ? insets.top : 0,
     paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
-    paddingLeft: edges.includes('left') ? insets.left : 0,
-    paddingRight: edges.includes('right') ? insets.right : 0,
+    paddingLeft: isLandscape || edges.includes('left') ? insets.left : 0,
+    paddingRight: isLandscape || edges.includes('right') ? insets.right : 0,
   };
 
   return (

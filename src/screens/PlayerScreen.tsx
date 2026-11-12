@@ -6,7 +6,6 @@
  */
 
 // src/screens/PlayerScreen.tsx
-import { fireHaptic } from '../utils/haptics';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -43,6 +42,7 @@ import { AudioTrackList } from '../components/player/AudioTrackList';
 import { SubtitleTrackList } from '../components/player/SubtitleTrackList';
 import { SleepTimerMenu, SleepTimerDisplay, useSleepTimer } from '../components/player/SleepTimer';
 import { notificationService } from '../services/NotificationService';
+import { fireHaptic } from '../utils/haptics';
 import { useCellularConnection } from '../utils/useCellularConnection';
 import { absolutizeApiPath } from '../api/client';
 import {
