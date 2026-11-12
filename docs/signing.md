@@ -334,3 +334,11 @@ When you are ready to wire CI to sign builds automatically:
 - **"Keystore was tampered with, or password was incorrect"**: The keystore password or key password is wrong. Double-check the credentials.
 - **"Single JAR signature" warning**: The APK was signed with an older `jarsigner` algorithm. Use `-sigalg SHA256withRSA -digestalg SHA-256` for modern compatibility.
 - **Missing upload key for Google Play**: If you lose your signing key, Google Play App Signing can help recover — but only if you enrolled in Play App Signing before the issue occurred.
+
+---
+
+## Release Checklist
+
+Run through these rows before cutting each release, in addition to the signing steps above.
+
+- [ ] **Re-verify `relay.phlix.app` ownership.** The hub-relay lane builds its URL as `https://relay.phlix.app/relay/{serverId}` (see `src/store/hubStore.ts`, relay branch); that domain is an estate supply-chain pin. Confirm at each release that the domain is still registered to and controlled by the Phlix project (registrar/WHOIS record and DNS/TLS certificate issuer unchanged) before shipping, since a lapsed or transferred domain would receive relay traffic from every client built from that release.
