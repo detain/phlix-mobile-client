@@ -14,8 +14,9 @@
 //
 //  - The track captures the RN core RESPONDER system (onStartShouldSetResponder
 //    / grant / move / release) — the same no-extra-package idiom the repo's
-//    modal surfaces already lean on (@react-native-community/slider sits in
-//    package.json wired to NOTHING; it stays unused, no lock churn).
+//    modal surfaces already lean on (the unused @react-native-community/slider
+//    dependency was dropped in MOB-S24; this hand-rolled scrubber is the
+//    ratified surface).
 //  - While a drag is in flight the bar renders the DRAG position, not the
 //    ticker: the native `onProgress` stream keeps repainting `currentTime`
 //    several times a second and would fight the finger. The ticker is only
