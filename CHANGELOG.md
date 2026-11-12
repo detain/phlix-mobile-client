@@ -32,6 +32,33 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Security — MOB-9: iOS ATS swaps NSAllowsArbitraryLoads for NSAllowsLocalNetworking — 2026-11-12
+
+- `ios/PhlixMobile/Info.plist`: the `NSAppTransportSecurity` dict now carries
+  `NSAllowsLocalNetworking=true` instead of `NSAllowsArbitraryLoads=true`.
+  Arbitrary loads let ANY internet hostname ride plaintext http; local
+  networking exempts only the LAN class (IP-address literals, `.local`
+  hosts, unqualified single-label names), so every fully-qualified
+  internet host keeps ATS enforcement. Supersedes the M-MOBILE-12 rationale
+  ("per-domain exceptions are not expressible") — the local-networking key
+  expresses the LAN set without enumerating domains. The M-MOBILE-03
+  comment beside `NSLocalNetworkUsageDescription` is reworded to match
+  (the purpose string remains a separate, still-required gate).
+- **Disclosed behaviour change (WAN-refusal posture, as ratified):** a
+  user-typed `http://<FQDN>` server address — e.g.
+  `http://media.example.com:8096`, even one that resolves to a box on the
+  LAN — is now refused by iOS ATS. Use https, the raw IP
+  (`http://192.168.x.x:8096`), or the `.local` name. `http://<IP>` and
+  `http://<name>.local` keep working. Scheme-less input still defaults to
+  https (LoginScreen), and the `useConnectionSecurityStore` insecure-session
+  banner is unchanged.
+- Android keeps its global `android:usesCleartextTraffic="true"`
+  (`AndroidManifest.xml`): `network_security_config` has no
+  local-network-only switch, a documented platform limitation.
+- Pinned by `src/__tests__/iosInfoPlist.gate.test.ts`: the ATS dict must
+  hold `NSAllowsLocalNetworking=true`, and no `NSAllowsArbitraryLoads*` or
+  `NSExceptionDomains` key may appear anywhere in the plist.
+
 ### Changed — latest-secure dependency wave: glob override ^13.0.6 → ^14.0.5, one allowlist entry retired by its removal ritual — 2026-11-11
 
 - Owner ruling 2026-11-11 (estate latest-secure dependency wave): for every

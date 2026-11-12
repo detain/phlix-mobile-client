@@ -41,25 +41,33 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<!-- Arbitrary loads are deliberate: Phlix is a self-hosted client that
-	     talks to user-typed LAN servers over plain http (e.g.
-	     http://192.168.x.x:8096). Those targets are arbitrary private
-	     addresses, so per-domain ATS exceptions are not expressible. The RN
-	     layer defaults scheme-less input to https (LoginScreen); this is the
-	     documented LAN tradeoff, same law as Android's usesCleartextTraffic.
-	     NSAllowsArbitraryLoads already subsumes local networking, so no
-	     separate NSAllowsLocalNetworking key is needed. [review M-MOBILE-12] -->
+	<!-- ATS posture (MOB-9, round-2026-11-11): NSAllowsLocalNetworking, NOT
+	     NSAllowsArbitraryLoads. Phlix is a self-hosted client that may talk
+	     to user-typed LAN servers over plain http (e.g.
+	     http://192.168.x.x:8096 or http://phlix.local:8096). Local networking
+	     exempts exactly that class from ATS (IP-address literals, .local
+	     hosts, unqualified single-label names) while every fully-qualified
+	     internet hostname keeps ATS enforcement, so a WAN connection can never
+	     ride plaintext. Consequence, ratified as the WAN-refusal posture: a
+	     user-typed http://<FQDN> address (e.g. http://media.example.com:8096,
+	     even when it resolves to a LAN box) is refused by iOS — use https, the
+	     raw IP, or the .local name. The RN layer still defaults scheme-less
+	     input to https (LoginScreen) and the useConnectionSecurityStore
+	     banner still flags any http session. Android keeps its global
+	     usesCleartextTraffic flag (AndroidManifest.xml): its
+	     network_security_config has no "local network only" switch, a
+	     documented platform limitation. [supersedes review M-MOBILE-12] -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
 	<!-- M-MOBILE-03 (review mobile__casualgamer #3, majors): iOS 14+ local
 	     network privacy is a SEPARATE gate from the ATS block above —
-	     NSAllowsArbitraryLoads subsumes NSAllowsLocalNetworking but not this
-	     purpose string. Without it the "find and connect to devices on your
-	     local network" prompt can never appear and connections to LAN server
-	     addresses are silently denied on modern iOS. -->
+	     NSAllowsLocalNetworking lifts ATS for LAN hosts but does not supply
+	     this purpose string. Without it the "find and connect to devices on
+	     your local network" prompt can never appear and connections to LAN
+	     server addresses are silently denied on modern iOS. -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Phlix connects to your Phlix media server on your local network.</string>
 	<!-- M-MOBILE-17 (review mobile__crossfe): NSLocationWhenInUseUsageDescription
