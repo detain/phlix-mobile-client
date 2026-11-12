@@ -7,6 +7,7 @@
 
 // src/__tests__/downloadStore.test.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules } from 'react-native';
 import { useDownloadStore, DownloadTask } from '../store/downloadStore';
 import { MediaItem } from '../types/media';
 
@@ -383,6 +384,27 @@ describe('downloadStore', () => {
 
     beforeEach(async () => {
       await AsyncStorage.clear();
+      (NativeModules as Record<string, unknown>).PhlixDownloader = { documentsPath: '/Documents' };
+    });
+
+    afterEach(() => {
+      delete (NativeModules as Record<string, unknown>).PhlixDownloader;
+    });
+
+    // MOB-27 — restored localPath must be a direct child of documentsPath.
+    it('prunes tasks whose localPath escapes documentsPath, keeps honest ones', async () => {
+      const base = { itemId: 'm', status: 'completed' };
+      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify({
+        ok: { ...base, id: 'ok', localPath: '/Documents/m_Movie.mp4' },
+        dotdot: { ...base, id: 'dotdot', localPath: '/Documents/../etc/passwd' },
+        nested: { ...base, id: 'nested', localPath: '/Documents/a/b.mp4' },
+        foreign: { ...base, id: 'foreign', localPath: '/data/other/m.mp4' },
+        sibling: { ...base, id: 'sibling', localPath: '/DocumentsEvil/m.mp4' },
+        numeric: { ...base, id: 'numeric', localPath: 42 },
+        queued: { itemId: 'q', status: 'queued', id: 'queued', localPath: '' },
+      }));
+      await useDownloadStore.getState().loadPersistedTasks();
+      expect(Object.keys(useDownloadStore.getState().tasks).sort()).toEqual(['ok', 'queued']);
     });
 
     it('drops a non-object tasks blob', async () => {
@@ -421,7 +443,7 @@ describe('downloadStore', () => {
         good: {
           id: 'good', itemId: 'media-1', status: 'downloading',
           progress: 0.5, downloadedBytes: 10, totalBytes: 20,
-          localPath: '/x', quality: 'high', createdAt: 1,
+          localPath: '/Documents/x.mp4', quality: 'high', createdAt: 1,
         },
       }));
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({

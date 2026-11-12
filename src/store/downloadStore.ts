@@ -6,6 +6,7 @@
  */
 
 // src/store/downloadStore.ts
+import { NativeModules } from 'react-native';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MediaItem } from '../types/media';
@@ -22,6 +23,29 @@ const DOWNLOAD_STATUSES: readonly string[] = [
   'cancelled',
 ];
 
+/**
+ * MOB-27 — a restored `localPath` is untrusted input that the player later
+ * hands to the native decoder. The honest write path (DownloadService
+ * getLocalPath) is exactly `${documentsPath}/<sanitized-filename>`, so the
+ * only acceptable restored value is a direct child of the native-published
+ * `documentsPath` constant: right prefix, a single flat segment, no `.`/`..`.
+ * Empty is allowed (queued tasks have no file yet). Anything else is
+ * rejected and the whole task pruned at restore.
+ */
+function isContainedLocalPath(localPath: string): boolean {
+  if (localPath === '') {
+    return true;
+  }
+  const native = NativeModules.PhlixDownloader as { documentsPath?: string } | undefined;
+  const root = (native?.documentsPath || '').replace(/\/+$/, '');
+  const prefix = `${root}/`;
+  if (!localPath.startsWith(prefix)) {
+    return false;
+  }
+  const rest = localPath.slice(prefix.length);
+  return rest !== '' && rest !== '.' && rest !== '..' && !rest.includes('/') && !rest.includes('\\') && !rest.includes('\0');
+}
+
 /** One persisted task is usable only if it is an object with the identity and
  * status fields every consumer reads. Anything else is dropped at the restore
  * boundary rather than trusted into state. */
@@ -34,7 +58,9 @@ function isUsablePersistedTask(value: unknown): value is DownloadTask {
     typeof task.id === 'string' &&
     typeof task.itemId === 'string' &&
     typeof task.status === 'string' &&
-    DOWNLOAD_STATUSES.includes(task.status)
+    DOWNLOAD_STATUSES.includes(task.status) &&
+    (task.localPath === undefined ||
+      (typeof task.localPath === 'string' && isContainedLocalPath(task.localPath)))
   );
 }
 
