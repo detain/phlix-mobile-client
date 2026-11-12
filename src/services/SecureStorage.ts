@@ -85,6 +85,7 @@ async function writeSlot(service: string, secret: string): Promise<void> {
   // chosen class: same no-backup, no-device-migration guarantee, but a
   // legitimate passcode CHANGE (or removal) does not silently vaporize the
   // session the user just earned.
+  // (iOS class; Android: private-dir + allowBackup=false — see AndroidManifest.xml:42)
   await Keychain.setGenericPassword(TOKEN_USERNAME, secret, {
     service,
     accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
