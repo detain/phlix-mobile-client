@@ -210,9 +210,12 @@ const LoginScreen: React.FC = () => {
 
   return (
     <SafeContainer>
+      {/* MOB-19: Android already resizes the window (AndroidManifest
+          windowSoftInputMode=adjustResize), so a 'height' behavior here
+          double-adjusts and jumps the form. Pad on iOS only. */}
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
