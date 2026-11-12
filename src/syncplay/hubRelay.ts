@@ -62,6 +62,21 @@
 /** The hub relay's SyncPlay WebSocket port (SyncPlayRelayWorker::DEFAULT_PORT). */
 export const HUB_SYNC_PLAY_PORT = 8804;
 
+/**
+ * The hub relay port: `PHLIX_HUB_RELAY_PORT` (build time, react-native-config)
+ * when it parses as a valid TCP port, otherwise `HUB_SYNC_PLAY_PORT` (8804).
+ * Mirrors `syncPlayWsPort()` — a malformed value falls back to the default.
+ */
+export function hubRelayPort(): number {
+  const raw = (Config as { PHLIX_HUB_RELAY_PORT?: string | number } | undefined)
+    ?.PHLIX_HUB_RELAY_PORT;
+  const port = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN;
+  if (Number.isInteger(port) && port > 0 && port <= 65535) {
+    return port;
+  }
+  return HUB_SYNC_PLAY_PORT;
+}
+
 /** Connection states surfaced via `onStatusChange`. */
 export type HubRelayStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
 
@@ -121,6 +136,7 @@ export interface HubRelayConfig {
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 import { MAX_INBOUND_FRAME_BYTES } from './frameLimits';
 import { isHttpsBase } from '../utils/serverHost';
+import Config from 'react-native-config';
 import { SYNCPLAY_MESSAGE_TYPES, PROTOCOL_VERSION } from '@phlix/syncplay';
 
 /** Maximum fast-ladder attempts before the low-frequency park re-arm takes
@@ -252,7 +268,7 @@ export function buildHubRelayUrl(hubBaseUrl: string, serverId: string): string {
   } catch {
     host = hubBaseUrl.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
   }
-  return `${scheme}//${host}:${HUB_SYNC_PLAY_PORT}/syncplay/${encodeURIComponent(serverId)}`;
+  return `${scheme}//${host}:${hubRelayPort()}/syncplay/${encodeURIComponent(serverId)}`;
 }
 
 // ── module-level connection state (mirrors src/syncplay/SyncPlayService.ts) ──

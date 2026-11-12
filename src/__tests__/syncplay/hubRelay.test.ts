@@ -25,6 +25,7 @@ import {
   handleHubRelayBackground,
   handleHubRelayForeground,
   HUB_SYNC_PLAY_PORT,
+  hubRelayPort,
   PENDING_COMMAND_MAX_AGE_SECONDS,
   PENDING_COMMAND_MAX_FUTURE_SKEW_SECONDS,
   RELAY_PING_INTERVAL_MS,
@@ -32,6 +33,7 @@ import {
 } from '../../syncplay/hubRelay';
 import type { PendingPlayMediaCommand } from '../../syncplay/hubRelay';
 import { MAX_INBOUND_FRAME_BYTES } from '../../syncplay/frameLimits';
+import Config from 'react-native-config';
 
 // ── fake WebSocket swapped into the global (mirrors the ui S298 suite) ────────
 
@@ -272,6 +274,24 @@ describe('buildHubRelayUrl', () => {
 
   it('exposes the relay port constant', () => {
     expect(HUB_SYNC_PLAY_PORT).toBe(8804);
+  });
+
+  it('honours PHLIX_HUB_RELAY_PORT and rejects malformed overrides', () => {
+    const config = Config as { PHLIX_HUB_RELAY_PORT?: string | number };
+    try {
+      config.PHLIX_HUB_RELAY_PORT = '9904';
+      expect(hubRelayPort()).toBe(9904);
+      expect(buildHubRelayUrl('https://h', 'srv-1')).toBe('wss://h:9904/syncplay/srv-1');
+      config.PHLIX_HUB_RELAY_PORT = 'nope';
+      expect(hubRelayPort()).toBe(8804);
+      config.PHLIX_HUB_RELAY_PORT = 70000;
+      expect(hubRelayPort()).toBe(8804);
+      config.PHLIX_HUB_RELAY_PORT = 0;
+      expect(hubRelayPort()).toBe(8804);
+    } finally {
+      delete config.PHLIX_HUB_RELAY_PORT;
+    }
+    expect(hubRelayPort()).toBe(8804);
   });
 
   // M-MOBILE-50 — the shared STRICT predicate: a look-alike that merely
