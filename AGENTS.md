@@ -10,9 +10,7 @@ cd ios && pod install && cd ..
 npm start                                # Metro
 npm run ios                              # react-native run-ios
 npm run android                          # react-native run-android
-npm test                                 # jest (preset react-native)
-npm test -- --coverage
-npm test -- --testPathPattern="stores"
+npm test                                 # jest; flags/filters: README Testing section
 npm run lint                             # eslint . --ext .js,.jsx,.ts,.tsx
 npm run typecheck                        # tsc --noEmit
 npm run build:android:debug              # ./gradlew assembleDebug
@@ -29,7 +27,7 @@ Metro reset: `npm start -- --reset-cache`. Android clean: `cd android && ./gradl
 
 **`src/stores/`** (Zustand): 16 `use*Store.ts` hook modules total (full table in DEVELOPER.md's "Store Architecture"); the ones below are a representative slice, NOT the inventory: `useAuthStore.ts` · `usePlayerStore.ts` (carries the `audioTracks`/`subtitleTracks` rails and `currentAudioTrackId`/`currentSubtitleTrackId`) · `useLibraryStore.ts` · `useSettingsStore.ts` · `useConnectionSecurityStore.ts` (cleartext-lane ledger behind the M-MOBILE-51 banner) · `index.ts`. Pattern: `create<State>((set, get) => ({ ...initial, ...actions }))`.
 
-**`src/screens/`**: 27 root `*.tsx` screens plus `admin/` and the feature subfolders (`collections|favorites|music|photos|search|webauthn/`); the day-1 slice below is representative, NOT the inventory: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
+**`src/screens/`**: 27 root `*.tsx` screens plus 6 in `admin/` (33 total), and the feature subfolders (`collections|favorites|music|photos|search|webauthn/`); the day-1 slice below is representative, NOT the inventory: `HomeScreen.tsx` · `LibraryScreen.tsx` · `MediaDetailScreen.tsx` · `PlayerScreen.tsx` · `SearchScreen.tsx` · `SettingsScreen.tsx` · `DownloadsScreen.tsx` · `LoginScreen.tsx`. Default-export `React.FC`, wrapped in `<SafeContainer>`.
 
 **`src/components/`** syncplay subdir: `syncplay/{SyncPlayModal,SyncPlayOverlay}.tsx` (re-exported from `src/components/syncplay/index.ts`) are the SyncPlay group-watch UI wired into `PlayerScreen.tsx`, backed by `src/api/SyncPlayManager.ts` and the fan-out coordinator `src/syncplay/SyncPlayService.ts`.
 SyncPlay `onError` frames render through `describeSyncPlayError` (`src/syncplay/syncplayErrors.ts`): code catalog first, server `message` second, generic fallback last.

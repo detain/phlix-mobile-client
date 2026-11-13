@@ -1,8 +1,8 @@
 # Phlix Mobile — Agent Context
 
-Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a Phlix media server (speaks the `phlix-server` `/api/v1` API; remote access via Phlix Hub relay — not a Jellyfin/Emby client). TypeScript strict, Zustand state, React Navigation v7 (`@react-navigation/native ^7.3.4`, native-stack/bottom-tabs v7 peers), native players via `ios/LocalPods/PhlixPlayer/` (AVPlayer/Swift) and `android/app/src/main/java/com/phlixmobile/player/` (androidx.media3 ExoPlayer/Kotlin).
+Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a Phlix media server (speaks the `phlix-server` `/api/v1` API; remote access via Phlix Hub relay — not a Jellyfin/Emby client). TypeScript strict, Zustand state, React Navigation v7 (`@react-navigation/native ^7.3.4`, native-stack/bottom-tabs v7 peers), native code in `ios/LocalPods/PhlixPlayer/` (a CocoaPod holding FOUR Swift/Obj-C families: `PhlixPlayer*` AVPlayer view, `PhlixDownloader*`, `PhlixRandom*` CSPRNG, `PhlixWebAuthn*` passkeys) and `android/app/src/main/java/com/phlixmobile/` (Kotlin packages `player/` androidx.media3 ExoPlayer, `download/`, `random/`, `webauthn/`).
 
-See `@./DEVELOPER.md` for full architecture/native module deep-dive and `@./README.md` for setup/deployment.
+See `@./DEVELOPER.md` for full architecture/native module deep-dive and `@./README.md` for setup, deployment and the command canon.
 
 ## Commands
 
@@ -12,9 +12,7 @@ cd ios && pod install && cd ..           # iOS pods (macOS only)
 npm start                                # Metro bundler
 npm run ios                              # react-native run-ios
 npm run android                          # react-native run-android
-npm test                                 # jest (preset: react-native)
-npm test -- --coverage                   # jest with coverage
-npm test -- --testPathPattern="stores"   # filter test path
+npm test                                 # jest; flags/filters: README Testing section
 npm run lint                             # eslint . --ext .js,.jsx,.ts,.tsx
 npm run typecheck                        # tsc --noEmit
 npm run build:android:debug              # ./gradlew assembleDebug

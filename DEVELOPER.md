@@ -50,7 +50,7 @@ src/
 
 ### Screen Components
 
-Screens live in `src/screens/` (27 root screens plus grouped subfolders).
+Screens live in `src/screens/` (27 root screens plus grouped subfolders, including 6 `admin/` screens: 33 in all).
 Root screens: **HomeScreen** (dashboard), **LibraryScreen** (browse by
 library), **MediaDetailScreen** (movie/series/music detail), **PlayerScreen**
 (full-screen playback + SyncPlay surface), **SearchScreen** (global search),
@@ -537,41 +537,13 @@ Supporting modules, not managers: `client.ts` (axios + interceptors),
    npx react-native run-android
    ```
 
-### Testing
+### Testing, type checking and linting
 
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm test -- --coverage
-
-# Run specific tests
-npm test -- --testPathPattern="stores"
-
-# Watch mode
-npm test -- --watch
-```
-
-### TypeScript
-
-```bash
-# Type check without emitting
-npm run typecheck
-
-# Or use TypeScript compiler directly
-npx tsc --noEmit
-```
-
-### Linting
-
-```bash
-# Run ESLint
-npm run lint
-
-# Fix issues
-npm run lint -- --fix
-```
+The command canon (jest invocations, coverage, `npm run typecheck`,
+`npm run lint`) lives in the README: see
+[Testing](README.md#testing), [Linting](README.md#linting) and
+[Type Checking](README.md#type-checking). It is intentionally not duplicated
+here.
 
 ### Native Module Development
 

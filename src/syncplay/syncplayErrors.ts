@@ -15,7 +15,7 @@
 // clients read `error_code` first, then `code`.
 //
 // LANGUAGE: this catalog is ENGLISH-ONLY, deliberately. This repo has no i18n
-// infrastructure today — its ~32 screens carry inline English strings and it
+// infrastructure today — its 33 screens (27 root + 6 admin) carry inline English strings and it
 // does not depend on @phlix/ui. Shipping a half-wired translation layer would
 // be dishonest. Instead the catalog is a keyed code→message table behind ONE
 // resolver (`describeSyncPlayError`), so a future i18n wave only has to swap
