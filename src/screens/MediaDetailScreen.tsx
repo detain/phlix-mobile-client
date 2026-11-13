@@ -6,7 +6,7 @@
  */
 
 // src/screens/MediaDetailScreen.tsx
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -72,6 +72,46 @@ type MediaDetailRouteProp = RouteProp<HomeStackParamList | LibraryStackParamList
 
 type DetailNavigationProp = NativeStackNavigationProp<any>;
 
+const formatRuntime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+};
+
+// MOB-20: season episode list is chunked-render (not a nested FlatList: the
+// list lives inside the screen's vertical ScrollView, and a FlatList footer
+// there would lose virtualization anyway). Memoized row + "show more" growth.
+const EPISODE_CHUNK = 40;
+
+const EpisodeRow = memo(function EpisodeRowImpl({
+  episode,
+  onPress,
+}: {
+  episode: Episode;
+  onPress: (e: Episode) => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.episodeCard} onPress={() => onPress(episode)}>
+      <View style={styles.episodeNumber}>
+        <Text style={styles.episodeNumberText}>{episode.episode_number}</Text>
+      </View>
+      <View style={styles.episodeInfo}>
+        <Text style={styles.episodeName} numberOfLines={1}>
+          {episode.name}
+        </Text>
+        {episode.runtime && (
+          <Text style={styles.episodeRuntime}>{formatRuntime(episode.runtime)}</Text>
+        )}
+        {episode.overview && (
+          <Text style={styles.episodeOverview} numberOfLines={2}>
+            {episode.overview}
+          </Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 const MediaDetailScreen: React.FC = () => {
   const route = useRoute<MediaDetailRouteProp>();
   const navigation = useNavigation<DetailNavigationProp>();
@@ -83,6 +123,7 @@ const MediaDetailScreen: React.FC = () => {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
+  const [episodeLimit, setEpisodeLimit] = useState(EPISODE_CHUNK);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // E4: live download state for this item (undefined = not downloading/downloaded).
@@ -215,8 +256,10 @@ const MediaDetailScreen: React.FC = () => {
     try {
       const episodeList = await libraryManager.getEpisodes(seasonId);
       setEpisodes(episodeList);
+      setEpisodeLimit(EPISODE_CHUNK);
     } catch {
       setEpisodes([]);
+      setEpisodeLimit(EPISODE_CHUNK);
     }
   };
 
@@ -375,12 +418,6 @@ const MediaDetailScreen: React.FC = () => {
 
   // Server `runtime` is in MINUTES (TMDB metadata). The precise media length in
   // seconds is the separate `duration` field (used by the player scrubber).
-  const formatRuntime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
-  };
-
   if (isLoading) {
     // M-MOBILE-43 (review mobile__gameux m9): the hero+poster+rails SHAPE
     // on the cold load — a lone spinner told the user nothing about what
@@ -685,32 +722,20 @@ const MediaDetailScreen: React.FC = () => {
             </View>
 
             <View style={styles.episodesList}>
-              {episodes.map((episode) => (
-                <TouchableOpacity
-                  key={episode.id}
-                  style={styles.episodeCard}
-                  onPress={() => handleEpisodePress(episode)}
-                >
-                  <View style={styles.episodeNumber}>
-                    <Text style={styles.episodeNumberText}>{episode.episode_number}</Text>
-                  </View>
-                  <View style={styles.episodeInfo}>
-                    <Text style={styles.episodeName} numberOfLines={1}>
-                      {episode.name}
-                    </Text>
-                    {episode.runtime && (
-                      <Text style={styles.episodeRuntime}>
-                        {formatRuntime(episode.runtime)}
-                      </Text>
-                    )}
-                    {episode.overview && (
-                      <Text style={styles.episodeOverview} numberOfLines={2}>
-                        {episode.overview}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
+              {episodes.slice(0, episodeLimit).map((episode) => (
+                <EpisodeRow key={episode.id} episode={episode} onPress={handleEpisodePress} />
               ))}
+              {episodes.length > episodeLimit && (
+                <TouchableOpacity
+                  testID="episodesShowMore"
+                  accessibilityRole="button"
+                  onPress={() => setEpisodeLimit((n) => n + EPISODE_CHUNK)}
+                >
+                  <Text style={styles.episodeRuntime}>
+                    {`Show more episodes (${episodes.length - episodeLimit} remaining)`}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </>
         )}

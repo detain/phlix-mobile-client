@@ -1441,6 +1441,8 @@ const PlayerScreen: React.FC = () => {
           testID="controlsOverlay"
           style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
           pointerEvents={showControls ? 'box-none' : 'none'}
+          importantForAccessibility={showControls ? 'auto' : 'no-hide-descendants'}
+          accessibilityElementsHidden={!showControls}
         >
           <View
             style={[
