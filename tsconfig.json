@@ -3,9 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "types": ["jest", "node"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*", "index.js"],

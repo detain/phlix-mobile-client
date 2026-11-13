@@ -32,6 +32,25 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — estate dependency upgrade (npm + CI actions) — 2026-11-13
+
+- Lock re-resolved to the newest in-range transitive set; `npm audit` unchanged
+  at 28 (6 low / 22 moderate, all already adjudicated by `audit:gate`).
+- `typescript` ^5.9.3 -> ^6.0.3. TypeScript 7.0.2 (native port) was tried and
+  rejected: it ships no JS compiler API (breaks `profileGateHonesty.test.ts`'s
+  `ts.createSourceFile`) and `@typescript-eslint` 8.x peers `<6.1`, so npm nested
+  the whole ESLint stack and ESLint 8 could no longer resolve
+  `eslint-plugin-jest`. `tsconfig.json` drops the removed-in-7 `baseUrl` and
+  uses `paths: {"@/*": ["./src/*"]}` (valid on 6 and 7).
+- Held on purpose: `@babel/*` 8 (`@react-native/babel-preset` 0.88 requires
+  Babel 7), `eslint` 10 (`@react-native/eslint-config` 0.88 peers ^8 || ^9),
+  and `@react-native-async-storage/async-storage` 3 (renames the iOS pod
+  `RNCAsyncStorage` -> `AsyncStorage` and drops `multiGet`/`multiSet`/
+  `multiRemove`; needs a macOS `pod install` to regenerate `ios/Podfile.lock`,
+  which `check:podfile-lock` enforces, and cannot be done off-macOS).
+- GitHub Actions: `actions/checkout` v7, `actions/setup-node` v7,
+  `actions/setup-java` v6, `codecov/codecov-action` v7 (others already latest).
+
 ### Changed — dependency + toolchain upgrade to latest compatible set (React Native 0.88.1 / React 19.3.1) — 2026-11-13
 
 Whole-set upgrade, kept consistent: react-native 0.85.3 -> 0.88.1, react 19.2.7 -> 19.3.1 (RN 0.88 peer),
