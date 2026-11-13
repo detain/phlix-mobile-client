@@ -22,6 +22,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Select Xcode toolchain
+        # MOB-21: pin the Xcode the runner uses (macos-15 images carry several)
+        # so a runner-image default bump cannot change the iOS toolchain
+        # silently. RN 0.85 needs Xcode >= 16.1 (README).
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: Setup Ruby (pinned CocoaPods via Gemfile.lock)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -55,7 +70,7 @@ jobs:
             pods-${{ runner.os }}-
 
       - name: Install iOS dependencies
-        run: cd ios && pod install && cd ..
+        run: bundle exec pod install --project-directory=ios
 
       - name: Build iOS (Debug)
         run: |
@@ -100,6 +115,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Select Xcode toolchain
+        # MOB-21: pin the Xcode the runner uses (macos-15 images carry several)
+        # so a runner-image default bump cannot change the iOS toolchain
+        # silently. RN 0.85 needs Xcode >= 16.1 (README).
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: Setup Ruby (pinned CocoaPods via Gemfile.lock)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -124,7 +154,7 @@ jobs:
             pods-${{ runner.os }}-
 
       - name: Install iOS dependencies
-        run: cd ios && pod install && cd ..
+        run: bundle exec pod install --project-directory=ios
 
       - name: Create JS bundle
         # Same law as the Debug job (M-MOBILE-22/23): Metro's real output name
@@ -138,6 +168,17 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath ios/build \
+            build CODE_SIGNING_ALLOWED=NO
+
+      - name: Build iOS (Release, device slice, unsigned)
+        # MOB-47: the simulator slice above never compiles arm64-device code;
+        # this leg does, without needing signing identities.
+        run: |
+          xcodebuild -workspace ios/PhlixMobile.xcworkspace \
+            -scheme PhlixMobile \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ios/build-device \
             build CODE_SIGNING_ALLOWED=NO
 
       - name: Upload Release build artifacts

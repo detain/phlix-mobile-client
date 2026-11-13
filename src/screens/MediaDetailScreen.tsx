@@ -6,7 +6,7 @@
  */
 
 // src/screens/MediaDetailScreen.tsx
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -274,14 +274,17 @@ const MediaDetailScreen: React.FC = () => {
     navigation.navigate('Player', { itemId, startPosition: ticksToSeconds(resumeTicksForItem) });
   };
 
-  const handleEpisodePress = (episode: Episode) => {
-    navigation.navigate('Player', {
-      itemId: episode.id,
-      // Same rail map: an episode watched (on ANY device) resumes; the old
-      // `episode.user_data.resume_position_ticks` read was a phantom field.
-      startPosition: ticksToSeconds(resumeTicks[episode.id] ?? 0),
-    });
-  };
+  const handleEpisodePress = useCallback(
+    (episode: Episode) => {
+      navigation.navigate('Player', {
+        itemId: episode.id,
+        // Same rail map: an episode watched (on ANY device) resumes; the old
+        // `episode.user_data.resume_position_ticks` read was a phantom field.
+        startPosition: ticksToSeconds(resumeTicks[episode.id] ?? 0),
+      });
+    },
+    [navigation, resumeTicks],
+  );
 
   // P2-S5: tap a chapter to seek to that position in the player.
   const handleChapterPress = (chapter: Chapter) => {
