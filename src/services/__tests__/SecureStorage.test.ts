@@ -250,7 +250,7 @@ describe('SecureStorage (token vault)', () => {
   // ---------------------------------------------------------------------------
   describe('hub session slots (M-MOBILE-05)', () => {
     it('storeHubTokens writes the two hub-scoped services — never the server pair, never bare keys', async () => {
-      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+      await secureStorage.storeHubTokens('hub-a', 'hub-r', 'https://hub.example.com');
 
       const services = keychainMock.setGenericPassword.mock.calls.map(
         (call) => (call[2] as { service: string }).service
@@ -268,7 +268,7 @@ describe('SecureStorage (token vault)', () => {
     });
 
     it('hub and server pairs occupy separate slots (one lane cannot read the other)', async () => {
-      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+      await secureStorage.storeHubTokens('hub-a', 'hub-r', 'https://hub.example.com');
       expect(await secureStorage.getHubAccessToken()).toBe('hub-a');
       expect(await secureStorage.getHubRefreshToken()).toBe('hub-r');
       expect(await secureStorage.getAccessToken()).toBeNull();
@@ -280,7 +280,7 @@ describe('SecureStorage (token vault)', () => {
 
     it('clearHubTokens wipes ONLY the hub pair — the server vault survives', async () => {
       await secureStorage.storeTokens('srv-a', 'srv-r', 'srv.example');
-      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+      await secureStorage.storeHubTokens('hub-a', 'hub-r', 'https://hub.example.com');
 
       await secureStorage.clearHubTokens();
 
@@ -291,7 +291,7 @@ describe('SecureStorage (token vault)', () => {
     });
 
     it('clearTokens (server sign-out) does not wipe the hub pair', async () => {
-      await secureStorage.storeHubTokens('hub-a', 'hub-r');
+      await secureStorage.storeHubTokens('hub-a', 'hub-r', 'https://hub.example.com');
 
       await secureStorage.clearTokens();
 

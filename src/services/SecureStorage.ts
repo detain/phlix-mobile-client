@@ -66,6 +66,12 @@ const ISSUED_HOST_KEY = 'phlix.access_issued_host';
  * lifecycle as the host pin — configuration, not a credential.
  */
 const ISSUED_ORIGIN_KEY = 'phlix.access_issued_origin';
+/**
+ * Which HUB host minted the stored hub pair (MOB-8) — the hub lane's twin of
+ * ISSUED_HOST_KEY: configuration, not a secret, welded to the hub slots'
+ * lifecycle (written by storeHubTokens, wiped by clearHubTokens).
+ */
+const HUB_ISSUED_HOST_KEY = 'phlix.hub_issued_host';
 const ABSOLUTE_URL_RE = /^https?:\/\//i;
 /** Keychain username half — the password half is the credential itself. */
 const TOKEN_USERNAME = 'phlix';
@@ -331,9 +337,33 @@ class SecureStorage {
   // not behind the bare-key `migratedOnce` latch above.
 
   /** Persist a fresh hub JWT pair into the hub vault slots. */
-  async storeHubTokens(accessToken: string, refreshToken: string): Promise<void> {
+  async storeHubTokens(
+    accessToken: string,
+    refreshToken: string,
+    issuedHubUrl: string
+  ): Promise<void> {
+    // MOB-8: the pin is REQUIRED (fail fast) — a hub pair with no minting
+    // origin is one restore must refuse to ride anywhere.
+    const pinnedHost = typeof issuedHubUrl === 'string' ? hostOf(issuedHubUrl) : '';
+    if (pinnedHost === '') {
+      throw new Error('SecureStorage: storeHubTokens requires the minting hub of the token pair');
+    }
     await writeSlot(HUB_ACCESS_SERVICE, accessToken);
     await writeSlot(HUB_REFRESH_SERVICE, refreshToken);
+    await AsyncStorage.setItem(HUB_ISSUED_HOST_KEY, pinnedHost);
+  }
+
+  /**
+   * The hub host the stored hub pair was minted for, or null for a pre-pin
+   * pair / unreadable key — consumers FAIL CLOSED (mirror of getIssuedHost).
+   */
+  async getHubIssuedHost(): Promise<string | null> {
+    try {
+      const raw = await AsyncStorage.getItem(HUB_ISSUED_HOST_KEY);
+      return typeof raw === 'string' && raw !== '' ? raw : null;
+    } catch {
+      return null;
+    }
   }
 
   /** The hub access JWT, or null when the vault slot is empty/unreadable. */
@@ -358,6 +388,7 @@ class SecureStorage {
   async clearHubTokens(): Promise<void> {
     await Keychain.resetGenericPassword({ service: HUB_ACCESS_SERVICE });
     await Keychain.resetGenericPassword({ service: HUB_REFRESH_SERVICE });
+    await AsyncStorage.removeItem(HUB_ISSUED_HOST_KEY);
   }
 
   // ── Biometric gate (M-MOBILE-33: the switch now GATES, not decorates) ────

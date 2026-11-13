@@ -6,7 +6,11 @@
  */
 
 // src/__tests__/hub/HubAuthService.test.ts
-import { HubAuthService } from '../../hub/HubAuthService';
+import {
+  HubAuthService,
+  setCleartextConfirmer,
+  __resetCleartextConfirmForTests,
+} from '../../hub/HubAuthService';
 
 // Note: axios is mocked globally in jest.setup.js
 // We use the mocked instance through direct module access
@@ -21,6 +25,39 @@ describe('HubAuthService', () => {
   beforeEach(() => {
     service = new HubAuthService();
     jest.clearAllMocks();
+  });
+
+  describe('cleartext confirm (MOB-31)', () => {
+    const okResponse = {
+      data: { access_token: 'a', refresh_token: 'r', expires_in: 3600, user: { id: 'u' } },
+    };
+    afterEach(() => __resetCleartextConfirmForTests());
+
+    it('declined: throws and sends NO credential POST on an http hub', async () => {
+      const confirm = jest.fn().mockResolvedValue(false);
+      setCleartextConfirmer(confirm);
+      await expect(service.signIn('http://hub.lan:8800', 'u', 'p')).rejects.toThrow(/not encrypted/);
+      expect(confirm).toHaveBeenCalledWith('http://hub.lan:8800');
+      expect(mockPost).not.toHaveBeenCalled();
+    });
+
+    it('accepted: posts once and remembers the host (no second prompt)', async () => {
+      const confirm = jest.fn().mockResolvedValue(true);
+      setCleartextConfirmer(confirm);
+      mockPost.mockResolvedValue(okResponse);
+      await service.signIn('http://hub.lan:8800', 'u', 'p');
+      await service.signIn('http://hub.lan:8800', 'u', 'p');
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(mockPost).toHaveBeenCalledTimes(2);
+    });
+
+    it('https never prompts', async () => {
+      const confirm = jest.fn().mockResolvedValue(false);
+      setCleartextConfirmer(confirm);
+      mockPost.mockResolvedValue(okResponse);
+      await service.signIn('https://hub.example.com', 'u', 'p');
+      expect(confirm).not.toHaveBeenCalled();
+    });
   });
 
   describe('signIn', () => {

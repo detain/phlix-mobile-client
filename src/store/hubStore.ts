@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HubSession, HubServer, hubAuthService } from '../hub/HubAuthService';
 import { apiErrorMessage } from '../api/client';
+import { hostOf } from '../utils/serverHost';
 import { secureStorage } from '../services/SecureStorage';
 import { resetServerScopedState } from './serverScope';
 
@@ -350,6 +351,13 @@ export const useHubStore = create<HubState>((set, get) => {
             userId: envelope.userId,
             displayName: typeof envelope.displayName === 'string' ? envelope.displayName : undefined,
           };
+          // MOB-52: an expired access envelope is DISCARDED, never restored
+          // (it used to hydrate a dead session and ride it to the hub).
+          if (envelope.expiresAt <= Math.floor(Date.now() / 1000)) {
+            await AsyncStorage.removeItem(HUB_STORAGE_KEY);
+            await secureStorage.clearHubTokens();
+            return;
+          }
           // Resolve the JWT pair: vault first. A pre-vault blob carries
           // them in plaintext inside `session` — migrate on first read
           // (secure-write BEFORE the sanitized blob replaces it, the
@@ -371,7 +379,8 @@ export const useHubStore = create<HubState>((set, get) => {
               try {
                 await secureStorage.storeHubTokens(
                   legacyPair.accessToken,
-                  legacyPair.refreshToken
+                  legacyPair.refreshToken,
+                  hubUrl
                 );
                 await AsyncStorage.setItem(
                   HUB_STORAGE_KEY,
@@ -410,6 +419,19 @@ export const useHubStore = create<HubState>((set, get) => {
             await AsyncStorage.removeItem(HUB_STORAGE_KEY);
             await secureStorage.clearHubTokens();
             return;
+          }
+          // MOB-8: the minted-origin pin. A vault pair rides ONLY to the hub
+          // that minted it; the blob's hubUrl is tamperable plaintext, so a
+          // mismatch (or a pre-pin pair with no pin) FAILS CLOSED — sweep,
+          // the user re-authenticates once. A just-migrated legacy pair was
+          // pinned to this very hubUrl above (deferred write: in-memory only).
+          if (!deferred) {
+            const hubPin = await secureStorage.getHubIssuedHost();
+            if (hubPin === null || hubPin !== hostOf(hubUrl)) {
+              await AsyncStorage.removeItem(HUB_STORAGE_KEY);
+              await secureStorage.clearHubTokens();
+              return;
+            }
           }
           const hydrated: HubSession = {
             accessToken,
@@ -523,7 +545,7 @@ async function persistSession(
   activeServerId: string | null
 ): Promise<void> {
   const { connectionMode } = useHubStore.getState();
-  await secureStorage.storeHubTokens(session.accessToken, session.refreshToken);
+  await secureStorage.storeHubTokens(session.accessToken, session.refreshToken, hubUrl);
   await AsyncStorage.setItem(
     HUB_STORAGE_KEY,
     buildSanitizedHubBlob(hubUrl, session, activeServerId, connectionMode)

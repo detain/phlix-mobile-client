@@ -50,6 +50,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl, calls } = makeFetch([mintResponse()]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -71,6 +72,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl, calls } = makeFetch([mintResponse({ expires_at: 2_000_000_000 })]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -91,6 +93,7 @@ describe('createHubRelayTokenProvider', () => {
     ]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -111,6 +114,7 @@ describe('createHubRelayTokenProvider', () => {
     ]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -128,6 +132,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl, calls } = makeFetch([mintResponse()]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => (hasAccess ? ACCESS_TOKEN : null),
       fetchImpl,
@@ -149,6 +154,7 @@ describe('createHubRelayTokenProvider', () => {
       Promise.resolve({ ok: false, status: 403 } as Response)) as typeof fetch;
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -162,6 +168,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl } = makeFetch([{ token: '' }, { not_a_token: true }]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -176,6 +183,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl } = makeFetch([new Error('network down')]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -190,6 +198,7 @@ describe('createHubRelayTokenProvider', () => {
     const { fetchImpl, calls } = makeFetch([{ token: 'relay-token-1' }]);
     const provider = createHubRelayTokenProvider({
       hubUrl: HUB_URL,
+      getIssuedHubHost: async () => '127.0.0.1',
       serverId: SERVER_ID,
       getAccessToken: () => ACCESS_TOKEN,
       fetchImpl,
@@ -203,5 +212,21 @@ describe('createHubRelayTokenProvider', () => {
     nowSec = 1_900_000_000 + 3600; // past the fallback lifetime
     await provider();
     expect(calls).toHaveLength(2);
+  });
+
+  it('MOB-8: fails closed (no fetch) when the hub pin does not match or is absent', async () => {
+    for (const pin of ['evil.example.net', null]) {
+      const { fetchImpl, calls } = makeFetch([mintResponse()]);
+      const provider = createHubRelayTokenProvider({
+        hubUrl: HUB_URL,
+        getIssuedHubHost: async () => pin,
+        serverId: SERVER_ID,
+        getAccessToken: () => ACCESS_TOKEN,
+        fetchImpl,
+        now: () => 1_900_000_000,
+      });
+      expect(await provider()).toBeNull();
+      expect(calls).toHaveLength(0);
+    }
   });
 });

@@ -39,6 +39,15 @@ const mockedHubAuthService = {
   >,
 };
 
+// MOB-8: AsyncStorage is auto-mocked (one getItem answers EVERY key), so the
+// hub minted-host pin is seeded at the vault seam instead. Individual cases
+// override it to prove the fail-closed arms.
+beforeEach(() => {
+  jest
+    .spyOn(secureStorage, 'getHubIssuedHost')
+    .mockResolvedValue('hub.example.com');
+});
+
 describe('hubStore', () => {
   const mockSession = {
     accessToken: 'hub-access-token',
@@ -427,6 +436,46 @@ describe('hubStore', () => {
       expect(state.activeServerId).toBe('server-2');
       expect(state.connectionMode).toBe('relay');
       expect(state.effectiveServerUrl).toBe('https://relay.phlix.app/relay/server-2');
+    });
+
+    describe('MOB-8 / MOB-52 restore hardening', () => {
+      const arm = (over: Record<string, unknown> = {}) => {
+        (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
+          JSON.stringify({
+            hubUrl: 'https://hub.example.com',
+            session: mockSession,
+            activeServerId: 'server-2',
+            connectionMode: 'direct',
+            ...over,
+          })
+        );
+        mockedHubAuthService.hubAuthService.listServers.mockResolvedValue(mockServers);
+      };
+
+      it('refuses a restore whose blob hubUrl differs from the minted hub (no hub call, vault swept)', async () => {
+        arm({ hubUrl: 'https://evil.example.net' });
+        const clear = jest.spyOn(secureStorage, 'clearHubTokens');
+        await useHubStore.getState().loadPersistedState();
+        expect(mockedHubAuthService.hubAuthService.listServers).not.toHaveBeenCalled();
+        expect(useHubStore.getState().session).toBeNull();
+        expect(clear).toHaveBeenCalled();
+      });
+
+      it('fails closed for a pre-pin pair (no minted host recorded)', async () => {
+        arm();
+        (secureStorage.getHubIssuedHost as jest.Mock).mockResolvedValue(null);
+        await useHubStore.getState().loadPersistedState();
+        expect(mockedHubAuthService.hubAuthService.listServers).not.toHaveBeenCalled();
+        expect(useHubStore.getState().session).toBeNull();
+      });
+
+      it('discards an expired envelope (expiresAt <= now) instead of restoring it', async () => {
+        arm({ session: { ...mockSession, expiresAt: Math.floor(Date.now() / 1000) - 5 } });
+        await useHubStore.getState().loadPersistedState();
+        expect(mockedHubAuthService.hubAuthService.listServers).not.toHaveBeenCalled();
+        expect(useHubStore.getState().session).toBeNull();
+        expect(AsyncStorage.removeItem).toHaveBeenCalledWith('phlix_hub_session');
+      });
     });
 
     it('should handle missing persisted data gracefully', async () => {
@@ -946,7 +995,7 @@ describe('hubStore', () => {
     });
 
     it('both copies present: vault pair hydrates and the plaintext blob is rewritten token-free', async () => {
-      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh', 'https://hub.example.com');
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(residueBlob);
 
       await useHubStore.getState().loadPersistedState();
@@ -985,7 +1034,8 @@ describe('hubStore', () => {
     });
 
     it('healthy v2 state (sanitized blob + vault) is NOT rewritten — the sweep is idempotent', async () => {
-      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh', 'https://hub.example.com');
+      (AsyncStorage.setItem as jest.Mock).mockClear(); // drop the pin write from seeding
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(
         JSON.stringify({
           hubUrl: 'https://hub.example.com',
@@ -1002,7 +1052,8 @@ describe('hubStore', () => {
     });
 
     it('a throwing sweep is fail-soft: session still hydrates from the vault, next load retries', async () => {
-      await secureStorage.storeHubTokens('vault-access', 'vault-refresh');
+      await secureStorage.storeHubTokens('vault-access', 'vault-refresh', 'https://hub.example.com');
+      (AsyncStorage.setItem as jest.Mock).mockClear(); // drop the pin write from seeding
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(residueBlob);
       // Whole-test implementation swap (not mockRejectedValueOnce): the outer
       // beforeEach's mockResolvedValue overrides it next case, so an
@@ -1233,7 +1284,7 @@ describe('hubStore display-name persistence (MW-025)', () => {
         connectionMode: 'direct',
       })
     );
-    await secureStorage.storeHubTokens('hub-access-token', 'hub-refresh-token');
+    await secureStorage.storeHubTokens('hub-access-token', 'hub-refresh-token', 'https://hub.example.com');
 
     await useHubStore.getState().loadPersistedState();
 

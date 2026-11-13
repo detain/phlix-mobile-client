@@ -23,6 +23,8 @@
  * presented as a credential; `null` is the safe side of that line.
  */
 
+import { secureStorage } from '../services/SecureStorage';
+import { hostOf } from '../utils/serverHost';
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 
 interface MintResponse {
@@ -47,6 +49,11 @@ interface RelayTokenProviderOptions {
   getAccessToken: () => string | null;
   /** The server the token must be scoped to. */
   serverId: string;
+  /**
+   * The hub host the vault's hub pair was minted for (MOB-8). Defaults to the
+   * vault pin; the mint FAILS CLOSED (null) unless it equals `hostOf(hubUrl)`.
+   */
+  getIssuedHubHost?: () => Promise<string | null>;
   /** Fetch implementation (injectable for tests; defaults to global fetch). */
   fetchImpl?: typeof fetch;
   /** Clock for the expiry decision (injectable for tests). */
@@ -68,6 +75,7 @@ export function createHubRelayTokenProvider(
     getAccessToken,
     serverId,
     fetchImpl = fetch,
+    getIssuedHubHost = () => secureStorage.getHubIssuedHost(),
     now = () => Math.floor(Date.now() / 1000),
   } = options;
 
@@ -97,6 +105,13 @@ export function createHubRelayTokenProvider(
     }
 
     try {
+      // MOB-8: the hub JWT may ride ONLY to the hub that minted it.
+      const pinnedHub = await getIssuedHubHost();
+      if (pinnedHub === null || pinnedHub === '' || pinnedHub !== hostOf(hubUrl)) {
+        cachedToken = null;
+        cachedExpiresAt = 0;
+        return null;
+      }
       // Review mobile__asphp M12: bound the mint — see MINT_TIMEOUT_MS.
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), MINT_TIMEOUT_MS);

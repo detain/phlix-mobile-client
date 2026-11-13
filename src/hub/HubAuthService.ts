@@ -6,6 +6,7 @@
  */
 
 // src/hub/HubAuthService.ts
+import { Alert } from 'react-native';
 import axios, { AxiosInstance } from 'axios';
 import { useConnectionSecurityStore } from '../stores/useConnectionSecurityStore';
 
@@ -148,6 +149,40 @@ function parseHubServer(row: unknown): HubServer {
   };
 }
 
+/**
+ * MOB-31: the first credential POST to an http:// hub puts the password on
+ * the wire in cleartext — the banner alone only INFORMS after the fact. This
+ * confirm gate runs BEFORE that POST; declining throws, nothing is sent. A
+ * host the user accepted stays accepted for the process. Injectable so tests
+ * and the UI can supply their own modal.
+ */
+export type CleartextConfirmer = (hubUrl: string) => Promise<boolean>;
+
+const defaultCleartextConfirmer: CleartextConfirmer = (hubUrl) =>
+  new Promise<boolean>((resolve) => {
+    Alert.alert(
+      'Unencrypted connection',
+      `${hubUrl} does not use HTTPS. Your hub password will be sent unencrypted and can be read by anyone on the network. Continue?`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Send anyway', style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+
+let cleartextConfirmer: CleartextConfirmer = defaultCleartextConfirmer;
+const confirmedCleartextHubs = new Set<string>();
+
+export function setCleartextConfirmer(confirmer: CleartextConfirmer | null): void {
+  cleartextConfirmer = confirmer ?? defaultCleartextConfirmer;
+}
+
+export function __resetCleartextConfirmForTests(): void {
+  cleartextConfirmer = defaultCleartextConfirmer;
+  confirmedCleartextHubs.clear();
+}
+
 export class HubAuthService {
   private client: AxiosInstance;
 
@@ -227,6 +262,13 @@ export class HubAuthService {
     password: string
   ): Promise<HubSession> {
     const normalizedUrl = this.normalizeHubUrl(hubUrl);
+
+    if (normalizedUrl.startsWith('http://') && !confirmedCleartextHubs.has(normalizedUrl)) {
+      if (!(await cleartextConfirmer(normalizedUrl))) {
+        throw new Error('Sign-in cancelled: the hub connection is not encrypted.');
+      }
+      confirmedCleartextHubs.add(normalizedUrl);
+    }
 
     const response = await this.client.post<SignInResponse>(
       `${normalizedUrl}/api/v1/auth/login`,
