@@ -7,6 +7,7 @@
 
 // src/screens/LoginScreen.tsx
 import React, { useEffect, useRef, useState } from 'react';
+import { DEFAULT_SERVER_HOST } from '../utils/serverLabel';
 import {
   View,
   Text,
@@ -267,7 +268,8 @@ const LoginScreen: React.FC = () => {
                 No prefix connects over https — for a server on your network,
                 use the full http:// address. This app connects to your own
                 Phlix server: ask its server administrator for the address. Leave the
-                field blank to use the app's built-in default server instead.
+                field blank to use the app's built-in default server
+                ({DEFAULT_SERVER_HOST}) instead.
               </Text>
             </View>
 

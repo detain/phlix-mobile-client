@@ -132,7 +132,7 @@ describe('MW-116 — modal sheets avoid the keyboard (single source)', () => {
 
   test.each(sheetFiles)('%s drives its sheet through ModalSheet', (rel) => {
     const source = read(rel);
-    expect(source).toMatch(/import ModalSheet from '.*\/ui\/ModalSheet'/);
+    expect(source).toMatch(/import ModalSheet(?:, \{[^}]*\})? from '.*\/ui\/ModalSheet'/);
     expect(source).toMatch(/<ModalSheet/);
   });
 

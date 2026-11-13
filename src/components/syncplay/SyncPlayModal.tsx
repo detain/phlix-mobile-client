@@ -19,8 +19,7 @@ import {
   Switch,
 } from 'react-native';
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
-import ModalSheet from '../ui/ModalSheet'; // MW-116
-import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
+import ModalSheet, { useSheetBottomPad } from '../ui/ModalSheet'; // MW-116, MOB-11
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';

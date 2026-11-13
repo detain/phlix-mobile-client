@@ -6,7 +6,7 @@
  */
 
 // src/screens/SettingsScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -30,6 +30,8 @@ import { apiErrorMessage } from '../api/client';
 import ServerSwitcher from '../components/ServerSwitcher';
 import { secureStorage } from '../services/SecureStorage';
 import { notificationService } from '../services/NotificationService';
+import { adminManager } from '../api/AdminManager';
+import { serverCardLabel, DEFAULT_SERVER_HOST, isLiveTvEnabled } from '../utils/serverLabel';
 
 const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
@@ -101,6 +103,24 @@ const SettingsScreen: React.FC = () => {
   const [hubSignInUrl, setHubSignInUrl] = useState('');
   const [hubUsername, setHubUsername] = useState('');
   const [hubPassword, setHubPassword] = useState('');
+  // MOB-42: Hub form field chain (URL → username → password → submit).
+  const hubUserRef = useRef<TextInput>(null);
+  const hubPassRef = useRef<TextInput>(null);
+  // MOB-14: Live TV row follows the server's TV-enabled flag (admin only).
+  const [liveTvEnabled, setLiveTvEnabled] = useState(true);
+  useEffect(() => {
+    if (!user?.is_admin) return;
+    let alive = true;
+    adminManager
+      .getServerSettings()
+      .then((res) => {
+        if (alive) setLiveTvEnabled(isLiveTvEnabled(res?.settings));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [user?.is_admin]);
   const [showServerSwitcher, setShowServerSwitcher] = useState(false);
 
   // Load persisted hub state on mount
@@ -345,13 +365,15 @@ const SettingsScreen: React.FC = () => {
                 <Text style={styles.settingLabel}>Libraries</Text>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.settingRow}
-                onPress={() => navigation.navigate('LiveTv')}
-              >
-                <Text style={styles.settingLabel}>Live TV</Text>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
+              {liveTvEnabled ? (
+                <TouchableOpacity
+                  style={styles.settingRow}
+                  onPress={() => navigation.navigate('LiveTv')}
+                >
+                  <Text style={styles.settingLabel}>Live TV</Text>
+                  <Text style={styles.chevron}>›</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 style={styles.settingRow}
                 onPress={() => navigation.navigate('AdminPlugins')}
@@ -534,7 +556,7 @@ const SettingsScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>Playback</Text>
           <View style={styles.card}>
             {renderSettingRow(
-              'Autoplay',
+              'Start playing automatically',
               <Switch
                 value={autoplay}
                 onValueChange={setAutoplay}
@@ -614,17 +636,22 @@ const SettingsScreen: React.FC = () => {
         </View>
 
         {/* Server Section — connection target (read-only here — the editable field is on the login screen) */}
-        {serverUrl ? (
+        {/* MOB-16: blank address = the built-in default host (never hide the card). */}
+        {(
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Server</Text>
             <View style={styles.card}>
               <View style={styles.serverInfo}>
-                <Text style={styles.serverName}>{serverName || 'Phlix Server'}</Text>
-                <Text style={styles.serverUrl}>{serverUrl}</Text>
+                <Text style={styles.serverName}>
+                  {serverCardLabel(serverName, serverUrl)}
+                </Text>
+                <Text style={styles.serverUrl}>
+                  {serverUrl || `${DEFAULT_SERVER_HOST} (default)`}
+                </Text>
               </View>
             </View>
           </View>
-        ) : null}
+        )}
 
         {/* Logout Button */}
         <View style={styles.section}>
@@ -682,9 +709,13 @@ const SettingsScreen: React.FC = () => {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => hubUserRef.current?.focus()}
             />
 
             <TextInput
+              ref={hubUserRef}
               style={styles.hubInput}
               placeholder="Username"
               placeholderTextColor="#888"
@@ -692,15 +723,21 @@ const SettingsScreen: React.FC = () => {
               onChangeText={setHubUsername}
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => hubPassRef.current?.focus()}
             />
 
             <TextInput
+              ref={hubPassRef}
               style={styles.hubInput}
               placeholder="Password"
               placeholderTextColor="#888"
               value={hubPassword}
               onChangeText={setHubPassword}
               secureTextEntry
+              returnKeyType="go"
+              onSubmitEditing={handleHubSignIn}
             />
 
             {hubError && (
