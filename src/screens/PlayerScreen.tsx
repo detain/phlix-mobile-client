@@ -405,7 +405,6 @@ const PlayerScreen: React.FC = () => {
   const setPlayerStreamInfo = usePlayerStore((state) => state.setStreamInfo);
   const setSubtitleTracks = usePlayerStore((state) => state.setSubtitleTracks);
   const setAudioTracks = usePlayerStore((state) => state.setAudioTracks);
-  const playerSetCurrentTime = usePlayerStore((state) => state.setCurrentTime);
   const playerSetDuration = usePlayerStore((state) => state.setDuration);
   const playerSetIsPlaying = usePlayerStore((state) => state.setIsPlaying);
   // MOB-10: buffering feedback — the store rail's one real reader (drives the
@@ -481,7 +480,6 @@ const PlayerScreen: React.FC = () => {
           const anchorTarget = clampSeekSeconds(reanchorSeconds, durationRef.current);
           dispatchPlayerCommand(playerRef, 'seekTo', [anchorTarget]);
           setCurrentTime(anchorTarget);
-          playerSetCurrentTime(anchorTarget);
         }
         switch (cmd.type) {
           case 'play':
@@ -507,7 +505,6 @@ const PlayerScreen: React.FC = () => {
               const seekTarget = clampSeekSeconds(cmd.position, durationRef.current);
               dispatchPlayerCommand(playerRef, 'seekTo', [seekTarget]);
               setCurrentTime(seekTarget);
-              playerSetCurrentTime(seekTarget);
             }
             break;
         }
@@ -1156,14 +1153,12 @@ const PlayerScreen: React.FC = () => {
     }
     if (ct !== undefined) {
       setCurrentTime(ct);
-      playerSetCurrentTime(ct);
     }
-  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, playerSetIsBuffering, maybeAutoplayNextEpisode, updatePlaybackNotification, dismissPlaybackNotification]);
+  }, [isLiveStream, itemId, playerSetDuration, playerSetIsPlaying, playerSetIsBuffering, maybeAutoplayNextEpisode, updatePlaybackNotification, dismissPlaybackNotification]);
 
   const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
     const { currentTime: ct, duration: dur } = event.nativeEvent;
     setCurrentTime(ct);
-    playerSetCurrentTime(ct);
     if (dur > 0 && dur !== duration) {
       setDuration(dur);
       playerSetDuration(dur);
@@ -1187,7 +1182,7 @@ const PlayerScreen: React.FC = () => {
       // (S293: convert once at the send boundary).
       syncPlayService.noteLocalPosition(toSyncPlayPositionMs(ct));
     }
-  }, [duration, isLiveStream, itemId, playerSetCurrentTime, playerSetDuration]);
+  }, [duration, isLiveStream, itemId, playerSetDuration]);
 
   const handlePlayerError = useCallback((event: NativeSyntheticEvent<{ error: string }>) => {
     const { error: errorMessage } = event.nativeEvent;
@@ -1285,20 +1280,22 @@ const PlayerScreen: React.FC = () => {
    *    non-capturing for members (`canSeek` below); this early exit is the
    *    belt for the button/skip surfaces sharing the choke point.
    */
-  const handleSeek = (position: number) => {
+  // MOB-18: referentially stable (reads the live position from
+  // currentPositionRef) so the memoized SeekBar/SkipButton children are not
+  // re-rendered by unrelated parent state changes.
+  const handleSeek = useCallback((position: number) => {
     if (currentGroup && !isHost) {
       return;
     }
     dispatchPlayerCommand(playerRef, 'seekTo', [position]);
     setCurrentTime(position);
-    playerSetCurrentTime(position);
     if (currentGroup && isHost) {
       syncPlayService.sendSeek(
-        toSyncPlayPositionMs(currentTime),
+        toSyncPlayPositionMs(currentPositionRef.current),
         toSyncPlayPositionMs(position),
       );
     }
-  };
+  }, [currentGroup, isHost]);
 
   // MOB-30: both skip legs go through stepSeekSeconds (the clampSeekSeconds
   // arm). The old forward `Math.min(duration, …)` jumped to 0 while the
@@ -1437,8 +1434,14 @@ const PlayerScreen: React.FC = () => {
       </View>
 
       {/* Overlay Controls */}
-      {showControls && (
-        <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]}>
+      {/* MOB-18: always mounted; the fade is the native-driven opacity and
+       * showControls only gates touches (pointerEvents), so toggling never
+       * remounts the control subtree. */}
+      <Animated.View
+          testID="controlsOverlay"
+          style={[styles.controlsOverlay, { opacity: controlsOpacity }]}
+          pointerEvents={showControls ? 'box-none' : 'none'}
+        >
           <View
             style={[
               styles.topBar,
@@ -1614,7 +1617,6 @@ const PlayerScreen: React.FC = () => {
               sync with the rail's rendered box. */}
           <View style={styles.bottomControlsSpacer} />
         </Animated.View>
-      )}
 
       {/* MW-117 (review mobile__gameux #2): the in-group SyncPlay pill on an
           ALWAYS-ON layer — it used to fade with the chrome, silently leaving

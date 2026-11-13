@@ -27,7 +27,7 @@ interface SkipButtonProps {
  * Shows "Skip Intro" or "Skip Outro" button when playback enters the marker range.
  * Automatically hides when position is outside the marker range or marker is null.
  */
-export const SkipButton: React.FC<SkipButtonProps> = ({
+const SkipButtonImpl: React.FC<SkipButtonProps> = ({
   type,
   marker,
   currentTime,
@@ -79,5 +79,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export const SkipButton = React.memo(SkipButtonImpl);
 
 export default SkipButton;

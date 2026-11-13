@@ -1937,8 +1937,10 @@ describe('PlayerScreen — M-MOBILE-44 r2 persistent progress rail', () => {
     jest.advanceTimersByTime(AUTO_HIDE_MS + FADE_MS + 100);
     h.rerender();
 
-    // Chrome gone…
-    expect(findButton(h.host.tree, 'Close player')).toBeNull();
+    // Chrome gone… (MOB-18: faded + touch-inert, NOT unmounted — toggling
+    // must not remount the control subtree.)
+    const overlay = findEl(h.host.tree, (el) => el.props.testID === 'controlsOverlay');
+    expect(overlay?.props.pointerEvents).toBe('none');
     // …progress stays on screen (pre-cure: the bar lived in the overlay and
     // vanished with it — the exact defect this r2 pins dead).
     const bar = findSeekBar(h.host.tree);

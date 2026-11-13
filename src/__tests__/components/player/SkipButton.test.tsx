@@ -16,13 +16,14 @@
 import type { ReactElement } from 'react';
 import { SkipButton } from '../../../components/player/SkipButton';
 
-type SkipButtonProps = Parameters<typeof SkipButton>[0];
+type SkipButtonProps = React.ComponentProps<typeof SkipButton>;
 type SkipElement = ReactElement<{ accessibilityLabel: string; onPress: () => void }>;
 
 // Invoke the function component directly (no hooks) → element tree or null.
 // React 19 types ReactElement.props as `unknown`, so annotate the props we read.
 const renderSkip = (props: SkipButtonProps): SkipElement | null =>
-  SkipButton(props) as SkipElement | null;
+  // MOB-18: SkipButton is React.memo-wrapped; `.type` is the inner function.
+  (SkipButton as unknown as { type: (p: SkipButtonProps) => unknown }).type(props) as SkipElement | null;
 
 describe('SkipButton', () => {
   const onSkip = jest.fn();

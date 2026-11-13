@@ -127,7 +127,7 @@ describe('SeekBar — M-MOBILE-13 scrub wiring', () => {
   function mount(props: Props) {
     const host = new SlotHost();
     const renderTree = () =>
-      host.render(() => (SeekBar as unknown as (p: unknown) => unknown)(props));
+      host.render(() => (SeekBar as unknown as { type: (p: unknown) => unknown }).type(props));
     return { host, renderTree, track: () => findTrack(renderTree())! };
   }
 

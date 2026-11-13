@@ -84,7 +84,7 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export const SeekBar: React.FC<SeekBarProps> = ({
+const SeekBarImpl: React.FC<SeekBarProps> = ({
   currentTime,
   duration,
   onSeek,
@@ -207,5 +207,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
 });
+
+export const SeekBar = React.memo(SeekBarImpl);
 
 export default SeekBar;
