@@ -6,7 +6,7 @@ source 'https://rubygems.org'
 gem 'cocoapods', '1.17.0'
 # RN's Podfile needs these on newer Rubies (see react-native template Gemfile).
 gem 'activesupport', '>= 6.1.7.5', '!= 7.1.0'
-gem 'concurrent-ruby', '< 1.3.4'
+gem 'concurrent-ruby', '< 1.3.8'
 gem 'bigdecimal'
 gem 'logger'
 gem 'benchmark'
