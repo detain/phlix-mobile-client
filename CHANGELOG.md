@@ -32,6 +32,51 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fix — Settings UX cluster (MOB-14, MOB-16, MOB-41, MOB-42) — 2026-11-12
+
+- Settings Live TV row follows the server's Live TV-enabled flag: hidden only
+  when the admin settings bag states it explicitly false, otherwise shown
+  (older servers carry no flag). Helper: `isLiveTvEnabled`
+  (`src/utils/serverLabel.ts`).
+- The Settings server card falls back to the server host, then the shared
+  default-host label, when the server has no name (`serverCardLabel`).
+- The Autoplay toggle is renamed, and the Hub sign-in fields chain
+  next/go on the keyboard.
+- SyncPlayModal merges its duplicate ModalSheet imports (MOB-S10 minor).
+- Landed in 5a4f1a5; this entry was not prepended at the time.
+
+### Fixed — minors sweep: library pager races + non-blocking refresh failure, double-tap seek off for live, restore hardening, Hub copy — 2026-11-13
+
+- **Library pager (MOB-S6).** A load-more fired after a reset opened its new
+  generation but before the screen re-rendered used a stale offset and
+  appended onto the reset's page 1, skipping a page. Load-more is now refused
+  while a reset is in flight, and the offset lives in a ref written only when
+  a page lands. A background focus-refetch / pull-to-refresh that fails while
+  items are on screen no longer sets the blocking page error (which stalled
+  the auto-pager and offered only a bottom-of-list Retry that reset the grid):
+  the grid stays usable and a header notice carries its own Retry.
+- **Player (MOB-S25).** Edge double-tap seek is disabled on live / direct-URL
+  streams (no seekable timeline); every tap toggles the chrome immediately.
+  The tap/timer state machine moved to `createTapController`
+  (`src/utils/doubleTapSeek.ts`) and is now unit-tested.
+- **Downloads restore (MOB-S22).** Tasks pruned at restore are written back
+  to AsyncStorage, and an empty/absent native `documentsPath` no longer turns
+  the containment prefix into `/` (any non-empty restored path is rejected).
+- **Episode list (MOB-S18).** The 40-row chunk window is keyed to the season
+  (`src/utils/episodeWindow.ts`), so a season change resets it by
+  construction; chunk cap, growth and reset are covered by tests.
+- **Settings (MOB-S12).** The Live TV visibility probe honours only
+  `livetv_enabled` (the guessed aliases are gone; phlix-server declares no such
+  key today, so the row fails open).
+- **Hub copy follow-up (MOB-S14).** The `hub.*` catalog lines in
+  `src/api/client.ts` now say "Hub" (capital H), completing the MOB-32/33/34
+  sweep for the strings that reach users via the Hub sign-in Alert and
+  `hubError`. The earlier entry above is left as landed.
+- Docs: `CALIBER_LEARNINGS.md` and the README badge comment now describe the
+  publish-first `latest` release recipe (MOB-22) instead of delete-first.
+- Test: `profileGateHonesty` asserts against AST-extracted literals, not raw
+  source text (MOB-S2).
+
 ### Changed — MOB-32, MOB-33, MOB-34: user-facing string sweep (Hub caps, role term, error punctuation) — 2026-11-12
 
 - Hub is written with a capital H everywhere a user reads it, matching the

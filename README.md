@@ -3,8 +3,9 @@
 [![CI](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml/badge.svg)](https://github.com/detain/phlix-mobile-client/actions/workflows/test.yml)
 <!-- M-MOBILE-56 (review mobile__writer): the semver-tag version badge was
      retired. The repo publishes no versioned git tags — the only tag is the
-     release machinery's rolling `latest` (build-android.yml resets it to the
-     current tip on every master push), which `sort=semver` can never
+     release machinery's rolling `latest` (build-android.yml re-points it at the
+     current tip on every master push, publish-first: upload the asset, then
+     force-move the tag and edit the release — it is never deleted first), which `sort=semver` can never
      resolve. The app's real version lives in package.json; the rolling
      `latest` GitHub prerelease is described in §CI/CD and §Deployment. -->
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
