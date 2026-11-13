@@ -280,7 +280,7 @@ Where the **track** types actually live: the `SubtitleTrack`/`AudioTrack`
 that `usePlayerStore` carries are re-exported VERBATIM from
 `@phlix/contracts` by `src/types/playback.ts:57` — the local mirror that once
 existed here was deleted deliberately (the file's header records why), and
-the pinned tag (`github:detain/phlix-contracts#v0.5.7`) is the wire source
+the pinned tag (`github:detain/phlix-contracts#v0.5.8`) is the wire source
 of truth. Don't re-declare track shapes in this repo.
 
 ## State Management
