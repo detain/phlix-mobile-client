@@ -18,6 +18,7 @@ import {
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { QualitySelection } from '@phlix/contracts';
 import type { QualityOption } from './quality';
+import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
 
 interface QualityMenuProps {
   visible: boolean;
@@ -46,6 +47,7 @@ export const QualityMenu: React.FC<QualityMenuProps> = ({
   onSelect,
   onClose,
 }) => {
+  const sheetBottomPad = useSheetBottomPad(); // MOB-11
   return (
     <Modal
       visible={visible}
@@ -61,7 +63,7 @@ export const QualityMenu: React.FC<QualityMenuProps> = ({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View style={styles.content} onStartShouldSetResponder={() => true}>
+        <View style={[styles.content, { paddingBottom: sheetBottomPad }]} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>Quality</Text>
             <CloseGlyph onPress={onClose} accessibilityLabel="Close quality menu" />

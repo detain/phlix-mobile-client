@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { SubtitleTrack } from '../../types/playback';
+import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
 
 interface SubtitleTrackListProps {
   visible: boolean;
@@ -50,6 +51,7 @@ export const SubtitleTrackList: React.FC<SubtitleTrackListProps> = ({
   onSelect,
   onClose,
 }) => {
+  const sheetBottomPad = useSheetBottomPad(); // MOB-11
   return (
     <Modal
       visible={visible}
@@ -58,7 +60,7 @@ export const SubtitleTrackList: React.FC<SubtitleTrackListProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingBottom: sheetBottomPad }]}>
           <View style={styles.header}>
             <Text style={styles.title}>Subtitles</Text>
             <CloseGlyph onPress={onClose} accessibilityLabel="Close subtitles menu" />

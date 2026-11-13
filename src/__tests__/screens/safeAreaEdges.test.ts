@@ -66,3 +66,25 @@ describe('MOB-54 — SafeContainer pads landscape horizontal cutouts', () => {
     expect(read('src/screens/PlayerScreen.tsx')).not.toMatch(/SafeContainer/);
   });
 });
+
+describe('MOB-11 — bottom-anchored sheets floor at max(20, insets.bottom)', () => {
+  test('ModalSheet is the single cure point (hook over safe-area insets)', () => {
+    const src = read('src/components/ui/ModalSheet.tsx');
+    expect(src).toMatch(/useSafeAreaInsets/);
+    expect(src).toMatch(/Math\.max\(SHEET_BOTTOM_FLOOR,\s*insets\.bottom\)/);
+    expect(src).toMatch(/SHEET_BOTTOM_FLOOR\s*=\s*20/);
+  });
+
+  test.each([
+    'src/components/syncplay/SyncPlayModal.tsx',
+    'src/components/player/QualityMenu.tsx',
+    'src/components/player/SubtitleTrackList.tsx',
+    'src/components/player/AudioTrackList.tsx',
+    'src/components/player/SleepTimer.tsx',
+  ])('%s applies the insets-aware floor to its sheet card', (rel) => {
+    const src = read(rel);
+    expect(src).toMatch(/useSheetBottomPad/);
+    expect(src).toMatch(/const sheetBottomPad = useSheetBottomPad\(\)/);
+    expect(src).toMatch(/paddingBottom:\s*sheetBottomPad/);
+  });
+});

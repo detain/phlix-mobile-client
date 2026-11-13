@@ -26,6 +26,21 @@
 
 import React from 'react';
 import { KeyboardAvoidingView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/** MOB-11: the sheet card's own bottom padding (its pre-existing floor). */
+export const SHEET_BOTTOM_FLOOR = 20;
+
+/**
+ * MOB-11: insets-aware floor for bottom-anchored sheets — max(20, insets.bottom)
+ * so the last row clears the home-indicator / gesture strip. Single cure point:
+ * every bottom sheet card applies this as `paddingBottom`. The safe-area
+ * provider propagates through RN Modal.
+ */
+export function useSheetBottomPad(): number {
+  const insets = useSafeAreaInsets();
+  return Math.max(SHEET_BOTTOM_FLOOR, insets.bottom);
+}
 
 interface ModalSheetProps {
   children: React.ReactNode;

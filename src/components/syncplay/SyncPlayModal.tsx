@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import ModalSheet from '../ui/ModalSheet'; // MW-116
+import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
 import { syncPlayManager, SyncPlayRoom } from '../../api/SyncPlayManager';
 import { useSyncplayStore } from '../../store/syncplayStore';
 import { syncPlayService } from '../../syncplay/SyncPlayService';
@@ -40,6 +41,7 @@ interface SyncPlayModalProps {
 type ModalTab = 'browse' | 'create' | 'join';
 
 const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId: _itemId }) => {
+  const sheetBottomPad = useSheetBottomPad(); // MOB-11
   // _itemId: Reserved for future use (e.g., auto-join based on current media)
   const [activeTab, setActiveTab] = useState<ModalTab>('browse');
   const [publicRooms, setPublicRooms] = useState<SyncPlayRoom[]>([]);
@@ -227,7 +229,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
               keeps its TextInputs (Join/leave paths sit beside them) clear of
               the keyboard with the repo's single-source padding behavior. */}
           <ModalSheet centered={false}>
-          <View style={styles.content} onStartShouldSetResponder={() => true}>
+          <View style={[styles.content, { paddingBottom: sheetBottomPad }]} onStartShouldSetResponder={() => true}>
             <View style={styles.header}>
               <Text style={styles.title}>SyncPlay</Text>
               <CloseGlyph onPress={onClose} accessibilityLabel="Close SyncPlay" />
@@ -306,7 +308,7 @@ const SyncPlayModal: React.FC<SyncPlayModalProps> = ({ visible, onClose, itemId:
         {/* MW-116: bottom-anchored variant — Create/Join tab fields must
             ride above the keyboard, not behind it. */}
         <ModalSheet centered={false}>
-        <View style={styles.content} onStartShouldSetResponder={() => true}>
+        <View style={[styles.content, { paddingBottom: sheetBottomPad }]} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <Text style={styles.title}>SyncPlay</Text>
             <CloseGlyph onPress={onClose} accessibilityLabel="Close SyncPlay" />

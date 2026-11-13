@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 import type { AudioTrack } from '../../types/playback';
+import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
 
 interface AudioTrackListProps {
   visible: boolean;
@@ -53,6 +54,7 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
   note,
   onClose,
 }) => {
+  const sheetBottomPad = useSheetBottomPad(); // MOB-11
   const formatChannels = (channels: number): string => {
     if (channels === 1) return 'Mono';
     if (channels === 2) return 'Stereo';
@@ -75,7 +77,7 @@ export const AudioTrackList: React.FC<AudioTrackListProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingBottom: sheetBottomPad }]}>
           <View style={styles.header}>
             <Text style={styles.title}>Audio</Text>
             <CloseGlyph onPress={onClose} accessibilityLabel="Close audio menu" />

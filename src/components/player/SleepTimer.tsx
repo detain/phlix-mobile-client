@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
+import { useSheetBottomPad } from '../ui/ModalSheet'; // MOB-11
 import CloseGlyph from '../ui/CloseGlyph'; // MW-103
 
 const PRESET_MINUTES = [15, 30, 45, 60, 90, 120];
@@ -35,6 +36,7 @@ export const SleepTimerMenu: React.FC<SleepTimerProps> = ({
   onSelect,
   onClose,
 }) => {
+  const sheetBottomPad = useSheetBottomPad(); // MOB-11
   return (
     <Modal
       visible={visible}
@@ -43,7 +45,7 @@ export const SleepTimerMenu: React.FC<SleepTimerProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingBottom: sheetBottomPad }]}>
           <View style={styles.header}>
             <Text style={styles.title}>Sleep Timer</Text>
             <CloseGlyph onPress={onClose} accessibilityLabel="Close sleep timer" />
