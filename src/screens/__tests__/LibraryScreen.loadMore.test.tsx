@@ -313,7 +313,7 @@ describe('MOB-7 — load-more in-flight ref guard', () => {
     p2.resolve({ items: page(LIMIT, 1) });
     await flush();
     host.rerender();
-    expect(footer()).toBeNull();
+    expect(footer()).toBeUndefined();
   });
 });
 
@@ -351,7 +351,7 @@ describe('MOB-7 — visible retry on page failure', () => {
     host.rerender();
     expect(itemCount()).toBe(LIMIT + 5);
     expect(retryButton()).toBeNull();
-    expect(footer()).toBeNull();
+    expect(footer()).toBeUndefined();
   });
 
   it('a failed FIRST page shows an error with Retry, never "This library is empty"', async () => {
@@ -475,6 +475,6 @@ describe('MOB-S6 — a failed refresh with items on screen is non-blocking', () 
     expect(itemCount()).toBe(LIMIT + 2);
 
     // The notice clears once a later load starts.
-    expect(grid().props.ListHeaderComponent).toBeNull();
+    expect(grid().props.ListHeaderComponent).toBeUndefined();
   });
 });

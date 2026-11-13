@@ -104,8 +104,8 @@ const SettingsScreen: React.FC = () => {
   const [hubUsername, setHubUsername] = useState('');
   const [hubPassword, setHubPassword] = useState('');
   // MOB-42: Hub form field chain (URL → username → password → submit).
-  const hubUserRef = useRef<TextInput>(null);
-  const hubPassRef = useRef<TextInput>(null);
+  const hubUserRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const hubPassRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   // MOB-14: Live TV row follows the server's TV-enabled flag (admin only).
   const [liveTvEnabled, setLiveTvEnabled] = useState(true);
   useEffect(() => {

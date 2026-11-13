@@ -32,6 +32,27 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Changed — dependency + toolchain upgrade to latest compatible set (React Native 0.88.1 / React 19.3.1) — 2026-11-13
+
+Whole-set upgrade, kept consistent: react-native 0.85.3 -> 0.88.1, react 19.2.7 -> 19.3.1 (RN 0.88 peer),
+all `@react-native/*` 0.88.1, `@react-native-community/cli*` 21, react-native-reanimated 4.7.1 with
+react-native-worklets 0.13.1 (reanimated 4.7 peer is `worklets 0.13.x`, `react-native 0.86-0.88`),
+react-native-keychain 11, jest/babel-jest 30, typescript 5.9.3, prettier 3.10.1, axios 1.21.1,
+`@babel/*` latest 7.x. Source migrations: RN 0.88 ships only the strict generated types, so
+`tsconfig.json` now extends `@react-native/typescript-config` (bundler resolution), `TextInput`
+refs use `ComponentRef<typeof TextInput>`, `FlatList` empty/header/footer slots return `undefined`
+instead of `null`, `StatusBar.backgroundColor` is dropped (ignored under edge-to-edge, targetSdk 36),
+and two now-dead `react-hooks/exhaustive-deps` disables were removed. Android build aligned to the 0.88
+template (buildTools/compileSdk 37, Kotlin 2.2.0, Gradle 9.4.1, AGP 9 `builtInKotlin`/`newDsl` opt-outs).
+Held back on purpose: `@react-native-async-storage/async-storage` stays 2.x (3.x is a storage-engine and
+API rewrite — no `multiGet`/`multiSet`, on-device data migration — not drop-in for the keychain/vault
+migration paths), `@babel/*` stays 7.x (Babel 8 is incompatible with `@react-native/babel-preset`),
+eslint stays 8.57 (`@react-native/eslint-config` peers `^8 || ^9`; ESLint 10 is unsupported), and
+typescript stays 5.9 (TypeScript 7 is the native port and breaks the RN/ESLint tooling).
+`eslint-plugin-ft-flow` is now a direct devDependency because the RN config nests it. Audit: same two
+advisory ids as before (allow-list unchanged). `ios/Podfile.lock` still records 0.85.3 pod versions and
+must be refreshed with `pod install` on macOS (the lock-sync gate only checks pod presence).
+
 ### Fix — Settings UX cluster (MOB-14, MOB-16, MOB-41, MOB-42) — 2026-11-12
 
 - Settings Live TV row follows the server's Live TV-enabled flag: hidden only

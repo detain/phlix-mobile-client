@@ -206,7 +206,7 @@ const CollectionsScreen: React.FC = () => {
               actionLabel="New Collection"
               onAction={openCreate}
             />
-          ) : null
+          ) : undefined
         }
       />
 

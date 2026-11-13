@@ -168,7 +168,6 @@ export const useSleepTimer = (onFire: () => void) => {
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { remainingSeconds, startTimer, clearTimer };

@@ -46,7 +46,7 @@ export const SafeContainer: React.FC<SafeContainerProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor }, paddingStyle]}>
-      <StatusBar barStyle="light-content" backgroundColor={backgroundColor} />
+      <StatusBar barStyle="light-content" />
       {children}
     </View>
   );

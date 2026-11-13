@@ -360,7 +360,7 @@ const LibraryScreen: React.FC = () => {
                 <Text style={styles.pageRetryText}>Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : null
+          ) : undefined
         }
         ListFooterComponent={
           isLoadingItems || isLoadingMore ? (
@@ -377,10 +377,10 @@ const LibraryScreen: React.FC = () => {
                 <Text style={styles.pageRetryText}>Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
-          isLoadingItems ? null : pageError ? (
+          isLoadingItems ? undefined : pageError ? (
             <ErrorView message={pageError.message} onRetry={handleRetryItems} />
           ) : (
             <EmptyState

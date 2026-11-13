@@ -63,7 +63,7 @@ describe('M-MOBILE-47 — Login Enter path', () => {
     // Signup inserts an Email field between Username and Password; the
     // Username "next" must reach it (MW-008 — the same affordance law: a
     // keyboard step must not skip a required signup field).
-    expect(source).toMatch(/const emailRef = useRef<TextInput>\(null\)/);
+    expect(source).toMatch(/const emailRef = useRef<React\.ComponentRef<typeof TextInput>>\(null\)/);
     expect(source).toMatch(
       /onSubmitEditing=\{\(\) => \(mode === 'signup' \? emailRef\.current\?\.focus\(\) : passwordRef\.current\?\.focus\(\)\)\}/
     );

@@ -979,7 +979,6 @@ const PlayerScreen: React.FC = () => {
       prepareHandleRef.current = null;
       setPreparingTranscode(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId, defaultQuality, setSubtitleTracks, setSelectedSubtitleId, setPlayerStreamInfo, navigation]);
 
   /**

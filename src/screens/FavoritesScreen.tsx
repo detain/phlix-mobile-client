@@ -95,7 +95,7 @@ const FavoritesScreen: React.FC = () => {
             <View style={styles.footer}>
               <LoadingSpinner />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           !loading ? (
@@ -104,7 +104,7 @@ const FavoritesScreen: React.FC = () => {
               title="No favorites yet"
               message="Mark movies and shows as favorites to find them here."
             />
-          ) : null
+          ) : undefined
         }
       />
     </SafeContainer>

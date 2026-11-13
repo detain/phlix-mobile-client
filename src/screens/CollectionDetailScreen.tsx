@@ -185,7 +185,7 @@ const CollectionDetailScreen: React.FC = () => {
                   : 'This collection is empty.'
               }
             />
-          ) : null
+          ) : undefined
         }
       />
     </SafeContainer>

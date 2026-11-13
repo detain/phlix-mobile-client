@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   Image,
   useWindowDimensions,
-  type ViewToken,
+  type FlatListProps,
 } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,11 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { clampIndex, nextSlideIndex } from './photos/photoScreenHelpers';
 
 type PhotoViewerRouteProp = RouteProp<RootStackParamList, 'PhotoViewer'>;
+
+// RN 0.88's strict types no longer export `ViewToken`; derive it from the list prop.
+type ViewToken = Parameters<
+  NonNullable<FlatListProps<unknown>['onViewableItemsChanged']>
+>[0]['viewableItems'][number];
 
 const SLIDESHOW_DEFAULT_INTERVAL = 5;
 

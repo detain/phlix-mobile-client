@@ -170,7 +170,7 @@ const WatchHistoryScreen: React.FC = () => {
             <View style={styles.footer}>
               <LoadingSpinner />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           !loading ? (
@@ -179,7 +179,7 @@ const WatchHistoryScreen: React.FC = () => {
               title="No watch history"
               message="Your recently watched shows and movies will appear here."
             />
-          ) : null
+          ) : undefined
         }
       />
     </SafeContainer>

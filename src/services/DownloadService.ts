@@ -163,16 +163,20 @@ class DownloadService {
       return;
     }
     this.eventSubscriptions = [
-      emitter.addListener(DOWNLOAD_EVENTS.progress, (p: DownloadProgressPayload) => {
+      emitter.addListener(DOWNLOAD_EVENTS.progress, (payload: object) => {
+        const p = payload as DownloadProgressPayload;
         this.handleNativeProgress(p.taskId, p.downloadedBytes, p.totalBytes);
       }),
-      emitter.addListener(DOWNLOAD_EVENTS.complete, (p: DownloadCompletePayload) => {
+      emitter.addListener(DOWNLOAD_EVENTS.complete, (payload: object) => {
+        const p = payload as DownloadCompletePayload;
         this.handleNativeComplete(p.taskId, p.localPath);
       }),
-      emitter.addListener(DOWNLOAD_EVENTS.error, (p: DownloadErrorPayload) => {
+      emitter.addListener(DOWNLOAD_EVENTS.error, (payload: object) => {
+        const p = payload as DownloadErrorPayload;
         this.handleNativeError(p.taskId, p.error);
       }),
-      emitter.addListener(DOWNLOAD_EVENTS.paused, (p: DownloadPausedPayload) => {
+      emitter.addListener(DOWNLOAD_EVENTS.paused, (payload: object) => {
+        const p = payload as DownloadPausedPayload;
         this.handleNativePaused(p.taskId, p.downloadedBytes);
       }),
     ];

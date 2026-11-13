@@ -120,7 +120,7 @@ const PhotoAlbumScreen: React.FC = () => {
               title="No Photos"
               message="This album has no photos."
             />
-          ) : null
+          ) : undefined
         }
       />
     </SafeContainer>

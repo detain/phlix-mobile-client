@@ -220,7 +220,7 @@ const PhotosScreen: React.FC = () => {
               title="No Albums"
               message="No photos found in this library."
             />
-          ) : null
+          ) : undefined
         }
       />
     </SafeContainer>

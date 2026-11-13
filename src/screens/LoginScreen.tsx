@@ -93,9 +93,9 @@ const LoginScreen: React.FC = () => {
   // dispatches the SAME action as the button (was: handleLogin hard-coded —
   // keyboard Go in signup mode fired POST /auth/login and the signup path
   // was unreachable by keyboard).
-  const usernameRef = useRef<TextInput>(null);
-  const emailRef = useRef<TextInput>(null);
-  const passwordRef = useRef<TextInput>(null);
+  const usernameRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const emailRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const passwordRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);

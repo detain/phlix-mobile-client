@@ -27,5 +27,5 @@ include ':app'
 // Top-level includeBuild (in ADDITION to the pluginManagement one) — this is what
 // supplies the unversioned buildscript classpath deps (AGP, kotlin, RN gradle
 // plugin) in android/build.gradle via composite-build substitution. Matches the
-// RN 0.85.3 community template, which includeBuilds the plugin in both places.
+// RN 0.88.1 community template, which includeBuilds the plugin in both places.
 includeBuild('../node_modules/@react-native/gradle-plugin')

@@ -121,7 +121,7 @@ const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
+        <StatusBar barStyle="light-content" />
         {/* M-MOBILE-71 (review mobile__devops Major 19): render-phase crashes
             report to the device log and show a recoverable card instead of
             the white screen / silent exit the release build used to have. */}

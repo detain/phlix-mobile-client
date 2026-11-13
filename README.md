@@ -9,7 +9,7 @@
      resolve. The app's real version lives in package.json; the rolling
      `latest` GitHub prerelease is described in §CI/CD and §Deployment. -->
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![React Native](https://img.shields.io/badge/React%20Native-0.85-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
+[![React Native](https://img.shields.io/badge/React%20Native-0.88-61dafb?logo=react&logoColor=white)](https://reactnative.dev/)
 [![Node](https://img.shields.io/badge/node-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 A cross-platform mobile application for media playback, built with React Native. Phlix connects to your Phlix server to provide a seamless experience for watching movies, TV shows, listening to music, and browsing photos.
@@ -166,7 +166,7 @@ Before you begin, ensure you have the following installed:
 
 ### iOS Development
 
-- **Xcode** (v16.1 or later — not v15: React Native 0.85's `pod install`
+- **Xcode** (v16.1 or later — not v15: React Native 0.88's `pod install`
   hard-fails below 16.1 by its own floor,
   `min_xcode_version_supported` → `'16.1'` in the react-native package's
   `scripts/cocoapods/helpers.rb:87-88`)
@@ -182,9 +182,9 @@ Before you begin, ensure you have the following installed:
 ### Android Development
 
 - **Android Studio** (latest stable version)
-- **Android SDK** (build platform API 36 — `compileSdk`/`targetSdk` in `android/build.gradle`; `minSdk` 24 is the device floor)
+- **Android SDK** (build platform API 37 (`compileSdk`; `targetSdk` stays 36) — in `android/build.gradle`; `minSdk` 24 is the device floor)
 - **Java Development Kit** (JDK 17 or higher)
-- **Gradle** (no install needed — the wrapper in `android/gradle/wrapper/` downloads Gradle 9.3.1)
+- **Gradle** (no install needed — the wrapper in `android/gradle/wrapper/` downloads Gradle 9.4.1)
 
 ## Installation
 

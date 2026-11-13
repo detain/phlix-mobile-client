@@ -1,6 +1,6 @@
 # Phlix Mobile — Agent Context
 
-Cross-platform React Native 0.85 app (`phlix-mobile`) connecting to a Phlix media server (speaks the `phlix-server` `/api/v1` API; remote access via Phlix Hub relay — not a Jellyfin/Emby client). TypeScript strict, Zustand state, React Navigation v7 (`@react-navigation/native ^7.3.4`, native-stack/bottom-tabs v7 peers), native code in `ios/LocalPods/PhlixPlayer/` (a CocoaPod holding FOUR Swift/Obj-C families: `PhlixPlayer*` AVPlayer view, `PhlixDownloader*`, `PhlixRandom*` CSPRNG, `PhlixWebAuthn*` passkeys) and `android/app/src/main/java/com/phlixmobile/` (Kotlin packages `player/` androidx.media3 ExoPlayer, `download/`, `random/`, `webauthn/`). Detailed architecture: `DEVELOPER.md`. Setup: `README.md`.
+Cross-platform React Native 0.88 app (`phlix-mobile`) connecting to a Phlix media server (speaks the `phlix-server` `/api/v1` API; remote access via Phlix Hub relay — not a Jellyfin/Emby client). TypeScript strict, Zustand state, React Navigation v7 (`@react-navigation/native ^7.3.4`, native-stack/bottom-tabs v7 peers), native code in `ios/LocalPods/PhlixPlayer/` (a CocoaPod holding FOUR Swift/Obj-C families: `PhlixPlayer*` AVPlayer view, `PhlixDownloader*`, `PhlixRandom*` CSPRNG, `PhlixWebAuthn*` passkeys) and `android/app/src/main/java/com/phlixmobile/` (Kotlin packages `player/` androidx.media3 ExoPlayer, `download/`, `random/`, `webauthn/`). Detailed architecture: `DEVELOPER.md`. Setup: `README.md`.
 
 ## Commands
 

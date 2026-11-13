@@ -12,7 +12,6 @@ import {
   Text,
   StyleSheet,
   SectionList,
-  type SectionListData,
   TouchableOpacity,
   RefreshControl,
   Alert,
@@ -35,9 +34,11 @@ import {
 
 // M-MOBILE-82: section payload carries its own empty-state copy so the
 // footer renderer stays data-driven (see the SectionList note below).
-interface SectionData extends SectionListData<Recording> {
+type SectionData = {
+  title: string;
   emptyHint: string;
-}
+  data: readonly Recording[];
+};
 
 const errText = (err: unknown, fallback: string): string =>
   err instanceof Error ? err.message : fallback;

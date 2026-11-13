@@ -219,7 +219,7 @@ const MusicScreen: React.FC = () => {
               title="No Artists"
               message="No music artists found."
             />
-          ) : null
+          ) : undefined
         }
       />
     );
@@ -251,7 +251,7 @@ const MusicScreen: React.FC = () => {
               title="No Albums"
               message="No albums found."
             />
-          ) : null
+          ) : undefined
         }
       />
     );
@@ -279,7 +279,7 @@ const MusicScreen: React.FC = () => {
         ListFooterComponent={
           tracksLoading && tracks.length > 0 ? (
             <LoadingSpinner size="small" />
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           !tracksLoading ? (
@@ -288,7 +288,7 @@ const MusicScreen: React.FC = () => {
               title="No Tracks"
               message="No tracks found."
             />
-          ) : null
+          ) : undefined
         }
       />
     );

@@ -313,7 +313,7 @@ const SearchScreen: React.FC = () => {
           ListFooterComponent={
             loading && results.length > 0 ? (
               <LoadingSpinner size="small" />
-            ) : null
+            ) : undefined
           }
         />
         {showRail && renderRail()}

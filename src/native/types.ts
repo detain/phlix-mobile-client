@@ -6,7 +6,11 @@
  */
 
 // src/native/types.ts
-import { NativeModule, NativeSyntheticEvent, type ViewStyle } from 'react-native';
+import { NativeSyntheticEvent, type ViewStyle } from 'react-native';
+
+// RN 0.88's strict type surface no longer exports `NativeModule`; the bridge
+// module shape is an open object (methods are declared per-interface below).
+type NativeModule = object;
 
 export interface PlaybackEvent {
   event: 'ready' | 'play' | 'pause' | 'ended' | 'buffering';
