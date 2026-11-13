@@ -218,12 +218,34 @@ describe('useAuthStore', () => {
     it('sets user when authenticated', async () => {
       mockedAuthManager.isAuthenticated.mockResolvedValue(true);
       mockedAuthManager.getCurrentUser.mockResolvedValue(mockUser);
+      mockedAuthManager.getMe.mockResolvedValue(mockUser);
 
       await useAuthStore.getState().checkAuth();
 
       expect(useAuthStore.getState().user).toEqual(mockUser);
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+
+    // MOB-26: the cached AsyncStorage profile never grants admin by itself.
+    it('does not trust a cached is_admin when /auth/me is unreachable', async () => {
+      mockedAuthManager.isAuthenticated.mockResolvedValue(true);
+      mockedAuthManager.getCurrentUser.mockResolvedValue({ ...mockUser, is_admin: true });
+      mockedAuthManager.getMe.mockRejectedValue(new Error('offline'));
+
+      await useAuthStore.getState().checkAuth();
+
+      expect(useAuthStore.getState().user?.is_admin).toBe(false);
+    });
+
+    it('takes is_admin from the server-verified /auth/me snapshot', async () => {
+      mockedAuthManager.isAuthenticated.mockResolvedValue(true);
+      mockedAuthManager.getCurrentUser.mockResolvedValue({ ...mockUser, is_admin: false });
+      mockedAuthManager.getMe.mockResolvedValue({ ...mockUser, is_admin: true });
+
+      await useAuthStore.getState().checkAuth();
+
+      expect(useAuthStore.getState().user?.is_admin).toBe(true);
     });
 
     it('sets unauthenticated when not authenticated', async () => {

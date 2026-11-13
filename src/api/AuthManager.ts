@@ -180,7 +180,8 @@ class AuthManager {
     return !!token;
   }
 
-  // Get current user from local cache
+  // Get current user from local cache. UNVERIFIED snapshot (MOB-26): never
+  // gate admin UI on it — use getMe() (GET /auth/me) via useAuthStore.refreshMe.
   async getCurrentUser(): Promise<User | null> {
     const userData = await AsyncStorage.getItem('user');
     return userData ? JSON.parse(userData) : null;

@@ -48,7 +48,7 @@ interface AuthState {
 // login in flight and could dead-key the form during a slow boot.
 let loginDispatchInFlight = false;
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
@@ -175,12 +175,20 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
       const isAuth = await authManager.isAuthenticated();
       if (isAuth) {
-        const user = await authManager.getCurrentUser();
+        const cached = await authManager.getCurrentUser();
+        // MOB-26: the AsyncStorage profile is an UNVERIFIED snapshot — it can
+        // carry a stale or tampered `is_admin`. Admin gates read this store,
+        // so the cached copy never grants admin; the server-verified
+        // /auth/me answer (refreshMe below) restores the real flag. The server
+        // stays the authority on every admin call regardless.
+        const user = cached ? { ...cached, is_admin: false } : cached;
         set({
           user,
           isAuthenticated: true,
           isLoading: false,
         });
+        // Non-fatal: on failure the user stays non-admin until a verified read.
+        await get().refreshMe();
       } else {
         set({ isAuthenticated: false, isLoading: false });
       }
