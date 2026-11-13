@@ -408,6 +408,10 @@ const PlayerScreen: React.FC = () => {
   const playerSetCurrentTime = usePlayerStore((state) => state.setCurrentTime);
   const playerSetDuration = usePlayerStore((state) => state.setDuration);
   const playerSetIsPlaying = usePlayerStore((state) => state.setIsPlaying);
+  // MOB-10: buffering feedback — the store rail's one real reader (drives the
+  // stall spinner below); written by the native 'buffering' event.
+  const isBuffering = usePlayerStore((state) => state.isBuffering);
+  const playerSetIsBuffering = usePlayerStore((state) => state.setIsBuffering);
 
   // SyncPlay state
   const [showSyncPlayOverlay, setShowSyncPlayOverlay] = useState(false);
@@ -1082,6 +1086,8 @@ const PlayerScreen: React.FC = () => {
 
   const handlePlaybackEvent = useCallback((event: NativeSyntheticEvent<PlaybackEvent>) => {
     const { event: playbackEvent, currentTime: ct, duration: dur } = event.nativeEvent;
+    // MOB-10: every non-buffering event means the stall (if any) is over.
+    playerSetIsBuffering(playbackEvent === 'buffering');
     switch (playbackEvent) {
       case 'ready':
         if (dur && dur > 0) {
@@ -1145,14 +1151,14 @@ const PlayerScreen: React.FC = () => {
         }
         break;
       case 'buffering':
-        // Could show buffering indicator
+        // Spinner is rendered from the store's isBuffering (set above).
         break;
     }
     if (ct !== undefined) {
       setCurrentTime(ct);
       playerSetCurrentTime(ct);
     }
-  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, maybeAutoplayNextEpisode, updatePlaybackNotification, dismissPlaybackNotification]);
+  }, [isLiveStream, itemId, playerSetCurrentTime, playerSetDuration, playerSetIsPlaying, playerSetIsBuffering, maybeAutoplayNextEpisode, updatePlaybackNotification, dismissPlaybackNotification]);
 
   const handleProgress = useCallback((event: NativeSyntheticEvent<{ currentTime: number; duration: number }>) => {
     const { currentTime: ct, duration: dur } = event.nativeEvent;
@@ -1371,6 +1377,13 @@ const PlayerScreen: React.FC = () => {
           </View>
         )}
       </TouchableOpacity>
+
+      {/* MOB-10: mid-playback stall indicator (non-blocking). */}
+      {isBuffering && !preparingTranscode && (
+        <View style={styles.bufferingOverlay} pointerEvents="none" testID="bufferingIndicator">
+          <ActivityIndicator size="large" color={colors.textPrimary} />
+        </View>
+      )}
 
       {/* Transcode "Preparing…" overlay */}
       {preparingTranscode && (
@@ -1974,6 +1987,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  bufferingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   preparingOverlay: {
     position: 'absolute',

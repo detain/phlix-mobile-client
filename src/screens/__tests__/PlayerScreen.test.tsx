@@ -196,6 +196,8 @@ jest.mock('../../stores/usePlayerStore', () => {
     setCurrentTime: jest.fn(),
     setDuration: jest.fn(),
     setIsPlaying: jest.fn(),
+    isBuffering: false,
+    setIsBuffering: jest.fn(),
   };
   return { __state: state, usePlayerStore: (sel: (s: unknown) => unknown) => sel(state) };
 });
@@ -323,6 +325,8 @@ const mockPlayerStore = (jest.requireMock('../../stores/usePlayerStore') as any)
   setSubtitleTracks: jest.Mock;
   setCurrentSubtitleTrackId: jest.Mock;
   setAudioTracks: jest.Mock;
+  isBuffering: boolean;
+  setIsBuffering: jest.Mock;
   setCurrentAudioTrackId: jest.Mock;
 };
 const mockPlaybackManager = (jest.requireMock('../../api/PlaybackManager') as any)
@@ -2442,5 +2446,40 @@ describe('PlayerScreen — P5-S5 w36L4: denials surface a code-keyed Alert', () 
   it('status gating holds: stream.limit_exceeded under a 403 status fires nothing', async () => {
     await bootWithStreamUrlFailure(403, { error: 'whatever', code: 'stream.limit_exceeded' });
     expect(alertSpy).not.toHaveBeenCalled();
+  });
+});
+
+// MOB-10: buffering feedback — the native 'buffering' event writes the store
+// rail, any other event clears it, and the screen reads isBuffering to render
+// the stall spinner.
+describe('PlayerScreen — MOB-10 buffering feedback', () => {
+  afterEach(() => {
+    mountedHost?.unmount();
+    mountedHost = null;
+    mockPlayerStore.isBuffering = false;
+  });
+
+  const fire = (h: { host: HookHost }, event: string) => {
+    const player = findPlayer(h.host.tree);
+    (player!.props.onPlaybackEvent as (e: unknown) => void)({ nativeEvent: { event } });
+  };
+
+  it("'buffering' sets isBuffering, 'ready' and 'play' clear it", async () => {
+    const h = await bootDirectPlay();
+    fire(h, 'buffering');
+    expect(mockPlayerStore.setIsBuffering).toHaveBeenLastCalledWith(true);
+    fire(h, 'ready');
+    expect(mockPlayerStore.setIsBuffering).toHaveBeenLastCalledWith(false);
+    fire(h, 'buffering');
+    fire(h, 'play');
+    expect(mockPlayerStore.setIsBuffering).toHaveBeenLastCalledWith(false);
+  });
+
+  it('renders the stall indicator only while the store says buffering', async () => {
+    const h = await bootDirectPlay();
+    expect(findEl(h.host.tree, (el) => el.props.testID === 'bufferingIndicator')).toBeNull();
+    mockPlayerStore.isBuffering = true;
+    h.rerender();
+    expect(findEl(h.host.tree, (el) => el.props.testID === 'bufferingIndicator')).not.toBeNull();
   });
 });

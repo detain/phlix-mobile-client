@@ -110,6 +110,9 @@ class PhlixPlayerViewWrapper: UIView {
 
         // Observe player status
         playerItem?.addObserver(self, forKeyPath: "status", options: [.new], context: nil)
+        // MOB-10: buffering feedback (Android parity: 'buffering' → 'ready').
+        playerItem?.addObserver(self, forKeyPath: "isPlaybackBufferEmpty", options: [.new], context: nil)
+        playerItem?.addObserver(self, forKeyPath: "isPlaybackLikelyToKeepUp", options: [.new], context: nil)
 
         // Add time observer
         let interval = CMTime(seconds: 1.0, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
@@ -146,6 +149,14 @@ class PhlixPlayerViewWrapper: UIView {
                 onPlaybackEvent?(["event": "ready"])
             } else if playerItem?.status == .failed {
                 onError?(["error": playerItem?.error?.localizedDescription ?? "Unknown error"])
+            }
+        } else if keyPath == "isPlaybackBufferEmpty" {
+            if playerItem?.isPlaybackBufferEmpty == true {
+                onPlaybackEvent?(["event": "buffering"])
+            }
+        } else if keyPath == "isPlaybackLikelyToKeepUp" {
+            if playerItem?.isPlaybackLikelyToKeepUp == true {
+                onPlaybackEvent?(["event": "ready"])
             }
         }
     }
@@ -220,6 +231,8 @@ class PhlixPlayerViewWrapper: UIView {
         }
         if playerItem != nil {
             playerItem?.removeObserver(self, forKeyPath: "status")
+            playerItem?.removeObserver(self, forKeyPath: "isPlaybackBufferEmpty")
+            playerItem?.removeObserver(self, forKeyPath: "isPlaybackLikelyToKeepUp")
         }
         NotificationCenter.default.removeObserver(self)
         player?.pause()
