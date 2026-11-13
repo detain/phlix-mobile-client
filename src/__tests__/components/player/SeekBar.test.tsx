@@ -30,6 +30,8 @@ import type { ReactElement } from 'react';
 class SlotHost {
   private slots: Array<{ value: unknown }> = [];
   private cursor = 0;
+  sv = 0;
+  svSlots: Array<{ value: unknown }> = [];
 
   useState<T>(init: T | (() => T)): [T, (v: T | ((p: T) => T)) => void] {
     const i = this.cursor++;
@@ -46,6 +48,7 @@ class SlotHost {
 
   render<R>(fn: () => R): R {
     this.cursor = 0;
+    this.sv = 0;
     mockHost.current = this;
     try {
       return fn();
@@ -63,6 +66,24 @@ jest.mock('react', () => {
   return {
     ...actual,
     useState: (init: unknown) => mockHost.current!.useState(init as never),
+  };
+});
+
+// MOB-44: the drag preview is Reanimated shared values. The renderer-free host
+// has no dispatcher, so shared values are plain `{ value }` slots owned by the
+// host (stable across re-invocations) and useAnimatedStyle runs its worklet
+// eagerly — which lets the tests read the UI-thread preview style directly.
+jest.mock('react-native-reanimated', () => {
+  return {
+    __esModule: true,
+    default: { View: 'AnimatedView' },
+    useSharedValue: (init: unknown) => {
+      const h = mockHost.current as unknown as { sv: number; svSlots: Array<{ value: unknown }> };
+      const i = h.sv++;
+      h.svSlots[i] = h.svSlots[i] ?? { value: init };
+      return h.svSlots[i];
+    },
+    useAnimatedStyle: (fn: () => unknown) => fn(),
   };
 });
 
@@ -200,6 +221,26 @@ describe('SeekBar — M-MOBILE-13 scrub wiring', () => {
     // 240/300 × 600 s = 480 s — ONE call, final value, seconds (not ms).
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onSeek).toHaveBeenCalledWith(480);
+  });
+
+  it('MOB-44: the preview rides shared values (UI thread), not per-move React state', () => {
+    const h = mountMeasured({ currentTime: 60, duration: DURATION, onSeek: jest.fn(), canSeek: true });
+    call(h.track(), 'onResponderGrant', responderEvent(150));
+    call(h.track(), 'onResponderMove', responderEvent(225));
+
+    // Shared values carry the exact (un-floored) fraction: 225/300 = 0.75.
+    expect(h.host.svSlots[0].value).toBe(1); // dragActive
+    expect(h.host.svSlots[1].value).toBe(0.75); // dragFraction
+
+    // The animated style overrides the JS-painted width/left while dragging.
+    const fill = findEl(h.renderTree(), (el) => el.props.style?.some?.((x: any) => x?.width === '75%'));
+    expect(fill).not.toBeNull();
+    const thumb = findEl(h.renderTree(), (el) => el.props.style?.some?.((x: any) => x?.left === 225));
+    expect(thumb).not.toBeNull();
+
+    // Release deactivates the override.
+    call(h.track(), 'onResponderRelease', responderEvent(225));
+    expect(h.host.svSlots[0].value).toBe(0);
   });
 
   it('a tap commits one seek at the tapped position', () => {

@@ -22,6 +22,10 @@
 //    several times a second and would fight the finger. The ticker is only
 //    visually paused here — PlayerScreen keeps receiving real position events
 //    (the resume reporter feeds on them); nothing but this display defers.
+//  - MOB-44: the drag PREVIEW (thumb + progress fill) is driven by Reanimated
+//    shared values and an animated style, so per-move repaints run on the UI
+//    thread with no React re-render. Only the whole-second time label rides
+//    React state (it re-renders once per displayed second, not per pixel).
 //  - The seek COMMITS EXACTLY ONCE, on release. Move events are preview-only;
 //    seeking per-pixel is a native seek-thrash bug class.
 //  - Units: SECONDS end to end. `currentTime`/`duration` are the internal
@@ -40,6 +44,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { fireHaptic } from '../../utils/haptics';
 
 interface SeekBarProps {
@@ -98,9 +106,40 @@ const SeekBarImpl: React.FC<SeekBarProps> = ({
   // bogus position-0 seek.
   const [trackWidth, setTrackWidth] = React.useState(0);
 
+  // UI-thread preview: `dragActive` gates the override, `dragFraction` is the
+  // 0..1 thumb position. Moves write these directly (no setState per move).
+  const dragActive = useSharedValue(0);
+  const dragFraction = useSharedValue(0);
+
   const isScrubbing = canSeek && duration > 0 && trackWidth > 0;
   const displayedSeconds = dragSeconds ?? currentTime;
   const fraction = duration > 0 ? displayedSeconds / duration : 0;
+
+  const previewStyle = useAnimatedStyle(() => {
+    'worklet';
+    return dragActive.value === 1
+      ? { width: `${dragFraction.value * 100}%` as `${number}%` }
+      : {};
+  });
+  const thumbPreviewStyle = useAnimatedStyle(() => {
+    'worklet';
+    return dragActive.value === 1
+      ? { left: dragFraction.value * trackWidth }
+      : {};
+  });
+
+  /** Preview-only: shared value on the UI thread + whole-second label state. */
+  const previewAt = (event: GestureResponderEvent): void => {
+    const seconds = secondsFromEvent(event);
+    dragFraction.value = duration > 0 ? seconds / duration : 0;
+    dragActive.value = 1;
+    setDragSeconds(Math.floor(seconds));
+  };
+
+  const endPreview = (): void => {
+    dragActive.value = 0;
+    setDragSeconds(null);
+  };
 
   const secondsFromEvent = (event: GestureResponderEvent): number =>
     scrubSecondsFromLocation(event.nativeEvent.locationX, trackWidth, duration);
@@ -111,7 +150,7 @@ const SeekBarImpl: React.FC<SeekBarProps> = ({
 
   const handleResponderRelease = (event: GestureResponderEvent): void => {
     const targetSeconds = secondsFromEvent(event);
-    setDragSeconds(null);
+    endPreview();
     // MOB-53: light tick on scrub commit (Android; iOS no-op per haptics.ts).
     fireHaptic('light');
     onSeek(targetSeconds);
@@ -120,14 +159,12 @@ const SeekBarImpl: React.FC<SeekBarProps> = ({
   const scrubbingHandlers = isScrubbing
     ? {
         onStartShouldSetResponder: () => true,
-        onResponderGrant: (event: GestureResponderEvent) =>
-          setDragSeconds(secondsFromEvent(event)),
-        onResponderMove: (event: GestureResponderEvent) =>
-          setDragSeconds(secondsFromEvent(event)),
+        onResponderGrant: previewAt,
+        onResponderMove: previewAt,
         onResponderRelease: handleResponderRelease,
         // System takeover (e.g. a notification steal): drop the preview,
         // NEVER commit an abandoned drag.
-        onResponderTerminate: () => setDragSeconds(null),
+        onResponderTerminate: endPreview,
         accessibilityLabel: 'Seek',
       }
     : {};
@@ -137,12 +174,20 @@ const SeekBarImpl: React.FC<SeekBarProps> = ({
       <Text style={styles.timeText}>{formatTime(displayedSeconds)}</Text>
       <View style={styles.sliderContainer}>
         <View style={styles.sliderTrack}>
-          <View
-            style={[styles.sliderProgress, { width: `${fraction * 100}%` }]}
+          <Animated.View
+            style={[
+              styles.sliderProgress,
+              { width: `${fraction * 100}%` },
+              previewStyle,
+            ]}
           />
         </View>
-        <View
-          style={[styles.sliderThumb, { left: fraction * trackWidth }]}
+        <Animated.View
+          style={[
+            styles.sliderThumb,
+            { left: fraction * trackWidth },
+            thumbPreviewStyle,
+          ]}
           pointerEvents="none"
         />
         {/* Measurement lives on the ALWAYS-rendered surface: without a width

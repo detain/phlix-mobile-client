@@ -153,6 +153,16 @@ jest.mock('react', () => {
   };
 });
 
+// MOB-44: SeekBar (imported by PlayerScreen) pulls Reanimated; this harness
+// never renders SeekBar's body (it only inspects the element), so an inert
+// stub keeps the native worklets module out of the load path.
+jest.mock('react-native-reanimated', () => ({
+  __esModule: true,
+  default: { View: 'AnimatedView' },
+  useSharedValue: (init: unknown) => ({ value: init }),
+  useAnimatedStyle: (fn: () => unknown) => fn(),
+}));
+
 // ── inert collaborator mocks ────────────────────────────────────────────────
 // Singletons are BOUND at import time, so each factory must construct its stub
 // eagerly (a `mock*`-var read inside the factory would still be `undefined`
