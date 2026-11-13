@@ -18,35 +18,11 @@ import {
   HomeScreen,
   LibraryScreen,
   MediaDetailScreen,
-  PlayerScreen,
   SearchScreen,
   SettingsScreen,
   DownloadsScreen,
   LoginScreen,
-  ProfileSelectScreen,
-  AdminDashboardScreen,
-  AdminUsersScreen,
-  AdminLibrariesScreen,
-  AdminPluginsScreen,
-  AdminAuthProvidersScreen,
-  AdminServerSettingsScreen,
-  AdminBackupScreen,
-  AdminLogsScreen,
-  AdminFsBrowseScreen,
-  CastScreen,
-  LiveTvScreen,
-  LiveTvRecordingsScreen,
-  MusicScreen,
-  MusicAlbumScreen,
-  PhotosScreen,
-  PhotoAlbumScreen,
-  PhotoViewerScreen,
-  CollectionsScreen,
-  CollectionDetailScreen,
-  FavoritesScreen,
-  PasskeysScreen,
   RecommendationsScreen,
-  WatchHistoryScreen,
 } from '../screens';
 import { LoadingSpinner } from '../components/ui';
 import { RootStackParamList, TabParamList, HomeStackParamList, LibraryStackParamList } from '../types/navigation';
@@ -75,6 +51,10 @@ import { createExitGuardHandler, EXIT_CONFIRM } from '../utils/exitGuard';
 import { fireHaptic } from '../utils/haptics';
 import { TEXT_MAX_FONT_SIZE_MULTIPLIER } from '../utils/textScalePolicy';
 
+// MOB-17: root-stack screens other than Login/Main resolve lazily through
+// react-navigation's `getComponent` with INLINE require factories, so Metro
+// (inlineRequires) defers each screen module until first navigation. Do not
+// hoist these requires or re-add the barrel imports above.
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -300,7 +280,7 @@ const RootNavigator = () => {
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen
               name="Profiles"
-              component={ProfileSelectScreen}
+              getComponent={() => require('../screens/ProfileSelectScreen').default}
               options={{
                 headerShown: true,
                 title: 'Profiles',
@@ -310,7 +290,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminDashboard"
-              component={AdminDashboardScreen}
+              getComponent={() => require('../screens/AdminDashboardScreen').default}
               options={{
                 headerShown: true,
                 title: 'Dashboard',
@@ -320,7 +300,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminUsers"
-              component={AdminUsersScreen}
+              getComponent={() => require('../screens/AdminUsersScreen').default}
               options={{
                 headerShown: true,
                 title: 'Users',
@@ -330,7 +310,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminLibraries"
-              component={AdminLibrariesScreen}
+              getComponent={() => require('../screens/AdminLibrariesScreen').default}
               options={{
                 headerShown: true,
                 title: 'Libraries',
@@ -340,7 +320,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminPlugins"
-              component={AdminPluginsScreen}
+              getComponent={() => require('../screens/admin/AdminPluginsScreen').default}
               options={{
                 headerShown: true,
                 title: 'Plugins',
@@ -350,7 +330,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminAuthProviders"
-              component={AdminAuthProvidersScreen}
+              getComponent={() => require('../screens/admin/AdminAuthProvidersScreen').default}
               options={{
                 headerShown: true,
                 title: 'Auth Providers',
@@ -360,7 +340,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminServerSettings"
-              component={AdminServerSettingsScreen}
+              getComponent={() => require('../screens/admin/AdminServerSettingsScreen').default}
               options={{
                 headerShown: true,
                 title: 'Server Settings',
@@ -370,7 +350,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminBackup"
-              component={AdminBackupScreen}
+              getComponent={() => require('../screens/admin/AdminBackupScreen').default}
               options={{
                 headerShown: true,
                 title: 'Backup',
@@ -380,7 +360,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminLogs"
-              component={AdminLogsScreen}
+              getComponent={() => require('../screens/admin/AdminLogsScreen').default}
               options={{
                 headerShown: true,
                 title: 'Logs',
@@ -390,7 +370,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="AdminFsBrowse"
-              component={AdminFsBrowseScreen}
+              getComponent={() => require('../screens/admin/AdminFsBrowseScreen').default}
               options={{
                 headerShown: true,
                 title: 'File Browser',
@@ -400,7 +380,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="LiveTv"
-              component={LiveTvScreen}
+              getComponent={() => require('../screens/LiveTvScreen').default}
               options={{
                 headerShown: true,
                 title: 'Live TV',
@@ -410,7 +390,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="LiveTvRecordings"
-              component={LiveTvRecordingsScreen}
+              getComponent={() => require('../screens/LiveTvRecordingsScreen').default}
               options={{
                 headerShown: true,
                 title: 'Recordings',
@@ -420,7 +400,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Music"
-              component={MusicScreen}
+              getComponent={() => require('../screens/MusicScreen').default}
               options={{
                 headerShown: true,
                 title: 'Music',
@@ -430,7 +410,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="MusicAlbum"
-              component={MusicAlbumScreen}
+              getComponent={() => require('../screens/MusicAlbumScreen').default}
               options={{
                 headerShown: true,
                 title: 'Album',
@@ -440,7 +420,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Photos"
-              component={PhotosScreen}
+              getComponent={() => require('../screens/PhotosScreen').default}
               options={{
                 headerShown: true,
                 title: 'Photos',
@@ -450,7 +430,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="PhotoAlbum"
-              component={PhotoAlbumScreen}
+              getComponent={() => require('../screens/PhotoAlbumScreen').default}
               options={({ route }) => ({
                 headerShown: true,
                 title: route.params?.title ?? 'Album',
@@ -460,7 +440,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="PhotoViewer"
-              component={PhotoViewerScreen}
+              getComponent={() => require('../screens/PhotoViewerScreen').default}
               options={{
                 headerShown: false,
                 presentation: 'fullScreenModal',
@@ -470,7 +450,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Collections"
-              component={CollectionsScreen}
+              getComponent={() => require('../screens/CollectionsScreen').default}
               options={{
                 headerShown: true,
                 title: 'Collections',
@@ -480,7 +460,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="CollectionDetail"
-              component={CollectionDetailScreen}
+              getComponent={() => require('../screens/CollectionDetailScreen').default}
               options={({ route }) => ({
                 headerShown: true,
                 title: route.params?.title ?? 'Collection',
@@ -490,7 +470,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Favorites"
-              component={FavoritesScreen}
+              getComponent={() => require('../screens/FavoritesScreen').default}
               options={{
                 headerShown: true,
                 title: 'Favorites',
@@ -500,7 +480,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="WatchHistory"
-              component={WatchHistoryScreen}
+              getComponent={() => require('../screens/WatchHistoryScreen').default}
               options={{
                 headerShown: true,
                 title: 'Watch History',
@@ -510,7 +490,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Passkeys"
-              component={PasskeysScreen}
+              getComponent={() => require('../screens/PasskeysScreen').default}
               options={{
                 headerShown: true,
                 title: 'Passkeys',
@@ -520,7 +500,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Cast"
-              component={CastScreen}
+              getComponent={() => require('../screens/CastScreen').default}
               options={{
                 headerShown: true,
                 title: 'Cast',
@@ -530,7 +510,7 @@ const RootNavigator = () => {
             />
             <Stack.Screen
               name="Player"
-              component={PlayerScreen}
+              getComponent={() => require('../screens/PlayerScreen').default}
               options={{
                 presentation: 'fullScreenModal',
                 animation: 'fade',
