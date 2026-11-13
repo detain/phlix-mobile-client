@@ -150,13 +150,8 @@ const HomeScreen: React.FC = () => {
     [navigation]
   );
 
-  const handlePlayPress = useCallback(
-    (item: MediaItem) => {
-      navigation.navigate('Player', { itemId: item.id });
-    },
-    [navigation]
-  );
-
+  // MOB-1: serves BOTH the card press and the ▶ button on the rail, so every
+  // Continue Watching entry point resumes instead of restarting from 0.
   const handleContinueWatchingPress = useCallback(
     (item: MediaItem) => {
       // C17: `position_ticks` (100ns) is the ONLY resume field the server's
@@ -215,7 +210,7 @@ const HomeScreen: React.FC = () => {
           <ContinueWatching
             items={continueWatching}
             onItemPress={handleContinueWatchingPress}
-            onItemPlay={handlePlayPress}
+            onItemPlay={handleContinueWatchingPress}
           />
         )}
 
