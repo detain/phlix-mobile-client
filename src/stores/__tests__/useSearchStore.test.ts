@@ -199,4 +199,39 @@ describe('useSearchStore', () => {
     expect(s.total).toBe(0);
     expect(s.filters).toEqual({});
   });
+
+  it('latest search supersedes a slower in-flight one (MOB-5)', async () => {
+    let resolveOld: (v: any) => void = () => undefined;
+    mocked.browseMedia
+      .mockImplementationOnce(() => new Promise((r) => { resolveOld = r; }))
+      .mockResolvedValueOnce({ items: [item('n1', 'New')], total: 1, limit: SEARCH_PAGE_SIZE, offset: 0 });
+    useSearchStore.getState().setQuery('old');
+    const oldP = useSearchStore.getState().search(true);
+    useSearchStore.getState().setQuery('new');
+    await useSearchStore.getState().search(true);
+    resolveOld({ items: [item('o1', 'Old')], total: 1, limit: SEARCH_PAGE_SIZE, offset: 0 });
+    await oldP;
+    const s = useSearchStore.getState();
+    expect(s.results.map((r) => r.id)).toEqual(['n1']);
+    expect(s.loading).toBe(false);
+  });
+
+  it('jumpToLetter supersedes an in-flight search and clears stale results on error', async () => {
+    let resolveOld: (v: any) => void = () => undefined;
+    mocked.browseMedia
+      .mockImplementationOnce(() => new Promise((r) => { resolveOld = r; }))
+      .mockRejectedValueOnce(new Error('boom'));
+    useSearchStore.setState({
+      results: [item('x', 'Stale')],
+      letterIndex: { letters: [{ letter: 'A', offset: 0 }, { letter: 'B', offset: 3 }] } as any,
+    });
+    const oldP = useSearchStore.getState().search(true);
+    await useSearchStore.getState().jumpToLetter('B');
+    resolveOld({ items: [item('o1', 'Old')], total: 1, limit: SEARCH_PAGE_SIZE, offset: 0 });
+    await oldP;
+    const s = useSearchStore.getState();
+    expect(s.results).toEqual([]);
+    expect(s.error).toBe('boom');
+    expect(s.loading).toBe(false);
+  });
 });

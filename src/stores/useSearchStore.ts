@@ -74,6 +74,13 @@ const initialState = {
   letterIndexError: null as string | null,
 };
 
+/**
+ * Request sequence (MOB-5): every search/jumpToLetter claims a new token; only
+ * the holder of the latest token may write results/error/loading, so the latest
+ * query supersedes any in-flight one instead of being dropped or overwritten.
+ */
+let requestSeq = 0;
+
 export const useSearchStore = create<SearchState>((set, get) => ({
   ...initialState,
 
@@ -81,9 +88,11 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   setFilters: (filters) => set({ filters }),
 
   search: async (reset = true) => {
-    if (get().loading) {
+    // Load-more must not stack on an in-flight request; a fresh search supersedes.
+    if (!reset && get().loading) {
       return;
     }
+    const seq = ++requestSeq;
     set({ loading: true, error: null });
     try {
       const { query, filters } = get();
@@ -94,6 +103,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         limit: SEARCH_PAGE_SIZE,
         offset: startOffset,
       });
+      if (seq !== requestSeq) {
+        return;
+      }
       set((s) => ({
         results: reset ? res.items : [...s.results, ...res.items],
         total: res.total ?? res.items.length,
@@ -101,7 +113,14 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         loading: false,
       }));
     } catch (error) {
-      set({ error: errMessage(error, 'Search failed'), loading: false });
+      if (seq !== requestSeq) {
+        return;
+      }
+      set({
+        error: errMessage(error, 'Search failed'),
+        loading: false,
+        ...(reset ? { results: [], total: 0, offset: 0 } : {}),
+      });
     }
   },
 
@@ -122,9 +141,10 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   jumpToLetter: async (letter) => {
     const startOffset = offsetForLetter(get().letterIndex, letter);
-    if (startOffset === null || get().loading) {
+    if (startOffset === null) {
       return;
     }
+    const seq = ++requestSeq;
     set({ loading: true, error: null, offset: startOffset });
     try {
       const { query, filters } = get();
@@ -134,6 +154,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         limit: SEARCH_PAGE_SIZE,
         offset: startOffset,
       });
+      if (seq !== requestSeq) {
+        return;
+      }
       set({
         results: res.items,
         total: res.total ?? res.items.length,
@@ -141,9 +164,21 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         loading: false,
       });
     } catch (error) {
-      set({ error: errMessage(error, 'Jump failed'), loading: false });
+      if (seq !== requestSeq) {
+        return;
+      }
+      set({
+        error: errMessage(error, 'Jump failed'),
+        loading: false,
+        results: [],
+        total: 0,
+        offset: 0,
+      });
     }
   },
 
-  reset: () => set({ ...initialState, filters: {} }),
+  reset: () => {
+    requestSeq += 1; // orphan any in-flight request
+    set({ ...initialState, filters: {} });
+  },
 }));
