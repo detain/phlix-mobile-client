@@ -25,7 +25,7 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 
 ## Features
 
-### Core Features
+### User Features
 
 - **User Authentication**: Secure login with token-based authentication and automatic token refresh
 - **Media Library**: Browse movies, series, music, and photos organized by library
@@ -35,8 +35,8 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
   of downloaded items. Volume follows the **system hardware volume** (there
   is no in-app slider), and there is **no playback-speed control** yet.
 
-> **Background/lock-screen playback is iOS-only today** (review
-> mobile__casualgamer M-MOBILE-02). The iOS player now activates a
+<!-- review mobile__casualgamer M-MOBILE-02 -->
+> **Background/lock-screen playback is iOS-only today.** The iOS player now activates a
 > `.playback` `AVAudioSession` and the app declares `UIBackgroundModes =
 > [audio]`, so a "music in pocket" track keeps playing — and Picture in
 > picture is genuinely live there. Android has **no MediaSession /
@@ -62,15 +62,6 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
   `Sec-WebSocket-Protocol: bearer, <jwt>` subprotocol, never in the URL.
 - **Downloads**: Download media for offline playback
 - **Multi-user Profiles**: Manage per-user profiles (name, max content rating, optional PIN gate) and switch the active profile from Settings → Profiles
-- **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section).
-- **Admin Users**: Settings → Admin → Users lets administrators list accounts (filter by all/pending/active/disabled), approve/reject pending sign-ups, disable accounts, grant/revoke admin, reset a password (the freshly generated password is shown once), create and edit users, and delete accounts (the server's self / last-admin guard message is surfaced).
-- **Admin Libraries**: Settings → Admin → Libraries lets administrators add/edit/delete libraries (name, type, paths — with a **Browse…** server-side folder picker, `series_per_directory` for series), trigger Scan / Rescan / Match-metadata jobs with live progress (polled status, current path, percent), and review per-library scan history.
-- **Admin Plugins**: Settings → Admin → Plugins lets administrators manage server plugins from an **Installed | Catalog** view. Install a plugin from a URL (`https://` or `file://`), enable/disable installed plugins, edit a plugin's settings via a schema-driven form (secret fields are masked), and uninstall with confirmation. The Catalog tab browses configured catalog sources, lets you add or remove a source, and lists each catalog's available plugins.
-- **Admin Auth Providers**: Settings → Admin → Auth Providers lets administrators see the server's authentication providers and enable/disable each one. A provider's configuration schema can be viewed read-only (provider config itself is set on the server — there is no mobile write route).
-- **Admin Server Settings**: Settings → Admin → Server Settings lets administrators view and edit server configuration values, typed by the server (toggles for booleans, inputs for strings/numbers). Settings overridden by the environment are badged, and Save sends only the keys you changed.
-- **Admin Backup**: Settings → Admin → Backup lets administrators list existing backups (label, size, created date), create a new backup (with an optional label), restore a backup (with a clear destructive confirmation — it overwrites the current database/config and may restart the server), delete a backup, and upload a backup to S3. An auto-backup **schedule** card lets you set the backup interval (days) and how many backups to retain.
-- **Admin Logs**: Settings → Admin → Logs is a server log viewer — pick a log file (or **All logs (merged)**) to tail it, choose how many lines to show (200/500/1000), see a "truncated" badge when the file is longer, and pull to refresh. Long lines scroll horizontally in a monospace view so nothing is clipped.
-- **Admin File Browser**: Settings → Admin → File Browser is a server-side directory browser (breadcrumb navigation, up-one-level, tap a folder to descend). It also serves as the **path picker** for libraries — when adding or editing a library, tap **Browse…** on the paths field to pick a folder on the server and have it filled in for you.
 - **Cast**: A Cast button on the media detail screen opens a discovery picker that finds **Chromecast, Roku, AirPlay, and DLNA** devices on your network, sends the item to the chosen device, and shows a live transport view (status badge polled every 2.5s, Play/Pause, Stop, and a seek bar). Capability-gated controls reflect what each backend supports (DLNA has no resume; Roku has no stop/seek; AirPlay has no seek). Leaving the screen keeps the device playing — only **Stop** halts it.
 - **Music**: Tapping a music library opens a dedicated Music screen with a segmented **Artists | Albums | Tracks** view. Artists list their albums in-screen; albums open an ordered track list (sorted by disc then track number); the Tracks tab pages through every track. Tapping any track plays it through the standard player (a track id is a media-item id — there is no separate audio player). Music aggregates across all music libraries server-side, so the per-library entry is informational.
 - **Photos**: Tapping a photo library opens a dedicated Photos screen that groups your pictures into **date-based albums** (a 2-column grid with cover thumbnails and per-album counts; a library picker appears when you have more than one photo library). Opening an album shows a 3-column thumbnail grid, and tapping a photo launches a full-screen, swipeable viewer. In the viewer, a tap toggles an **EXIF info overlay** (camera, lens, dimensions, date, GPS) and a **Slideshow** button auto-advances the album at the server's configured interval. All images load over signed URLs, so no extra authentication is needed.
@@ -84,9 +75,22 @@ Phlix Mobile is a React Native application built for the **Phlix media server** 
 
 > **Quality selection pins by playlist URL, not by a native resolution cap.** Picking a rung swaps the player to that rung's own signed HLS media playlist (server-side, zero native code); `Auto` plays the full multi-variant master and lets the native player (AVPlayer/Media3 ExoPlayer) run its own adaptive bitrate. A native `maxResolution` prop — capping the resolution native ABR is allowed to pick on the `Auto`/master path — was evaluated and intentionally left out: it needs real iOS/Android track-selection code and is redundant with the pin (which already hard-caps resolution). It's a possible **future native-side enhancement**, not a limitation of the quality picker itself.
 
-> **Profiles are SELF-SERVICE (was: upstream gap, closed).** The server exposes the caller's own profile CRUD on `GET/POST /api/v1/profiles` and `GET/PUT/DELETE /api/v1/profiles/{profileId}` (plus `.../pin` set/unset/verify) behind plain auth — every signed-in account manages its own family profiles, no admin hat needed. Mobile's `ProfileManager` uses exactly these routes (review M-MOBILE-07); the admin-gated `/api/v1/admin/users/{userId}/profiles` lane exists for administrative management of OTHER users and mobile does not call it. Activation is a separate `POST /api/v1/profiles/{id}/switch` that re-mints the session tokens — mobile's selection stays local (persisted profile id) until that flow is deliberately adopted.
+> **Profiles are SELF-SERVICE (was: upstream gap, closed).** The server exposes the caller's own profile CRUD on `GET/POST /api/v1/profiles` and `GET/PUT/DELETE /api/v1/profiles/{profileId}` (plus `.../pin` set/unset/verify) behind plain auth — every signed-in account manages its own family profiles, no admin hat needed. Mobile's `ProfileManager` uses exactly these routes<!-- review M-MOBILE-07 -->; the admin-gated `/api/v1/admin/users/{userId}/profiles` lane exists for administrative management of OTHER users and mobile does not call it. Activation is a separate `POST /api/v1/profiles/{id}/switch` that re-mints the session tokens — mobile's selection stays local (persisted profile id) until that flow is deliberately adopted.
 
-- **Live TV / EPG / DVR (admin-gated)**: Server administrators get **Settings → Admin → Live TV** — a channel list (number/name/type) with a "now playing" current-program label drawn from the EPG, an expandable per-channel guide (programs with time ranges), a one-tap **Refresh guide** action, and tap-a-channel-to-watch (the stream URL is resolved, then the player plays it). A **Recordings** screen lists upcoming + all DVR recordings, schedules a recording from any upcoming program (picker modal), deletes a recording (with confirm), and lists series rules (read-only). Most servers have no tuner — when Live TV is not configured the screens show an Empty State titled "Live TV is not set up" with a setup hint ("Set up a tuner and EPG source on the server to use Live TV." on the guide screen; "This server has no tuner or DVR configuration." on Recordings) instead of a raw error.
+### Admin Features
+
+The features below are available only to server administrator accounts (admin-gated; non-admins see no Admin section).
+
+- **Admin Dashboard**: Server administrators get a Settings → Admin → Dashboard showing now-playing sessions, top users, top media, per-library storage, and recent activity (admin-gated; non-admins see no Admin section).
+- **Admin Users**: Settings → Admin → Users lets administrators list accounts (filter by all/pending/active/disabled), approve/reject pending sign-ups, disable accounts, grant/revoke admin, reset a password (the freshly generated password is shown once), create and edit users, and delete accounts (the server's self / last-admin guard message is surfaced).
+- **Admin Libraries**: Settings → Admin → Libraries lets administrators add/edit/delete libraries (name, type, paths — with a **Browse…** server-side folder picker, `series_per_directory` for series), trigger Scan / Rescan / Match-metadata jobs with live progress (polled status, current path, percent), and review per-library scan history.
+- **Admin Plugins**: Settings → Admin → Plugins lets administrators manage server plugins from an **Installed | Catalog** view. Install a plugin from a URL (`https://` or `file://`), enable/disable installed plugins, edit a plugin's settings via a schema-driven form (secret fields are masked), and uninstall with confirmation. The Catalog tab browses configured catalog sources, lets you add or remove a source, and lists each catalog's available plugins.
+- **Admin Auth Providers**: Settings → Admin → Auth Providers lets administrators see the server's authentication providers and enable/disable each one. A provider's configuration schema can be viewed read-only (provider config itself is set on the server — there is no mobile write route).
+- **Admin Server Settings**: Settings → Admin → Server Settings lets administrators view and edit server configuration values, typed by the server (toggles for booleans, inputs for strings/numbers). Settings overridden by the environment are badged, and Save sends only the keys you changed.
+- **Admin Backup**: Settings → Admin → Backup lets administrators list existing backups (label, size, created date), create a new backup (with an optional label), restore a backup (with a clear destructive confirmation — it overwrites the current database/config and may restart the server), delete a backup, and upload a backup to S3. An auto-backup **schedule** card lets you set the backup interval (days) and how many backups to retain.
+- **Admin Logs**: Settings → Admin → Logs is a server log viewer — pick a log file (or **All logs (merged)**) to tail it, choose how many lines to show (200/500/1000), see a "truncated" badge when the file is longer, and pull to refresh. Long lines scroll horizontally in a monospace view so nothing is clipped.
+- **Admin File Browser**: Settings → Admin → File Browser is a server-side directory browser (breadcrumb navigation, up-one-level, tap a folder to descend). It also serves as the **path picker** for libraries — when adding or editing a library, tap **Browse…** on the paths field to pick a folder on the server and have it filled in for you.
+- **Live TV / EPG / DVR (admin-gated)**: Server administrators get **Settings → Admin → Live TV** — a channel list (number/name/type) with a "now playing" current-program label drawn from the EPG, an expandable per-channel guide (programs with time ranges), a one-tap **Refresh guide** action, and tap-a-channel-to-watch (the stream URL is resolved, then the player plays it). A **Recordings** screen lists upcoming + all DVR recordings, schedules a recording from any upcoming program (picker modal), deletes a recording (with confirm), and lists series rules (read-only). Most servers have no tuner — when Live TV is not configured the screens show an Empty State titled "Live TV is not set up" with a setup hint ("This server has no tuner or Live TV configuration. Set up a tuner and EPG source on the server to use Live TV." on the guide screen; "This server has no tuner or DVR configuration." on Recordings) instead of a raw error.
 
 > **Live TV is ADMIN-gated and a REACH feature.** Every route lives under `/api/v1/admin/livetv/*` (AdminMiddleware), and the server's Live TV route group is wrapped in try/catch ("not configured — silent ignore") and needs a configured tuner + EPG source. Mobile Live TV is therefore gated on `is_admin` (non-admins see "Admin access required") and treats 404/500 from these routes as "not configured". **There is NO user-facing Live TV route on the server** — add one upstream for true multi-user Live TV.
 >
@@ -134,7 +138,7 @@ Maintenance scripts: `npm run copyright` (`scripts/add-copyright.mjs`) idempoten
 inserts the `@copyright` header into non-test TS/JS sources — re-running it
 produces a zero diff once every file is stamped. `npm run check:podfile-lock`
 (`scripts/check-podfile-lock.mjs`, also a CI leg of `test.yml`) enforces the
-M-MOBILE-09 lock law: the committed `ios/Podfile.lock` must carry a top-level
+lock law<!-- M-MOBILE-09 -->: the committed `ios/Podfile.lock` must carry a top-level
 PODS entry for every native pod the current dependency set auto-links (source
 of truth: `react-native config` — the same command the Podfile's
 `use_native_modules!` shells out to). It is host-agnostic (node only — no
@@ -149,7 +153,7 @@ Before you begin, ensure you have the following installed:
 ### Common Requirements
 
 - **Node.js** (v24 or later — matches `"engines": { "node": ">=24" }` and CI)
-- **npm** (v9.x or later). The repo ships `package-lock.json` and CI installs
+- **npm** (11.5+ — the version bundled with Node 24.x; the `--allow-git=all` install flag below is an npm 11 feature, so older npm rejects the documented install command). The repo ships `package-lock.json` and CI installs
   with npm; **yarn** (v1.22.x or later) also works but installs floating —
   there is no committed yarn lock to honor. It also ignores npm's
   **`overrides`** field: the transitive mitigations declared there
@@ -355,8 +359,7 @@ npx react-native run-android
 
 ### Versioning
 
-The root `package.json` `"version"` is **the single source of truth**
-(reviews M-MOBILE-15 / M-MOBILE-25):
+The root `package.json` `"version"` is **the single source of truth**<!-- reviews M-MOBILE-15 / M-MOBILE-25 -->:
 
 - Bump it with `npm version <patch|minor|major>` — one line changes.
 - **Android**: `android/app/build.gradle` reads `package.json` at configure
@@ -439,9 +442,10 @@ automate (there is no fastlane or store-upload machinery in this repository).
 
 ### iOS
 
-1. **CI (shipped)**: builds the app for the **iOS Simulator** only (unsigned,
-   `CODE_SIGNING_ALLOWED=NO`) as a compile gate — it produces no installable
-   device artifact.
+1. **CI (shipped)**: builds the app unsigned (`CODE_SIGNING_ALLOWED=NO`) as a
+   compile gate — Debug for the **iOS Simulator**, and on `main`/`master`
+   Release for both the simulator and the arm64 device slice. It produces no
+   installable device artifact.
 2. **TestFlight / App Store (manual)**: archive with Xcode and upload to App
    Store Connect. Certificates, profiles, and exportOptions setup are covered
    in [docs/signing.md](docs/signing.md); the Xcode project itself is not yet
@@ -459,7 +463,7 @@ automate (there is no fastlane or store-upload machinery in this repository).
    normal one-year profile lifetime. An officially supported personal-
    device install path may arrive with TestFlight (item 2); until then
    this manual Xcode route is the whole story, and it is not exercised by
-   CI (see the simulator-only note in §CI/CD).
+   CI beyond the unsigned compile gates described in §CI/CD.
 
 ### CI/CD
 <!-- M-MOBILE-20 (review mobile__devops): this section is now the verified
@@ -481,10 +485,13 @@ Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
 `main`/`master`/`develop`; each can additionally be started manually
 (`workflow_dispatch`), which never replaces the automatic triggers:
 
-- **Tests**: `tsc` type check, ESLint, and the Jest suite — serial by
-  construction: the `package.json` `test` script is `jest --runInBand`
-  (MW-016, review mobile__devops: this sentence used to describe an intent
-  the CI line did not execute), with coverage uploaded.
+- **Tests**: `tsc` type check, ESLint, a copyright-header check
+  (`npm run copyright -- --check`), the Podfile.lock sync check
+  (`npm run check:podfile-lock`), the **security audit gate**
+  (`npm run audit:gate` — every reported advisory must appear in the reviewed
+  allowlist in `scripts/audit-gate.mjs`, otherwise the job fails), and the
+  Jest suite — serial by construction: the `package.json` `test` script is
+  `jest --runInBand`, with coverage uploaded.
 - **Build Android**: builds the debug APK and uploads it as a workflow
   artifact on every push/PR. Pushes to `main`/`master` additionally build
   a release APK — debug-signed until real signing is wired (see
@@ -492,16 +499,29 @@ Three GitHub Actions workflows — `test.yml`, `build-android.yml`,
   GitHub **prerelease** carrying the raw, directly installable APK
   (Actions artifacts are always served zipped; a Release is the only way
   to offer a bare installable `.apk`).
-- **Build iOS**: runs on a macOS runner and builds the app for the iOS
-  **simulator** unsigned (`xcodebuild … CODE_SIGNING_ALLOWED=NO`) as a
+- **Build iOS (Debug)**: runs on a macOS runner and builds the app for the
+  iOS **simulator** unsigned (`xcodebuild … CODE_SIGNING_ALLOWED=NO`) as a
   compile gate, plus a standalone JS bundle uploaded for inspection —
-  the bundle is NOT the device payload. Note what the gate does NOT
-  cover: the `generic/platform=iOS Simulator` destination never compiles
-  the arm64 **device** slice, so a device-only break (signing-adjacent
-  build settings, an arm64-only pod) surfaces first at the manual
-  archive step, not in CI. There is no device-signing or
-  TestFlight/App Store automation; that remains the manual archive
-  described in §Deployment.
+  the bundle is NOT the device payload.
+- **Build iOS (Release)**: a separate job that runs on pushes to
+  `main`/`master` only. It builds the **Release** configuration twice,
+  unsigned: once for the iOS Simulator and once for the arm64 **device**
+  slice (`generic/platform=iOS`), so a device-only break (signing-adjacent
+  build settings, an arm64-only pod) is caught in CI rather than first at
+  the manual archive step. It uploads the JS bundle and the dSYM. There is
+  still no device-signing or TestFlight/App Store automation and no `.ipa`;
+  that remains the manual archive described in §Deployment.
+
+### Release posture (OTA)
+
+The app ships **no over-the-air (OTA) update channel**: no CodePush,
+Expo Updates, or similar is wired in. The JS bundle is embedded in the
+installed app at build time (Xcode's "Bundle React Native code and images"
+phase on iOS, Gradle's bundling on Android) and nothing at runtime loads a
+bundle from disk or the network. Every JavaScript change therefore reaches
+users only through a new build; the iOS bundle uploaded by CI is an
+inspection artifact, not an update payload. Whether to adopt an OTA channel
+is an open owner decision and is not decided here.
 
 ## Troubleshooting
 
