@@ -166,6 +166,9 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   selectProfile: (profile: Profile) => {
+    // MOB-2/MOB-3: local display selection only — NOT a security boundary.
+    // The PIN prompt is a courtesy lock; no real-PIN flow until server
+    // per-profile scoping (POST /profiles/{id}/switch) lands.
     persistActiveProfileId(profile.id);
     set({ activeProfile: profile, activeProfileId: profile.id });
   },

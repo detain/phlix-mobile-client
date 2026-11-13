@@ -202,10 +202,12 @@ const ProfileSelectScreen: React.FC = () => {
             <Text style={styles.profileMeta}>
               {ratingToLabel(labelToRating(item.settings?.content_rating ?? 'UNRATED'))}
               {item.is_admin ? ' · Admin' : ''}
-              {item.settings?.pin_required_for_admin ? ' · 🔒' : ''}
+              {item.settings?.pin_required_for_admin ? ' · 🔒 Courtesy PIN' : ''}
             </Text>
           </View>
-          {isActive && <Text style={styles.activeBadge}>Active</Text>}
+          {/* MOB-2: "Active" is a local display choice only; the session token
+              and content filtering are not scoped to this profile yet. */}
+          {isActive && <Text style={styles.activeBadge}>Active (this phone)</Text>}
         </TouchableOpacity>
         <View style={styles.profileActions}>
           <TouchableOpacity
@@ -361,9 +363,9 @@ const ProfileSelectScreen: React.FC = () => {
           {/* MW-116: single-source keyboard padding for this sheet. */}
           <ModalSheet>
           <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Enter PIN</Text>
+            <Text style={styles.modalTitle}>Courtesy PIN</Text>
             <Text style={styles.modalSubtitle}>
-              {pinProfile?.name} is PIN-gated.
+              {pinProfile?.name} has a courtesy PIN on this phone.
             </Text>
             <Text style={styles.modalNote}>
               This phone checks the PIN on-device only — it is a courtesy lock.
