@@ -11,5 +11,7 @@ describe('serverLabel', () => {
     expect(isLiveTvEnabled({})).toBe(true);
     expect(isLiveTvEnabled({ livetv_enabled: false })).toBe(false);
     expect(isLiveTvEnabled({ livetv_enabled: true })).toBe(true);
+    // Guessed aliases are no longer honoured (MOB-S12): the row fails open.
+    expect(isLiveTvEnabled({ live_tv_enabled: false })).toBe(true);
   });
 });

@@ -407,6 +407,37 @@ describe('downloadStore', () => {
       expect(Object.keys(useDownloadStore.getState().tasks).sort()).toEqual(['ok', 'queued']);
     });
 
+    // MOB-S22: pruned tasks are written back so they do not re-warn each restore.
+    it('re-persists the pruned map when restore dropped entries', async () => {
+      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify({
+        good: { id: 'good', itemId: 'media-1', status: 'completed' },
+        bad: { id: 'bad', itemId: 'media-2', status: 'completed', localPath: '/etc/passwd' },
+      }));
+      await useDownloadStore.getState().loadPersistedTasks();
+      const stored = JSON.parse((await AsyncStorage.getItem(DOWNLOADS_KEY)) as string);
+      expect(Object.keys(stored)).toEqual(['good']);
+    });
+
+    it('leaves storage untouched when nothing was pruned', async () => {
+      const blob = JSON.stringify({ good: { id: 'good', itemId: 'media-1', status: 'completed' } });
+      await AsyncStorage.setItem(DOWNLOADS_KEY, blob);
+      await useDownloadStore.getState().loadPersistedTasks();
+      // persistTasks writes BOTH keys; the stats key staying absent proves no write-back ran.
+      expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
+      expect(await AsyncStorage.getItem(DOWNLOADS_KEY)).toBe(blob);
+    });
+
+    // MOB-S22: no published documentsPath => prefix would be '/', admitting any flat '/x'.
+    it('rejects a flat root path when documentsPath is empty/absent', async () => {
+      delete (NativeModules as Record<string, unknown>).PhlixDownloader;
+      await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify({
+        flat: { id: 'flat', itemId: 'm', status: 'completed', localPath: '/x.mp4' },
+        queued: { id: 'queued', itemId: 'q', status: 'queued', localPath: '' },
+      }));
+      await useDownloadStore.getState().loadPersistedTasks();
+      expect(Object.keys(useDownloadStore.getState().tasks)).toEqual(['queued']);
+    });
+
     it('drops a non-object tasks blob', async () => {
       await AsyncStorage.setItem(DOWNLOADS_KEY, JSON.stringify('not-an-object'));
       await useDownloadStore.getState().loadPersistedTasks();

@@ -38,6 +38,13 @@ function isContainedLocalPath(localPath: string): boolean {
   }
   const native = NativeModules.PhlixDownloader as { documentsPath?: string } | undefined;
   const root = (native?.documentsPath || '').replace(/\/+$/, '');
+  // MOB-S22: with no published root the prefix would collapse to '/', letting
+  // any flat '/x' pass. No honest write path exists without the native root
+  // (beginDownload refuses module-absent builds), so a non-empty path is
+  // untrustable here.
+  if (root === '') {
+    return false;
+  }
   const prefix = `${root}/`;
   if (!localPath.startsWith(prefix)) {
     return false;
@@ -316,6 +323,7 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
 
   loadPersistedTasks: async () => {
     try {
+      let prunedAtRestore = false;
       const [data, storageData] = await Promise.all([
         AsyncStorage.getItem(DOWNLOADS_KEY),
         AsyncStorage.getItem(STORAGE_KEY),
@@ -326,7 +334,17 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         // entries missing `id`/`status`) used to land in state verbatim.
         // Shape-check the container AND every task at this boundary; bad
         // entries are dropped, not trusted.
-        set({ tasks: sanitizeTasksBlob(JSON.parse(data)) });
+        const raw = JSON.parse(data);
+        const clean = sanitizeTasksBlob(raw);
+        set({ tasks: clean });
+        // MOB-S22: write the pruned map back so dropped tasks are not
+        // re-warned and re-filtered on every restore. Deferred until the
+        // storage stats below are restored (persistTasks writes both keys).
+        prunedAtRestore =
+          typeof raw === 'object' &&
+          raw !== null &&
+          !Array.isArray(raw) &&
+          Object.keys(clean).length !== Object.keys(raw as object).length;
       }
       if (storageData) {
         const parsed = JSON.parse(storageData) as Record<string, unknown>;
@@ -342,6 +360,9 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
               ? parsed.availableStorage
               : 0,
         });
+      }
+      if (prunedAtRestore) {
+        await get().persistTasks();
       }
     } catch (err) { console.error('[downloadStore] Failed to load:', err); }
   },

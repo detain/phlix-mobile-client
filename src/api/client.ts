@@ -154,10 +154,10 @@ const REST_ERROR_USER_MESSAGES: Readonly<Record<string, string>> = {
   // day the emitters land, the same posture the queue-limit row took in the
   // v0.5.3 era (catalog shipped before srv 7baa398a switched the emit).
   'not_found': 'That item could not be found on this server.',
-  'hub.jwt_invalid': 'The hub rejected your session. Sign in to the hub again.',
-  'hub.token_required': 'Sign in to the hub first.',
-  'hub.not_enrolled': 'This hub account is not enrolled for that operation.',
-  'hub.protocol_unsupported': 'This hub version does not support that operation.',
+  'hub.jwt_invalid': 'The Hub rejected your session. Sign in to Hub again.',
+  'hub.token_required': 'Sign in to Hub first.',
+  'hub.not_enrolled': 'This Hub account is not enrolled for that operation.',
+  'hub.protocol_unsupported': 'This Hub version does not support that operation.',
 };
 
 /** Wire-code shape: dotted lowercase snake tokens (plus legacy SCREAMING

@@ -26,13 +26,16 @@ export function serverCardLabel(serverName: string, serverUrl: string): string {
  * MOB-14: Live TV row visibility from the admin settings bag. Hidden only
  * when the server states the flag explicitly false; unknown/absent keeps the
  * row (older servers carry no flag).
+ *
+ * MOB-S12: phlix-server's admin settings schema declares NO Live TV flag today
+ * (verified: no livetv/live_tv enabled key in src/ or config/), so the row never
+ * hides against a current server — it fails open, which is the safe direction.
+ * The guessed alias list is narrowed to the one key that follows the settings
+ * bag's snake_case convention; if the server ever publishes a different key,
+ * change it here and in the test together.
  */
 export function isLiveTvEnabled(settings: Record<string, unknown> | null | undefined): boolean {
   if (!settings) return true;
-  for (const key of ['livetv_enabled', 'live_tv_enabled', 'livetv.enabled', 'livetv']) {
-    const v = settings[key];
-    if (v === false || v === 0 || v === '0' || v === 'false') return false;
-    if (v !== undefined) return true;
-  }
-  return true;
+  const v = settings.livetv_enabled;
+  return !(v === false || v === 0 || v === '0' || v === 'false');
 }
