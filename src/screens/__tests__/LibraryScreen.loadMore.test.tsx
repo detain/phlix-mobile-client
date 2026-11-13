@@ -408,3 +408,73 @@ describe('MOB-7 — a reset supersedes an in-flight page', () => {
     });
   });
 });
+
+describe('MOB-S6 — load-more vs an in-flight reset', () => {
+  it('refuses load-more while a reset is in flight and never reuses a stale offset', async () => {
+    await mountWithFirstPage();
+    mockGetLibraryItems.mockResolvedValueOnce({ items: page(LIMIT, LIMIT) });
+    endReached();
+    await flush();
+    host.rerender();
+    expect(itemCount()).toBe(2 * LIMIT);
+
+    // A closure from this render still carries offset 40.
+    const staleFire = grid().props.onEndReached as () => void;
+    const refreshControl = grid().props.refreshControl as El;
+
+    const reset = deferred<{ items: unknown[] }>();
+    mockGetLibraryItems.mockReturnValueOnce(reset.promise);
+    const refreshing = (refreshControl.props.onRefresh as () => Promise<void>)();
+    const callsDuringReset = mockGetLibraryItems.mock.calls.length;
+
+    staleFire(); // fired after the generation bump, before the reset lands
+    expect(mockGetLibraryItems).toHaveBeenCalledTimes(callsDuringReset);
+
+    reset.resolve({ items: page(500, LIMIT) });
+    await refreshing;
+    await flush();
+
+    // Stale closure, reset landed but the screen has not re-rendered yet: the
+    // next page must continue the reset's list (offset 20), not offset 40.
+    mockGetLibraryItems.mockResolvedValueOnce({ items: page(520, LIMIT) });
+    staleFire();
+    expect(mockGetLibraryItems).toHaveBeenLastCalledWith('L1', {
+      limit: LIMIT,
+      offset: LIMIT,
+    });
+    await flush();
+    host.rerender();
+    const ids = (grid().props.data as Array<{ id: string }>).map((i) => i.id);
+    expect(ids).toEqual([...page(500, LIMIT), ...page(520, LIMIT)].map((i) => i.id));
+  });
+});
+
+describe('MOB-S6 — a failed refresh with items on screen is non-blocking', () => {
+  it('keeps the grid and the auto-pager; the notice is dismissed by the next load', async () => {
+    await mountWithFirstPage();
+    mockGetLibraryItems.mockRejectedValueOnce(new Error('offline'));
+    const refreshControl = grid().props.refreshControl as El;
+    await (refreshControl.props.onRefresh as () => Promise<void>)();
+    await flush();
+    host.rerender();
+
+    expect(itemCount()).toBe(LIMIT);
+    expect(retryButton()).toBeNull(); // no footer reset-to-page-1 Retry
+    const header = grid().props.ListHeaderComponent as El;
+    expect(findEls(header, (el) => el.props.children === 'Could not refresh this library')).toHaveLength(1);
+
+    // The pager still runs, continuing from the intact offset.
+    mockGetLibraryItems.mockResolvedValueOnce({ items: page(LIMIT, 2) });
+    endReached();
+    expect(mockGetLibraryItems).toHaveBeenLastCalledWith('L1', {
+      limit: LIMIT,
+      offset: LIMIT,
+    });
+    await flush();
+    host.rerender();
+    expect(itemCount()).toBe(LIMIT + 2);
+
+    // The notice clears once a later load starts.
+    expect(grid().props.ListHeaderComponent).toBeNull();
+  });
+});

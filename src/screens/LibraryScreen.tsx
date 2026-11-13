@@ -40,7 +40,6 @@ const LibraryScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [offset, setOffset] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // A failed items page: its copy plus WHICH load failed (page 1 / refresh
   // vs a later page), so Retry re-runs exactly the request that failed.
@@ -59,6 +58,21 @@ const LibraryScreen: React.FC = () => {
   // generation; a page that resolves under an older generation is dropped so
   // library A's page can never be appended to library B's grid.
   const itemsGenerationRef = useRef(0);
+
+  // MOB-S6: a reset is in flight from the moment it opens its generation until
+  // it settles. A load-more fired in that window would capture the NEW
+  // generation but a STALE offset (the closure predates the reset's render) and
+  // append onto the reset's page 1, skipping a page — so load-more is refused
+  // while this is set. The offset itself lives in a ref (written only when a
+  // page lands) so no closure can ever read a stale one.
+  const resetInFlightRef = useRef(false);
+  const offsetRef = useRef(0);
+  // Mirrors items.length for closures that outlive a render (focus refetch).
+  const hasItemsRef = useRef(false);
+  // MOB-S6: a background refresh (focus refetch / pull-to-refresh) that fails
+  // while items are on screen is NON-blocking — the grid stays usable and the
+  // auto-pager keeps running; the notice carries its own Retry in the header.
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
 
   const LIMIT = 20;
 
@@ -101,7 +115,7 @@ const LibraryScreen: React.FC = () => {
       return;
     }
     if (!reset) {
-      if (loadMoreInFlightRef.current) {
+      if (loadMoreInFlightRef.current || resetInFlightRef.current) {
         return;
       }
       loadMoreInFlightRef.current = true; // latch BEFORE the await
@@ -109,17 +123,20 @@ const LibraryScreen: React.FC = () => {
     const generation = reset
       ? ++itemsGenerationRef.current
       : itemsGenerationRef.current;
+    if (reset) {
+      resetInFlightRef.current = true;
+    }
 
     try {
       if (reset) {
         setIsLoadingItems(true);
-        setOffset(0);
       } else {
         setIsLoadingMore(true);
       }
       setPageError(null);
+      setRefreshNotice(null);
 
-      const newOffset = reset ? 0 : offset;
+      const newOffset = reset ? 0 : offsetRef.current;
       const response = await libraryManager.getLibraryItems(selectedLibrary.id, {
         limit: LIMIT,
         offset: newOffset,
@@ -131,16 +148,23 @@ const LibraryScreen: React.FC = () => {
 
       if (reset) {
         setItems(response.items);
+        hasItemsRef.current = response.items.length > 0;
       } else {
         setItems((prev) => [...prev, ...response.items]);
+        hasItemsRef.current = hasItemsRef.current || response.items.length > 0;
       }
 
       // The items endpoint returns no has_more/total; infer from page fullness.
       setHasMore(response.items.length === LIMIT);
-      setOffset(newOffset + response.items.length);
+      offsetRef.current = newOffset + response.items.length;
     } catch (err) {
       console.error('Failed to load library items:', err);
       if (generation === itemsGenerationRef.current) {
+        if (reset && hasItemsRef.current) {
+          // MOB-S6: keep the grid and the pager; surface a non-blocking notice.
+          setRefreshNotice(apiErrorMessage(err, 'Could not refresh this library'));
+          return;
+        }
         // MOB-7: a failed page used to vanish into console.error — the grid
         // just stopped growing. Surface it with an inline retry instead.
         setPageError({
@@ -154,6 +178,7 @@ const LibraryScreen: React.FC = () => {
     } finally {
       if (reset) {
         if (generation === itemsGenerationRef.current) {
+          resetInFlightRef.current = false;
           setIsLoadingItems(false);
         }
       } else {
@@ -184,6 +209,7 @@ const LibraryScreen: React.FC = () => {
       !isLoadingItems &&
       hasMore &&
       !pageError &&
+      !resetInFlightRef.current &&
       !loadMoreInFlightRef.current
     ) {
       loadLibraryItems(false);
@@ -321,6 +347,21 @@ const LibraryScreen: React.FC = () => {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          refreshNotice && items.length > 0 ? (
+            <View style={styles.pageError}>
+              <Text style={styles.pageErrorText}>{refreshNotice}</Text>
+              <TouchableOpacity
+                style={styles.pageRetryButton}
+                onPress={handleRefresh}
+                accessibilityRole="button"
+                accessibilityLabel="Retry refreshing library"
+              >
+                <Text style={styles.pageRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
         ListFooterComponent={
           isLoadingItems || isLoadingMore ? (
             <LoadingSpinner size="small" />

@@ -30,6 +30,13 @@ import { userManager } from '../api/UserManager';
 import { apiErrorMessage } from '../api/client';
 import { buildResumeMap, ticksToSeconds } from '../utils/resumePositions';
 import { MediaItem, Season, Episode } from '../types/media';
+import {
+  effectiveEpisodeLimit,
+  growEpisodeWindow,
+  initialEpisodeWindow,
+  remainingEpisodes,
+  visibleEpisodes,
+} from '../utils/episodeWindow';
 import type { Chapter } from '../types/playback';
 import type { HomeStackParamList, LibraryStackParamList } from '../types/navigation';
 import {
@@ -81,7 +88,6 @@ const formatRuntime = (minutes: number): string => {
 // MOB-20: season episode list is chunked-render (not a nested FlatList: the
 // list lives inside the screen's vertical ScrollView, and a FlatList footer
 // there would lose virtualization anyway). Memoized row + "show more" growth.
-const EPISODE_CHUNK = 40;
 
 const EpisodeRow = memo(function EpisodeRowImpl({
   episode,
@@ -123,7 +129,8 @@ const MediaDetailScreen: React.FC = () => {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
-  const [episodeLimit, setEpisodeLimit] = useState(EPISODE_CHUNK);
+  const [episodeWindow, setEpisodeWindow] = useState(initialEpisodeWindow);
+  const episodeLimit = effectiveEpisodeLimit(episodeWindow, selectedSeason?.id ?? null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // E4: live download state for this item (undefined = not downloading/downloaded).
@@ -256,10 +263,8 @@ const MediaDetailScreen: React.FC = () => {
     try {
       const episodeList = await libraryManager.getEpisodes(seasonId);
       setEpisodes(episodeList);
-      setEpisodeLimit(EPISODE_CHUNK);
     } catch {
       setEpisodes([]);
-      setEpisodeLimit(EPISODE_CHUNK);
     }
   };
 
@@ -725,17 +730,17 @@ const MediaDetailScreen: React.FC = () => {
             </View>
 
             <View style={styles.episodesList}>
-              {episodes.slice(0, episodeLimit).map((episode) => (
+              {visibleEpisodes(episodes, episodeLimit).map((episode) => (
                 <EpisodeRow key={episode.id} episode={episode} onPress={handleEpisodePress} />
               ))}
               {episodes.length > episodeLimit && (
                 <TouchableOpacity
                   testID="episodesShowMore"
                   accessibilityRole="button"
-                  onPress={() => setEpisodeLimit((n) => n + EPISODE_CHUNK)}
+                  onPress={() => setEpisodeWindow((w) => growEpisodeWindow(w, selectedSeason?.id ?? null))}
                 >
                   <Text style={styles.episodeRuntime}>
-                    {`Show more episodes (${episodes.length - episodeLimit} remaining)`}
+                    {`Show more episodes (${remainingEpisodes(episodes.length, episodeLimit)} remaining)`}
                   </Text>
                 </TouchableOpacity>
               )}

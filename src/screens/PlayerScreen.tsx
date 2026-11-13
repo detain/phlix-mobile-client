@@ -38,7 +38,7 @@ import type { RootStackParamList } from '../types/navigation';
 import type { QualitySelection, Rendition } from '@phlix/contracts';
 import { AUTO_QUALITY } from '@phlix/contracts';
 import { SeekBar } from '../components/player/SeekBar';
-import { classifyTap, DOUBLE_TAP_WINDOW_MS, LastTap } from '../utils/doubleTapSeek';
+import { createTapController, TapController } from '../utils/doubleTapSeek';
 import { SkipButton } from '../components/player/SkipButton';
 import { QualityMenu } from '../components/player/QualityMenu';
 import { AudioTrackList } from '../components/player/AudioTrackList';
@@ -1040,51 +1040,29 @@ const PlayerScreen: React.FC = () => {
 
   // MOB-S25 (MOB-43): double-tap an edge of the surface = seek -/+10s. An edge
   // tap is deferred so a second tap can promote it; centre taps toggle at once.
-  const lastTapRef = useRef<LastTap | null>(null);
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (tapTimerRef.current) {
-      clearTimeout(tapTimerRef.current);
-    }
-  }, []);
-  // The deferred toggle fires later: read the LATEST toggleControls (it closes
-  // over showControls) rather than the render-time one.
-  const toggleControlsRef = useRef(toggleControls);
-  toggleControlsRef.current = toggleControls;
+  // The controller outlives renders; it reads the LATEST closures (toggle
+  // closes over showControls, seek over duration) through this ref.
+  const tapDeps = {
+    toggle: toggleControls,
+    seek: (delta: number) => {
+      handleSeek(stepSeekSeconds(currentPositionRef.current, delta, durationRef.current));
+    },
+    isLive: isLiveStream,
+  };
+  const tapDepsRef = useRef(tapDeps);
+  tapDepsRef.current = tapDeps;
+  const tapControllerRef = useRef<TapController | null>(null);
+  if (tapControllerRef.current === null) {
+    tapControllerRef.current = createTapController({
+      getWidth: () => Dimensions.get('window').width,
+      onToggle: () => tapDepsRef.current.toggle(),
+      onSeek: (delta) => tapDepsRef.current.seek(delta),
+      isLive: () => tapDepsRef.current.isLive,
+    });
+  }
+  useEffect(() => () => tapControllerRef.current?.dispose(), []);
   const handleSurfaceTap = (e?: GestureResponderEvent) => {
-    const now = Date.now();
-    const winW = Dimensions.get('window').width;
-    // No coordinates (e.g. programmatic press) = centre tap.
-    const x = e?.nativeEvent?.pageX ?? winW / 2;
-    const decision = classifyTap(
-      x,
-      winW,
-      now,
-      lastTapRef.current,
-    );
-    if (tapTimerRef.current) {
-      clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = null;
-    }
-    if (decision.kind === 'seek') {
-      lastTapRef.current = null;
-      handleSeek(stepSeekSeconds(currentPositionRef.current, decision.delta, durationRef.current));
-      return;
-    }
-    if (decision.kind === 'toggle') {
-      lastTapRef.current = null;
-      toggleControls();
-      return;
-    }
-    lastTapRef.current = {
-      zone: x < winW / 2 ? 'left' : 'right',
-      at: now,
-    };
-    tapTimerRef.current = setTimeout(() => {
-      tapTimerRef.current = null;
-      lastTapRef.current = null;
-      toggleControlsRef.current();
-    }, DOUBLE_TAP_WINDOW_MS);
+    tapControllerRef.current?.handleTap(e?.nativeEvent?.pageX);
   };
 
   // ── M-MOBILE-15: Autoplay-next-episode — the toggle's ONLY reader ────────
