@@ -32,6 +32,23 @@ Recurring estate shorthand, defined once here:
 
 ## [Unreleased]
 
+### Fixed — Android/iOS native build repaired for React Native 0.88.1 — 2026-11-13
+
+The RN 0.88.1 dependency upgrade left both native build workflows red.
+Android: `MainApplication.kt` still built a legacy `DefaultReactNativeHost`
+(`Argument type mismatch: ReactNativeHost.Companion`); it now follows the 0.88
+template — `reactHost` is created with `getDefaultReactHost(context,
+packageList)` and the manual `Phlix*Package` registrations ride on that
+package list (new-architecture only, behaviour unchanged). iOS: the committed
+`ios/Podfile.lock` still pinned the RN 0.85.3 pod graph, so `pod install`
+aborted on `React-Core-prebuilt`; the lock is regenerated (`pod update
+--no-repo-update`, every pod is a local/node_modules path pod) at 0.88.1.
+VENUE DISCLOSURE: generated on Linux CocoaPods 1.17.0 (the lock's own stamp)
+with inert scratch shims for `xcodebuild -version` and the `command -v
+ccache` probe, as for the earlier Linux regeneration; `PODFILE CHECKSUM`
+unchanged. Owner macOS re-verification: `cd ios && pod install && git diff
+ios/Podfile.lock` (expect zero diff).
+
 ### Changed — estate dependency upgrade (npm + CI actions) — 2026-11-13
 
 - Lock re-resolved to the newest in-range transitive set; `npm audit` unchanged
